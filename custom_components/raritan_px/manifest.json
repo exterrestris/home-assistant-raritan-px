@@ -1,0 +1,16 @@
+{
+  "domain": "raritan_px",
+  "name": "Raritan PX2/PX3 PDU",
+  "version": "0.0.1",
+  "integration_type": "device",
+  "documentation": "https://github.com/exterrestris/home-assistant-raritan-px",
+  "issue_tracker": "https://github.com/exterrestris/home-assistant-raritan-px/issues",
+  "codeowners": [
+    "@exterrestris"
+  ],
+  "config_flow": true,
+  "requirements": [
+    "raritan==4.3.13.52458"
+  ],
+  "iot_class": "local_polling"
+}
