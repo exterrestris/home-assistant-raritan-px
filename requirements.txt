@@ -1,0 +1,5 @@
+colorlog==6.10.1
+homeassistant==2026.3.2
+raritan==4.3.13.52458
+pip>=21.3.1
+ruff==0.15.7
