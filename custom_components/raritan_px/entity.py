@@ -16,6 +16,7 @@ from .api import (
     RaritanPdu,
     RaritanPduEnergyDevice,
     RaritanPduOutlet,
+    RaritanPduInlet,
 )
 from .coordinator import RaritanPduDataUpdateCoordinator
 
@@ -127,6 +128,10 @@ class CoordinatedRaritanPduDeviceEntity(
         """Get the device name to use for this entity."""
         raise NotImplementedError
 
+    @abstractmethod
+    def _get_device_model(self) -> str | None:
+        """Get the device model to use for this entity."""
+        raise NotImplementedError
 
 class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
@@ -143,14 +148,16 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
         """Initialize the entity."""
         super().__init__(device, device, coordinator, description)
 
-
-
-    def _get_device_name(self) -> str | None:
+    def _get_device_name(self) -> str:
         """Get the device name to use for this entity."""
         if self._device.name:
             return self._device.name
 
         return f"{self._device.model} {self._device.serial_number}"
+
+    def _get_device_model(self) -> str:
+        """Get the device model to use for this entity."""
+        return self._pdu.model
 
 
 class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity, ABC):
@@ -174,7 +181,16 @@ class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity,
         if self._device.name:
             return self._device.name
 
-        return f"Outlet {self._device.label}"
+        return f"{self._get_device_type()} {self._device.label}"
+
+    def _get_device_model(self) -> str:
+        """Get the device model to use for this entity."""
+        return f"{self._pdu.model} {self._get_device_type()}"
+
+    @abstractmethod
+    def _get_device_type(self) -> str:
+        """Get the device type to use for this entity."""
+        raise NotImplementedError
 
 
 class CoordinatedRaritanPduOutletEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
@@ -193,19 +209,27 @@ class CoordinatedRaritanPduOutletEntity(CoordinatedRaritanPduEnergyDeviceEntity,
         """Initialize the entity."""
         super().__init__(device, pdu, coordinator, description)
 
+    def _get_device_type(self) -> str:
+        """Get the device type to use for this entity."""
+        return "Outlet"
+
 
 class CoordinatedRaritanPduInletEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
 
-    _device: RaritanPduOutlet
+    _device: RaritanPduInlet
     entity_description: RaritanPduInletEntityDescription
 
     def __init__(
         self,
-        device: RaritanPduOutlet,
+        device: RaritanPduInlet,
         pdu: RaritanPdu,
         coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanPduInletEntityDescription,
     ) -> None:
         """Initialize the entity."""
         super().__init__(device, pdu, coordinator, description)
+
+    def _get_device_type(self) -> str:
+        """Get the device type to use for this entity."""
+        return "Inlet"
