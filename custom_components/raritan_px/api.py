@@ -1,16 +1,25 @@
 """API client for Raritan PX devices."""
 
 from __future__ import annotations
+from itertools import product
 import logging
-from dataclasses import dataclass
+from datetime import datetime, timezone
+from dataclasses import dataclass, field, fields
+from typing import Any, Self, TypeVar, Callable
 from raritan import rpc
-from raritan.rpc import pdumodel
+from raritan.rpc import perform_bulk, Interface as RpcInterface, Structure as RpcStructure
+from raritan.rpc.pdumodel import Pdu, Outlet, Inlet, OverCurrentProtector
+from raritan.rpc.cascading import CascadeManager
 from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
+from raritan.rpc.sensors import Sensor, StateSensor, NumericSensor, AccumulatingNumericSensor
 from homeassistant.core import HomeAssistant
 from .const import API_TIMEOUT
+from more_itertools import grouper, interleave, collapse, flatten
+
 _LOGGER = logging.getLogger(__name__)
 
+T = TypeVar('T', bound="RaritanPduDevice", covariant=True)
 
 @dataclass
 class ConnectionDetails:
@@ -183,40 +192,366 @@ class RaritanClient:
         await self.authenticate()
 
         try:
-            pdu = pdumodel.Pdu(f"/model/pdu/{pdu_idx}", self._agent)
-            metadata: pdumodel.Pdu.MetaData = await self._hass.async_add_executor_job(
-                pdu.getMetaData
-            )
-            settings: pdumodel.Pdu.Settings = await self._hass.async_add_executor_job(
-                pdu.getSettings
+            pdu: Pdu = Pdu(f"/model/pdu/{pdu_idx}", self._agent)
+            cascade = CascadeManager("/cascade", self._agent)
+
+            responses = await self._hass.async_add_executor_job(
+                perform_bulk, self._agent, [
+                    (pdu.getMetaData, []),
+                    (pdu.getSettings, []),
+                    (pdu.getOutlets, []),
+                    (pdu.getInlets, []),
+                    (pdu.getSensors, []),
+                    (cascade.getStatus, []),
+                ]
             )
 
-            return RaritanPdu(
-                host=self._config.host,
-                name=settings.name,
-                model=metadata.nameplate.model,
-                serial_number=metadata.nameplate.serialNumber,
-                firmware_version=metadata.fwRevision,
-                mac_address=metadata.macAddress,
-                has_switchable_outlets=metadata.hasSwitchableOutlets,
-                has_metered_outlets=metadata.hasMeteredOutlets,
-            )
+            pdu_metadata: Pdu.MetaData = responses[0] # pyright: ignore[reportAssignmentType]
+            psu_settings: Pdu.Settings = responses[1] # pyright: ignore[reportAssignmentType]
+            pdu_outlets: list[Outlet] = responses[2] # pyright: ignore[reportAssignmentType]
+            pdu_inlets: list[Inlet] = responses[3] # pyright: ignore[reportAssignmentType]
+            pdu_sensors: Pdu.Sensors = responses[4] # pyright: ignore[reportAssignmentType]
+            status: CascadeManager.Status = responses[5] # pyright: ignore[reportAssignmentType]
         except rpc.HttpException as e:
-            _LOGGER.exception("Error fetching PDU metadata")
+            _LOGGER.exception(f"Error fetching PDU {pdu_idx} information")
 
-            message: str = f"Failed to fetch PDU metadata for {self._config.host}"
+            message: str = (
+                f"Failed to fetch PDU {pdu_idx} information for {self._config.host}"
+            )
             raise RaritanClientError(message) from e
+        else:
+            device = RaritanPdu(
+                device_id=f"{self._config.host}/model/pdu/{pdu_idx}",
+                pdu_id=pdu_idx,
+                host=self._config.host,
+                name=psu_settings.name,
+                manufacturer=pdu_metadata.nameplate.manufacturer,
+                model=pdu_metadata.nameplate.model,
+                serial_number=pdu_metadata.nameplate.serialNumber,
+                firmware_version=pdu_metadata.fwRevision,
+                hardware_version=pdu_metadata.hwRevision,
+                mac_address=pdu_metadata.macAddress,
+                has_switchable_outlets=pdu_metadata.hasSwitchableOutlets,
+                has_metered_outlets=pdu_metadata.hasMeteredOutlets,
+                is_standalone= status.role == CascadeManager.Role.STANDALONE, # pyright: ignore[reportAttributeAccessIssue]
+                outlets=await self._get_outlets_info(pdu_idx, pdu_outlets),
+                inlets=await self._get_inlets_info(pdu_idx, pdu_inlets),
+                sensors=RaritanPduSensors.from_sensor_sources({
+                    'power_supply_status': pdu_sensors.powerSupplyStatus,
+                    'active_power': pdu_sensors.activePower,
+                    'apparent_power': pdu_sensors.apparentPower,
+                    'active_energy': pdu_sensors.activeEnergy,
+                    'apparent_energy': pdu_sensors.apparentEnergy,
+                })
+            )
+
+            return await self._update_device_sensors_data(device)
+
+    async def _get_outlets_info(self, pdu_idx: int, pdu_outlets: list[Outlet]) -> list[RaritanPduOutlet]:
+        try:
+            responses = await self._hass.async_add_executor_job(
+                perform_bulk, self._agent, interleave(
+                    [(outlet.getMetaData, []) for outlet in pdu_outlets],
+                    [(outlet.getSettings, []) for outlet in pdu_outlets],
+                    [(outlet.getSensors, []) for outlet in pdu_outlets],
+                )
+            )
+
+            outlets: list[RaritanPduOutlet] = []
+
+            outlet_metadata: Outlet.MetaData
+            outlet_settings: Outlet.Settings
+            outlet_sensors: Outlet.Sensors
+
+            for outlet_idx, (outlet_metadata, outlet_settings, outlet_sensors) in enumerate(grouper(responses, 3)): # pyright: ignore[reportAssignmentType]
+                outlets.append(
+                    RaritanPduOutlet(
+                        device_id=f"{self._config.host}/model/pdu/{pdu_idx}/outlet/{outlet_idx}",
+                        pdu_id=pdu_idx,
+                        outlet_id=outlet_idx,
+                        name=outlet_settings.name,
+                        label=outlet_metadata.label,
+                        is_switchable=outlet_metadata.isSwitchable,
+                        sensors=RaritanPduOutletSensors.from_sensor_sources({
+                            'voltage': outlet_sensors.voltage,
+                            'current': outlet_sensors.current,
+                            'active_power': outlet_sensors.activePower,
+                            'apparent_power': outlet_sensors.apparentPower,
+                            'active_energy': outlet_sensors.activeEnergy,
+                            'apparent_energy': outlet_sensors.apparentEnergy,
+                        }),
+                    )
+                )
+        except rpc.HttpException as e:
+            _LOGGER.exception("Error fetching PDU outlets")
+
+            message: str = f"Failed to fetch PDU outlets for {self._config.host}"
+            raise RaritanClientError(message) from e
+        else:
+            return outlets
+
+    async def _get_inlets_info(self, pdu_idx: int, pdu_inlets: list[Inlet]) -> list[RaritanPduInlet]:
+        try:
+            responses = await self._hass.async_add_executor_job(
+                perform_bulk, self._agent, interleave(
+                    [(inlet.getMetaData, []) for inlet in pdu_inlets],
+                    [(inlet.getSettings, []) for inlet in pdu_inlets],
+                    [(inlet.getSensors, []) for inlet in pdu_inlets],
+                )
+            )
+
+            inlets: list[RaritanPduInlet] = []
+
+            inlet_metadata: Inlet.MetaData
+            inlet_settings: Inlet.Settings
+            inlet_sensors: Inlet.Sensors
+
+            for inlet_idx, (inlet_metadata, inlet_settings, inlet_sensors) in enumerate(grouper(responses, 3)): # pyright: ignore[reportAssignmentType]
+                inlets.append(
+                    RaritanPduInlet(
+                        device_id=f"{self._config.host}/model/pdu/{pdu_idx}/outlet/{inlet_idx}",
+                        pdu_id=pdu_idx,
+                        inlet_id=inlet_idx,
+                        name=inlet_settings.name,
+                        label=inlet_metadata.label,
+                        sensors=RaritanPduInletSensors.from_sensor_sources({
+                            'voltage': inlet_sensors.voltage,
+                            'current': inlet_sensors.current,
+                            'active_power': inlet_sensors.activePower,
+                            'apparent_power': inlet_sensors.apparentPower,
+                            'active_energy': inlet_sensors.activeEnergy,
+                            'apparent_energy': inlet_sensors.apparentEnergy,
+                        }),
+                    )
+                )
+        except rpc.HttpException as e:
+            _LOGGER.exception("Error fetching PDU outlets")
+
+            message: str = f"Failed to fetch PDU outlets for {self._config.host}"
+            raise RaritanClientError(message) from e
+        else:
+            return inlets
+
+    async def _update_device_sensors_data(self, device: T) -> T:
+        update_requests = [
+            (sensor, request, update) for sensor, (request, update) in list(
+                flatten([list(product([sensor], sensor_updates))
+                for sensor, sensor_updates in [(sensor, sensor.update_methods()) for sensor in device.available_sensors]])
+            )
+        ]
+
+        sensors, requests, update_methods = [list(tup) for tup in zip(*update_requests)]
+
+        _LOGGER.debug("Updating sensor data")
+
+        responses = await self._hass.async_add_executor_job(
+            perform_bulk, self._agent, interleave(requests)
+        )
+
+        for (sensor, response, method) in zip(sensors, responses, update_methods):
+            method(response)
+
+        return device
+
+    async def update_pdu_sensors_data(self, pdu: RaritanPdu) -> RaritanPdu:
+        await self.authenticate()
+
+        return await self._update_device_sensors_data(pdu)
 
 
 @dataclass
-class RaritanPdu:
-    """Representation of a Raritan PDU device."""
+class RaritanUpdatable():
+    """Representation of a generic updatable value."""
+
+    source: RpcInterface
+
+    def update_methods(self) -> list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[RpcStructure], None]]]:
+        return []
+
+
+@dataclass
+class RaritanSensor(RaritanUpdatable):
+    """Representation of a generic device sensor."""
+
+    source: Sensor
+
+@dataclass
+class RaritanStateSensor(RaritanSensor):
+    """Representation of a device state sensor."""
+
+    source: StateSensor
+    state: Any = None
+
+    def update_methods(self) -> list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[StateSensor.State], None]]]:
+        return [
+            ((self.source.getState, []), self.update_state),
+        ]
+
+    def update_state(self, state: StateSensor.State) -> None:
+        self.state = state.value
+
+@dataclass
+class RaritanNumericSensor(RaritanSensor):
+    """Representation of a device numeric sensor."""
+
+    source: NumericSensor
+    reading: float | None = None
+    unit: Any | None = None
+
+    def update_methods(self) -> list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[Any], None]]]:
+        return [
+            ((self.source.getReading, []), self.update_reading),
+            ((self.source.getMetaData, []), self.update_metadata),
+        ]
+
+    def update_reading(self, reading: NumericSensor.Reading) -> None:
+        self.reading = reading.value
+
+    def update_metadata(self, reading: NumericSensor.MetaData) -> None:
+        self.unit = reading.type.unit
+
+
+@dataclass
+class RaritanAccumulatingSensor(RaritanNumericSensor):
+    """Representation of a device accumulating numeric sensor."""
+
+    source: AccumulatingNumericSensor
+    last_reset: datetime | None = None
+
+
+@dataclass
+class RaritanDeviceSensors:
+    """Representation of a set of device sensors."""
+
+    @classmethod
+    def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
+        state_sensors = {
+            name: RaritanStateSensor(source)
+            for name, source in sources.items()
+            if isinstance(source, StateSensor)
+        }
+        numeric_sensors = {
+            name: RaritanNumericSensor(source)
+            for name, source in sources.items()
+            if isinstance(source, NumericSensor) and not isinstance(source, AccumulatingNumericSensor)
+        }
+        accumulating_sensors = {
+            name: RaritanAccumulatingSensor(source)
+            for name, source in sources.items()
+            if isinstance(source, AccumulatingNumericSensor)
+        }
+
+        return cls(**state_sensors, **numeric_sensors, **accumulating_sensors)
+
+
+@dataclass
+class RaritanPduSensors(RaritanDeviceSensors):
+    """Representation of the set of PDU device sensors."""
+
+    power_supply_status: RaritanStateSensor | None = None
+    active_power: RaritanNumericSensor | None = None
+    apparent_power: RaritanNumericSensor | None = None
+    active_energy: RaritanNumericSensor | None = None
+    apparent_energy: RaritanNumericSensor | None = None
+
+
+@dataclass
+class RaritanPduInletSensors(RaritanDeviceSensors):
+    """Representation of the set of PDU inlet sensors."""
+
+    voltage: RaritanNumericSensor | None = None
+    current: RaritanNumericSensor | None = None
+    active_power: RaritanNumericSensor | None = None
+    apparent_power: RaritanNumericSensor | None = None
+    active_energy: RaritanNumericSensor | None = None
+    apparent_energy: RaritanNumericSensor | None = None
+
+
+@dataclass
+class RaritanPduOutletSensors(RaritanDeviceSensors):
+    """Representation of the set of PDU outlet sensors."""
+
+    voltage: RaritanNumericSensor | None = None
+    current: RaritanNumericSensor | None = None
+    active_power: RaritanNumericSensor | None = None
+    apparent_power: RaritanNumericSensor | None = None
+    active_energy: RaritanNumericSensor | None = None
+    apparent_energy: RaritanNumericSensor | None = None
+
+
+@dataclass
+class RaritanPduDevice:
+    """Representation of a generic Raritan device."""
+
+    device_id: str
+    pdu_id: int
+    name: str
+    sensors: RaritanDeviceSensors
+
+    @property
+    def available_sensors(self) -> list[RaritanSensor]:
+        return [getattr(self.sensors, sensor.name) for sensor in fields(self.sensors) if getattr(self.sensors, sensor.name) is not None]
+
+
+@dataclass
+class RaritanPduEnergyDevice(RaritanPduDevice):
+    """Representation of a generic Raritan energy device."""
+
+    label: str
+
+
+@dataclass
+class RaritanPduOutlet(RaritanPduEnergyDevice):
+    """Representation of a Raritan PDU outlet."""
+
+    outlet_id: int
+    is_switchable: bool
+    sensors: RaritanPduOutletSensors
+
+
+@dataclass
+class RaritanPduInlet(RaritanPduEnergyDevice):
+    """Representation of a Raritan PDU inlet."""
+
+    inlet_id: int
+    sensors: RaritanPduInletSensors
+
+
+@dataclass
+class RaritanPduOverCurrentProtector(RaritanPduEnergyDevice):
+    """Representation of a Raritan PDU OCP."""
+
+    ocp_id: int
+
+
+@dataclass
+class RaritanPdu(RaritanPduDevice):
+    """Representation of a Raritan PDU."""
 
     host: str
-    name: str
+    manufacturer: str
     model: str
     serial_number: str
     firmware_version: str
+    hardware_version: str
     mac_address: str
     has_switchable_outlets: bool
     has_metered_outlets: bool
+    is_standalone: bool
+    sensors: RaritanPduSensors
+    outlets: list[RaritanPduOutlet] = field(default_factory=list[RaritanPduOutlet])
+    inlets: list[RaritanPduInlet] = field(default_factory=list[RaritanPduInlet])
+    ocps: list[RaritanPduOverCurrentProtector] = field(default_factory=list[RaritanPduOverCurrentProtector])
+
+    def add_outlet(self, outlet: RaritanPduOutlet):
+        self.outlets.append(outlet)
+
+    def add_inlet(self, inlet: RaritanPduInlet):
+        self.inlets.append(inlet)
+
+    def add_ocp(self, ocp: RaritanPduOverCurrentProtector):
+        self.ocps.append(ocp)
+
+    @property
+    def available_sensors(self) -> list[RaritanSensor]:
+        return list(collapse(super().available_sensors + [outlet.available_sensors for outlet in self.outlets] + [inlet.available_sensors for inlet in self.inlets]))
