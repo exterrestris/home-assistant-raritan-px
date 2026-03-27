@@ -23,6 +23,7 @@ from homeassistant.helpers import (
 from .const import (
     DOMAIN,
     PLATFORMS,
+    UPDATE_INTERVAL,
 )
 from .coordinator import (
     RaritanPduConfigEntry,
@@ -51,13 +52,75 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
     host: str = entry.data[CONF_HOST]
     credentials = await get_credentials(hass)
 
+    config = ConnectionDetails(host=host, auth=credentials)
+    client = RaritanClient(hass, config)
+
+    try:
+        pdu: RaritanPdu = await client.get_pdu_info()
+    except AuthenticationError as ex:
+        raise ConfigEntryAuthFailed(
+            translation_domain=DOMAIN,
+            translation_key="device_authentication",
+            translation_placeholders={
+                "func": "connect",
+                "exc": str(ex),
+            },
+        ) from ex
+    except RaritanClientError as ex:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="device_error",
+            translation_placeholders={
+                "func": "connect",
+                "exc": str(ex),
+            },
+        ) from ex
+    updates: dict[str, Any] = {}
+    if entry.data.get(CONF_ALIAS) != pdu.name:
+        updates[CONF_ALIAS] = pdu.name
+    if entry.data.get(CONF_MODEL) != pdu.model:
+        updates[CONF_MODEL] = pdu.model
+    if updates:
+        hass.config_entries.async_update_entry(
+            entry,
+            data={
+                **entry.data,
+                **updates,
+            },
+        )
+
+    if pdu.serial_number != entry.unique_id:
+        # If the serial number of the device does not match the unique_id
+        # of the config entry, it likely means the DHCP lease has expired
+        # and the device has been assigned a new IP address. We need to
+        # wait for the next discovery to find the device at its new address
+        # and update the config entry so we do not mix up devices.
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="unexpected_device",
+            translation_placeholders={
+                "host": host,
+                # all entries have a unique id
+                "expected": cast(str, entry.unique_id),
+                "found": pdu.serial_number,
+            },
+        )
+
+    coordinator = RaritanPduDataUpdateCoordinator(
+        hass, _LOGGER, entry, UPDATE_INTERVAL, client, pdu
+    )
+
+    entry.runtime_data = RaritanPduData(client=client, coordinator=coordinator)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -> bool:
     """Unload a config entry."""
-    data = entry.runtime_data
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    await entry.runtime_data.client.close_session()
 
     return unload_ok
 

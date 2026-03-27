@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Final
+import datetime
 
 from homeassistant.const import Platform
 
@@ -17,5 +18,7 @@ PLATFORMS: Final = [
     Platform.SENSOR,
     Platform.SWITCH,
 ]
+
+UPDATE_INTERVAL = datetime.timedelta(seconds=5)
 
 API_TIMEOUT = 10

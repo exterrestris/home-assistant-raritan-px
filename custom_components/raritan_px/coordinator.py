@@ -8,9 +8,9 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from custom_components.raritan_px.api import RaritanPdu
+from .api import RaritanClient, RaritanPdu
 
 from .const import DOMAIN
 
@@ -21,7 +21,8 @@ _LOGGER = logging.getLogger(__name__)
 class RaritanPduData:
     """Data for the RaritanPdu integration."""
 
-    parent_coordinator: RaritanPduDataUpdateCoordinator
+    client: RaritanClient
+    coordinator: RaritanPduDataUpdateCoordinator
 
 
 type RaritanPduConfigEntry = ConfigEntry[RaritanPduData]
@@ -37,10 +38,35 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
     def __init__(
         self,
         hass: HomeAssistant,
-        pdu: RaritanPdu,
-        update_interval: timedelta,
+        logger: logging.Logger,
         config_entry: RaritanPduConfigEntry,
+        update_interval: timedelta,
+        client: RaritanClient,
+        pdu: RaritanPdu,
     ) -> None:
-        """Initialize DataUpdateCoordinator to gather data for specific SmartPlug."""
+        """Initialize the RaritanPdu coordinator."""
+        super().__init__(
+            hass,
+            logger,
+            config_entry=config_entry,
+            name="RaritanPdu",
+            update_interval=update_interval,
+        )
+        self.pdu = pdu
+        self.client = client
+        self.config_entry = config_entry
+
+
     async def _async_update_data(self) -> None:
         """Fetch all device and sensor data from api."""
+        try:
+            await self.client.update_pdu_sensors_data(self.pdu)
+        except Exception as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="device_error",
+                translation_placeholders={
+                    "func": "update_outlets",
+                    "exc": str(ex),
+                },
+            ) from ex
