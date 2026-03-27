@@ -26,6 +26,7 @@ class ConnectionDetails:
     """Connection information for Raritan API."""
 
     host: str
+    port: int = 443
     auth: AuthenticationDetails | None = None
     use_ssl: bool = False
     timeout: int = API_TIMEOUT
@@ -63,7 +64,7 @@ class RaritanClient:
         self._token: str | None = None
         self._agent: rpc.Agent = rpc.Agent(
             self.PROTOCOL,
-            self._config.host,
+            f"{self._config.host}:{self._config.port}",
             disable_certificate_verification=not self._config.use_ssl,
             timeout=self._config.timeout,
         )
