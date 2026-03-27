@@ -67,7 +67,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @callback
     def _get_config_updates(
-        self, entry: ConfigEntry, host: str, device: RaritanPdu | None
+        self, entry: ConfigEntry, host: str, credentials: AuthenticationDetails | None, device: RaritanPdu | None
     ) -> dict | None:
         """Return updates if the host or device config has changed."""
         entry_data = entry.data
@@ -75,8 +75,16 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
         new_connection_params = False
         if entry_data[CONF_HOST] != host:
             updates[CONF_HOST] = host
-        if device:
-            pass
+        if device and credentials:
+            existing: AuthenticationDetails | None = None
+
+            if CONF_USERNAME in entry.data and CONF_PASSWORD in entry.data:
+                existing = AuthenticationDetails(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
+
+            if credentials != existing:
+                updates[CONF_USERNAME] = credentials.user
+                updates[CONF_PASSWORD] = credentials.passwd
+
         if not updates:
             return None
         updates = {**entry.data, **updates}
@@ -140,7 +148,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
                 if not device:
                     return await self.async_step_user_auth_confirm()
 
-                return self._async_create_or_update_entry_from_device(device)
+                return self._async_create_or_update_entry_from_device(device, credentials)
 
         return self.async_show_form(
             step_id="user",
@@ -187,7 +195,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
                         self._async_reload_requires_auth_entries(), eager_start=False
                     )
 
-                    return self._async_create_or_update_entry_from_device(device)
+                    return self._async_create_or_update_entry_from_device(device, credentials)
 
         return self.async_show_form(
             step_id="user_auth_confirm",
@@ -215,7 +223,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @callback
     def _async_create_or_update_entry_from_device(
-        self, device: RaritanPdu
+        self, device: RaritanPdu, credentials: AuthenticationDetails | None = None
     ) -> ConfigFlowResult:
         """Create a config entry from a smart device."""
         entry = None
@@ -232,6 +240,10 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_ALIAS: device.name,
             CONF_MODEL: device.model,
         }
+
+        if (credentials):
+            data[CONF_USERNAME] = credentials.user
+            data[CONF_PASSWORD] = credentials.passwd
 
         if not entry:
             return self.async_create_entry(
@@ -311,7 +323,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
                         raise_on_progress=False,
                     )
                     await set_credentials(self.hass, credentials)
-                    if updates := self._get_config_updates(reauth_entry, host, device):
+                    if updates := self._get_config_updates(reauth_entry, host, credentials, device):
                         self.hass.config_entries.async_update_entry(
                             reauth_entry, data=updates
                         )

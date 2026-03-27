@@ -21,6 +21,8 @@ from homeassistant.helpers import (
 )
 
 from .const import (
+    DEFAULT_USERNAME,
+    DEFAULT_PASSWORD,
     DOMAIN,
     PLATFORMS,
     UPDATE_INTERVAL,
@@ -50,7 +52,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -> bool:
     """Set up RaritanPdu from a config entry."""
     host: str = entry.data[CONF_HOST]
-    credentials = await get_credentials(hass)
+    credentials = await get_credentials(hass, entry)
 
     config = ConnectionDetails(host=host, auth=credentials)
     client = RaritanClient(hass, config)
@@ -125,13 +127,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) 
     return unload_ok
 
 
-async def get_credentials(hass: HomeAssistant) -> AuthenticationDetails | None:
+async def get_credentials(hass: HomeAssistant, entry: RaritanPduConfigEntry | None = None) -> AuthenticationDetails | None:
     """Retrieve the credentials from hass data."""
+    if entry and CONF_USERNAME in entry.data and CONF_PASSWORD in entry.data:
+        return AuthenticationDetails(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
+
     if DOMAIN in hass.data and CONF_AUTHENTICATION in hass.data[DOMAIN]:
         auth = hass.data[DOMAIN][CONF_AUTHENTICATION]
         return AuthenticationDetails(auth[CONF_USERNAME], auth[CONF_PASSWORD])
 
-    return None
+    return AuthenticationDetails(DEFAULT_USERNAME, DEFAULT_PASSWORD)
 
 
 async def set_credentials(
