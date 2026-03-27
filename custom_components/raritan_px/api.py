@@ -59,7 +59,7 @@ class RaritanClient:
             timeout=self._config.timeout,
         )
 
-    async def authenticate(self) -> None:
+    async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
         if self._config.auth is None:
             message: str = (
@@ -78,16 +78,33 @@ class RaritanClient:
                     session_manager.getCurrentSession
                 )
 
-                _LOGGER.debug(
-                    "Authenticated using session token for %s, session created at %s",
-                    session_details.username,
-                    session_details.creationTime,
-                )
-            except rpc.HttpException as e:
+                if force_reauth:
+                    try:
+                        _LOGGER.debug("Closing existing session and forcing re-authentication")
+
+                        await self._hass.async_add_executor_job(
+                            session_manager.closeCurrentSession,
+                            SessionManager.CloseReason.CLOSE_REASON_FORCED_DISCONNECT, # pyright: ignore[reportAttributeAccessIssue]
+                        )
+                    except rpc.HttpException:
+                        _LOGGER.debug("Failed to close existing session")
+                    finally:
+                        self._token = None
+                else:
+                    await self._hass.async_add_executor_job(
+                        session_manager.touchCurrentSession, True # noqa: FBT003
+                    )
+
+                    _LOGGER.debug(
+                        "Authenticated using session token for %s, session created at %s",
+                        session_details.username,
+                        session_details.creationTime,
+                    )
+            except rpc.HttpException:
                 self._token = None
 
                 _LOGGER.debug(
-                    "Session token is invalid, will attempt to authenticate using credentials"
+                    "Session has expired, will attempt to authenticate using credentials"
                 )
 
         if self._token is None:
@@ -125,6 +142,7 @@ class RaritanClient:
 
                 message: str = f"Failed to authenticate as {self._config.auth.user}"
                 raise AuthenticationError(message) from e
+
 
     async def get_pdu_info(self, pdu_idx: int = 0) -> RaritanPdu:
         """Get information for the Raritan PDU."""
