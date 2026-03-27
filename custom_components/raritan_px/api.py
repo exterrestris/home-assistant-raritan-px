@@ -143,6 +143,40 @@ class RaritanClient:
                 message: str = f"Failed to authenticate as {self._config.auth.user}"
                 raise AuthenticationError(message) from e
 
+    async def close_session(self) -> None:
+        """Close the current session and clear any stored session information."""
+
+        if self._token is None:
+            _LOGGER.debug("No active session to close")
+            return
+
+        session_manager = SessionManager("/session", self._agent)
+
+        try:
+            self._agent.set_auth_token(self._token)
+
+            await self._hass.async_add_executor_job(
+                session_manager.getCurrentSession
+            )
+
+            try:
+                _LOGGER.debug("Closing session")
+
+                await self._hass.async_add_executor_job(
+                    session_manager.closeCurrentSession,
+                    SessionManager.CloseReason.CLOSE_REASON_FORCED_DISCONNECT, # pyright: ignore[reportAttributeAccessIssue]
+                )
+            except rpc.HttpException:
+                _LOGGER.debug("Failed to close session")
+
+            else:
+                await self._hass.async_add_executor_job(
+                    session_manager.touchCurrentSession, True # noqa: FBT003
+                )
+        except rpc.HttpException:
+            _LOGGER.debug("Session has expired")
+        finally:
+            self._token = None
 
     async def get_pdu_info(self, pdu_idx: int = 0) -> RaritanPdu:
         """Get information for the Raritan PDU."""
