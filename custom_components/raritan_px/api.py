@@ -188,7 +188,7 @@ class RaritanClient:
         finally:
             self._token = None
 
-    async def get_pdu_info(self, pdu_idx: int = 0) -> RaritanPdu:
+    async def get_pdu_info(self, pdu_idx: int = 0, *, update_sensor_data: bool = True) -> RaritanPdu:
         """Get information for the Raritan PDU."""
         await self.authenticate()
 
@@ -246,7 +246,10 @@ class RaritanClient:
                 })
             )
 
-            return await self._update_device_sensors_data(device)
+            if update_sensor_data:
+                return await self._update_device_sensors_data(device)
+
+            return device
 
     async def _get_outlets_info(self, pdu_idx: int, pdu_outlets: list[Outlet]) -> list[RaritanPduOutlet]:
         try:
@@ -337,20 +340,22 @@ class RaritanClient:
         update_requests = [
             (sensor, request, update) for sensor, (request, update) in list(
                 flatten([list(product([sensor], sensor_updates))
-                for sensor, sensor_updates in [(sensor, sensor.update_methods()) for sensor in device.available_sensors]])
+                for sensor, sensor_updates in [(sensor, sensor.update_methods()) for (_, sensor) in [x for x in device.available_sensors]]])
             )
         ]
 
         sensors, requests, update_methods = [list(tup) for tup in zip(*update_requests)]
 
-        _LOGGER.debug("Updating sensor data")
+        _LOGGER.debug(f"Fetching sensor data for {len(sensors)} sensors")
 
         responses = await self._hass.async_add_executor_job(
             perform_bulk, self._agent, interleave(requests)
         )
 
-        for (sensor, response, method) in zip(sensors, responses, update_methods):
+        for (_, response, method) in zip(sensors, responses, update_methods):
             method(response)
+
+        _LOGGER.debug("Updated sensor data")
 
         return device
 
@@ -424,6 +429,9 @@ class RaritanAccumulatingSensor(RaritanNumericSensor):
 class RaritanDeviceSensors:
     """Representation of a set of device sensors."""
 
+    def __getitem__(self, key) -> RaritanSensor:
+        return getattr(self, key)
+
     @classmethod
     def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
         state_sensors = {
@@ -490,8 +498,8 @@ class RaritanPduDevice:
     sensors: RaritanDeviceSensors
 
     @property
-    def available_sensors(self) -> list[RaritanSensor]:
-        return [getattr(self.sensors, sensor.name) for sensor in fields(self.sensors) if getattr(self.sensors, sensor.name) is not None]
+    def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
+        return [(sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors) if getattr(self.sensors, sensor.name) is not None]
 
 
 @dataclass
@@ -554,5 +562,5 @@ class RaritanPdu(RaritanPduDevice):
         self.ocps.append(ocp)
 
     @property
-    def available_sensors(self) -> list[RaritanSensor]:
-        return list(collapse(super().available_sensors + [outlet.available_sensors for outlet in self.outlets] + [inlet.available_sensors for inlet in self.inlets]))
+    def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
+        return list(flatten([super().available_sensors] + [outlet.available_sensors for outlet in self.outlets] + [inlet.available_sensors for inlet in self.inlets]))

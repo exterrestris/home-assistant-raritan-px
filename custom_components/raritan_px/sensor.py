@@ -16,17 +16,35 @@ from .coordinator import (
     RaritanPduData,
     RaritanPduDataUpdateCoordinator,
 )
-from .entity import RaritanPduEntityDescription, CoordinatedRaritanPduOutletEntity
+from .entity import (
+    RaritanPduEntityDescription,
+    RaritanPduOutletEntityDescription,
+    RaritanPduInletEntityDescription,
+    CoordinatedRaritanPduEntity,
+    CoordinatedRaritanPduOutletEntity,
+    CoordinatedRaritanPduInletEntity,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletSensorEntityDescription(
+class RaritanPduSensorEntityDescription(
     SensorEntityDescription, RaritanPduEntityDescription
 ):
     """Base class for a Raritan PDU outlet sensor entity description."""
 
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduOutletSensorEntityDescription(
+    SensorEntityDescription, RaritanPduOutletEntityDescription
+):
+    """Base class for a Raritan PDU outlet sensor entity description."""
+
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduInletSensorEntityDescription(
+    SensorEntityDescription, RaritanPduInletEntityDescription
+):
+    """Base class for a Raritan PDU outlet sensor entity description."""
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -39,7 +57,19 @@ async def async_setup_entry(
     pdu: RaritanPdu = coordinator.pdu
 
     if pdu.has_metered_outlets:
-        pass
+        async_add_entities(
+            RaritanPduOutletSensorEntity(
+                outlet,
+                pdu,
+                coordinator,
+                RaritanPduOutletSensorEntityDescription(
+                    key=sensor,
+                ),
+            )
+            for outlet, sensor in list(
+                flatten([list(product([outlet], sensors)) for (outlet, sensors) in [(outlet, [sensor for sensor, _ in outlet.available_sensors]) for outlet in pdu.outlets]])
+            )
+        )
 
 
 class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, SensorEntity):
@@ -51,4 +81,6 @@ class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, SensorEnti
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
+        value = self._device.sensors[self.entity_description.key].reading # pyright: ignore[reportAttributeAccessIssue]
+        self._attr_native_value = value
         return True

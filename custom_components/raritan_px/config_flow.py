@@ -255,7 +255,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.hass, ConnectionDetails(host=host, auth=credentials)
             )
 
-            pdu = await client.get_pdu_info()
+            pdu = await client.get_pdu_info(update_sensor_data=False)
         else:
             return None
 

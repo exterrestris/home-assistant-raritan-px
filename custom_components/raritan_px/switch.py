@@ -5,24 +5,26 @@ from typing import Any
 from dataclasses import dataclass
 import logging
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from homeassistant.components.switch import (
     SwitchEntity,
     SwitchEntityDescription,
 )
+from .api import RaritanPdu, RaritanPduOutlet
 from .coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
     RaritanPduDataUpdateCoordinator,
 )
-from .entity import RaritanPduEntityDescription, CoordinatedRaritanPduOutletEntity
+from .entity import RaritanPduOutletEntityDescription, CoordinatedRaritanPduOutletEntity
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
 class RaritanPduOutletSwitchEntityDescription(
-    SwitchEntityDescription, RaritanPduEntityDescription
+    SwitchEntityDescription, RaritanPduOutletEntityDescription
 ):
     """Base class for a Raritan PDU outlet switch entity description."""
 

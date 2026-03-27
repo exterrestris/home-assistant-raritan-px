@@ -7,6 +7,8 @@ import logging
 from abc import ABC, abstractmethod
 from homeassistant.core import callback
 from homeassistant.helpers.entity import EntityDescription
+
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .api import (
@@ -24,9 +26,20 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduEntityDescription(EntityDescription):
+class RaritanPduDeviceEntityDescription(EntityDescription):
     """Base class for a Raritan PDU entity description."""
 
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduEntityDescription(RaritanPduDeviceEntityDescription):
+    """Base class for a Raritan PDU entity description."""
+
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduOutletEntityDescription(RaritanPduDeviceEntityDescription):
+    """Base class for a Raritan PDU entity description."""
+
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduInletEntityDescription(RaritanPduDeviceEntityDescription):
+    """Base class for a Raritan PDU entity description."""
 
 class CoordinatedRaritanPduDeviceEntity(
     CoordinatorEntity[RaritanPduDataUpdateCoordinator], ABC
@@ -35,28 +48,42 @@ class CoordinatedRaritanPduDeviceEntity(
 
     _attr_has_entity_name = True
     _device: RaritanPduDevice
+    _pdu: RaritanPdu
 
-    entity_description: RaritanPduEntityDescription
+    entity_description: RaritanPduDeviceEntityDescription
 
     def __init__(
         self,
         device: RaritanPduDevice,
+        pdu: RaritanPdu,
         coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduEntityDescription,
+        description: RaritanPduDeviceEntityDescription,
     ) -> None:
         """Initialize the entity."""
         super().__init__(coordinator)
         self.entity_description = description
         self._device = device
+        self._pdu = pdu
 
-        registry_device = device
         device_name = self._get_device_name()
 
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(registry_device.device_id))},
-            manufacturer="Raritan",
+            identifiers={(DOMAIN, str(device.device_id))},
+            manufacturer=pdu.manufacturer,
+            model=pdu.model,
             name=device_name,
+            sw_version=pdu.firmware_version,
+            hw_version=pdu.hardware_version,
         )
+
+        if (device != pdu):
+            self._attr_device_info["via_device"] = (DOMAIN, pdu.device_id)
+        else:
+            self._attr_device_info["connections"] = {
+                (dr.CONNECTION_NETWORK_MAC, pdu.mac_address)
+            }
+
+        self._attr_unique_id = f"{device.device_id}_{description.key}"
 
     @abstractmethod
     @callback
@@ -105,6 +132,7 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
 
     _device: RaritanPdu
+    entity_description: RaritanPduEntityDescription
 
     def __init__(
         self,
@@ -113,7 +141,9 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
         description: RaritanPduEntityDescription,
     ) -> None:
         """Initialize the entity."""
-        super().__init__(device, coordinator, description)
+        super().__init__(device, device, coordinator, description)
+
+
 
     def _get_device_name(self) -> str | None:
         """Get the device name to use for this entity."""
@@ -127,15 +157,17 @@ class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity,
     """Common base class for all coordinated tplink module based entities."""
 
     _device: RaritanPduEnergyDevice
+    entity_description: RaritanPduDeviceEntityDescription
 
     def __init__(
         self,
         device: RaritanPduEnergyDevice,
+        pdu: RaritanPdu,
         coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduEntityDescription,
+        description: RaritanPduDeviceEntityDescription,
     ) -> None:
         """Initialize the entity."""
-        super().__init__(device, coordinator, description)
+        super().__init__(device, pdu, coordinator, description)
 
     def _get_device_name(self) -> str | None:
         """Get the device name to use for this entity."""
@@ -143,3 +175,37 @@ class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity,
             return self._device.name
 
         return f"Outlet {self._device.label}"
+
+
+class CoordinatedRaritanPduOutletEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
+    """Common base class for all coordinated tplink module based entities."""
+
+    _device: RaritanPduOutlet
+    entity_description: RaritanPduOutletEntityDescription
+
+    def __init__(
+        self,
+        device: RaritanPduOutlet,
+        pdu: RaritanPdu,
+        coordinator: RaritanPduDataUpdateCoordinator,
+        description: RaritanPduOutletEntityDescription,
+    ) -> None:
+        """Initialize the entity."""
+        super().__init__(device, pdu, coordinator, description)
+
+
+class CoordinatedRaritanPduInletEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
+    """Common base class for all coordinated tplink module based entities."""
+
+    _device: RaritanPduOutlet
+    entity_description: RaritanPduInletEntityDescription
+
+    def __init__(
+        self,
+        device: RaritanPduOutlet,
+        pdu: RaritanPdu,
+        coordinator: RaritanPduDataUpdateCoordinator,
+        description: RaritanPduInletEntityDescription,
+    ) -> None:
+        """Initialize the entity."""
+        super().__init__(device, pdu, coordinator, description)
