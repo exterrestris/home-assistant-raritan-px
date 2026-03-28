@@ -33,7 +33,7 @@ class RaritanDeviceSensors:
 class RaritanPduSensors(RaritanDeviceSensors):
     """Representation of the set of PDU device sensors."""
 
-    power_supply_status: RaritanStateSensor | None = None
+    # power_supply_status: RaritanStateSensor | None = None
     active_power: RaritanNumericSensor | None = None
     apparent_power: RaritanNumericSensor | None = None
     active_energy: RaritanNumericSensor | None = None
