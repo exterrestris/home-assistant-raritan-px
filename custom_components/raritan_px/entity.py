@@ -3,7 +3,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import logging
-
+from typing import Any
 from abc import ABC, abstractmethod
 from homeassistant.core import callback
 from homeassistant.helpers.entity import EntityDescription
@@ -66,25 +66,28 @@ class CoordinatedRaritanPduDeviceEntity(
         self._device = device
         self._pdu = pdu
 
-        device_name = self._get_device_name()
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(device.device_id))},
-            manufacturer=pdu.manufacturer,
-            model=pdu.model,
-            name=device_name,
-            sw_version=pdu.firmware_version,
-            hw_version=pdu.hardware_version,
-        )
-
-        if (device != pdu):
-            self._attr_device_info["via_device"] = (DOMAIN, pdu.device_id)
-        else:
-            self._attr_device_info["connections"] = {
-                (dr.CONNECTION_NETWORK_MAC, pdu.mac_address)
-            }
-
+        self._attr_device_info = DeviceInfo(**self._get_device_info())
         self._attr_unique_id = f"{device.device_id}_{description.key}"
+
+    def _get_pdu_name(self) -> str:
+        """Get the pdu name to use for this entity."""
+        if self._pdu.name:
+            return self._pdu.name
+
+        return f"{self._pdu.model} {self._pdu.serial_number}"
+
+    def _get_device_info(self) -> dict[str, Any]:
+        return {
+            "identifiers": {(DOMAIN, str(self._device.device_id))},
+            "manufacturer": self._pdu.manufacturer,
+            "model": self._get_device_model(),
+            "name": self._get_device_name(),
+        } | self._get_device_connection_info()
+
+    def _get_device_connection_info(self) -> dict[str, Any]:
+        return {
+            "via_device": (DOMAIN, self._pdu.device_id)
+        }
 
     @abstractmethod
     @callback
@@ -150,15 +153,22 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
 
     def _get_device_name(self) -> str:
         """Get the device name to use for this entity."""
-        if self._device.name:
-            return self._device.name
-
-        return f"{self._device.model} {self._device.serial_number}"
+        return self._get_pdu_name()
 
     def _get_device_model(self) -> str:
         """Get the device model to use for this entity."""
         return self._pdu.model
 
+    def _get_device_info(self) -> dict[str, Any]:
+        return super()._get_device_info() | {
+            "sw_version": self._pdu.firmware_version,
+            "hw_version": self._pdu.hardware_version,
+        }
+
+    def _get_device_connection_info(self) -> dict[str, Any]:
+        return {
+            "connections": {(dr.CONNECTION_NETWORK_MAC, self._pdu.mac_address)},
+        }
 
 class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
@@ -181,7 +191,7 @@ class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity,
         if self._device.name:
             return self._device.name
 
-        return f"{self._get_device_type()} {self._device.label}"
+        return f"{self._get_pdu_name()} {self._get_device_type()} {self._device.label}"
 
     def _get_device_model(self) -> str:
         """Get the device model to use for this entity."""
