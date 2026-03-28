@@ -25,6 +25,7 @@ from .const import (
     DEFAULT_PASSWORD,
     DOMAIN,
     PLATFORMS,
+    CONF_CONFIG_ENTRY_MINOR_VERSION,
     UPDATE_INTERVAL,
 )
 from .coordinator import (
@@ -147,3 +148,35 @@ async def set_credentials(
         CONF_USERNAME: credentials.user,
         CONF_PASSWORD: credentials.passwd,
     }
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant, config_entry: RaritanPduConfigEntry
+) -> bool:
+    """Migrate old entry."""
+    entry_version: int = config_entry.version
+    entry_minor_version: int = config_entry.minor_version
+
+    if (entry_minor_version >= CONF_CONFIG_ENTRY_MINOR_VERSION):
+        if (entry_minor_version > CONF_CONFIG_ENTRY_MINOR_VERSION):
+            _LOGGER.warning("Config version is newer than expected")
+
+        return True
+
+    for new_minor_version in range(entry_minor_version + 1, CONF_CONFIG_ENTRY_MINOR_VERSION + 1):
+        _LOGGER.debug(
+            "Migrating from version %s.%s", entry_version, entry_minor_version
+        )
+
+        if (upgrade_fn := f"migrate_to_{new_minor_version}") in locals():
+            locals()[upgrade_fn]()
+
+        hass.config_entries.async_update_entry(
+            config_entry, minor_version=new_minor_version
+        )
+
+        _LOGGER.debug(
+            "Migration to version %s.%s complete", entry_version, entry_minor_version := new_minor_version
+        )
+
+    return True
