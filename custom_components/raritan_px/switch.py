@@ -11,7 +11,11 @@ from homeassistant.components.switch import (
     SwitchEntity,
     SwitchEntityDescription,
 )
-from .api import RaritanPdu, RaritanPduOutlet
+
+from .api.model.device import (
+    RaritanPdu,
+    RaritanPduOutlet,
+)
 from .coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,

@@ -11,15 +11,15 @@ from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .api import (
-    RaritanPduDevice,
+
+from .api.model.device import (
     RaritanPdu,
+    RaritanPduDevice,
     RaritanPduEnergyDevice,
-    RaritanPduOutlet,
     RaritanPduInlet,
+    RaritanPduOutlet,
 )
 from .coordinator import RaritanPduDataUpdateCoordinator
-
 from .const import (
     DOMAIN,
 )

@@ -20,6 +20,14 @@ from homeassistant.helpers import (
     device_registry as dr,
 )
 
+from .api.model.device import RaritanPdu
+from .api.client import (
+    RaritanClient,
+    AuthenticationDetails,
+    ConnectionDetails,
+    AuthenticationError,
+    RaritanClientError,
+)
 from .const import (
     DEFAULT_USERNAME,
     DEFAULT_PASSWORD,
@@ -32,15 +40,6 @@ from .coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
     RaritanPduDataUpdateCoordinator,
-)
-
-from .api import (
-    RaritanClient,
-    AuthenticationDetails,
-    ConnectionDetails,
-    AuthenticationError,
-    RaritanClientError,
-    RaritanPdu,
 )
 
 

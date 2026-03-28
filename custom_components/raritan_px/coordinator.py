@@ -10,7 +10,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import RaritanClient, RaritanPdu
+from .api.client import RaritanClient
+from .api.model.device import RaritanPdu
 
 from .const import DOMAIN
 

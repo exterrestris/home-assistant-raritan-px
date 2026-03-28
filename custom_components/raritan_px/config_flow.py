@@ -29,18 +29,17 @@ from . import (
     get_credentials,
     set_credentials,
 )
-from .const import (
-    CONF_CONFIG_ENTRY_MINOR_VERSION,
-    DOMAIN,
-)
-
-from .api import (
+from .api.model.device import RaritanPdu
+from .api.client import (
     RaritanClient,
     AuthenticationDetails,
     ConnectionDetails,
     AuthenticationError,
     RaritanClientError,
-    RaritanPdu,
+)
+from .const import (
+    CONF_CONFIG_ENTRY_MINOR_VERSION,
+    DOMAIN,
 )
 
 
@@ -394,4 +393,3 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
                 **placeholders,
             },
         )
-

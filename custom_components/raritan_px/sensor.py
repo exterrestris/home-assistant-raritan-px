@@ -15,7 +15,11 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 
-from .api import RaritanPdu, RaritanPduOutlet, RaritanPduInlet
+from .api.model.device import (
+    RaritanPduInlet,
+    RaritanPduOutlet,
+    RaritanPdu,
+)
 from .coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
