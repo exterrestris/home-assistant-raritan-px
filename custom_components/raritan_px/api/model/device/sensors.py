@@ -4,6 +4,7 @@ from typing import Self, get_type_hints, get_args
 from raritan.rpc.sensors import Sensor
 
 from ..sensor import (
+    RaritanAccumulatingSensor,
     RaritanNumericSensor,
     RaritanSensor,
     RaritanSwitch
@@ -36,8 +37,8 @@ class RaritanPduSensors(RaritanDeviceSensors):
     # power_supply_status: RaritanStateSensor | None = None
     active_power: RaritanNumericSensor | None = None
     apparent_power: RaritanNumericSensor | None = None
-    active_energy: RaritanNumericSensor | None = None
-    apparent_energy: RaritanNumericSensor | None = None
+    active_energy: RaritanAccumulatingSensor | None = None
+    apparent_energy: RaritanAccumulatingSensor | None = None
 
 
 @dataclass
@@ -48,8 +49,8 @@ class RaritanPduInletSensors(RaritanDeviceSensors):
     current: RaritanNumericSensor | None = None
     active_power: RaritanNumericSensor | None = None
     apparent_power: RaritanNumericSensor | None = None
-    active_energy: RaritanNumericSensor | None = None
-    apparent_energy: RaritanNumericSensor | None = None
+    active_energy: RaritanAccumulatingSensor | None = None
+    apparent_energy: RaritanAccumulatingSensor | None = None
 
 
 @dataclass
@@ -60,6 +61,6 @@ class RaritanPduOutletSensors(RaritanDeviceSensors):
     current: RaritanNumericSensor | None = None
     active_power: RaritanNumericSensor | None = None
     apparent_power: RaritanNumericSensor | None = None
-    active_energy: RaritanNumericSensor | None = None
-    apparent_energy: RaritanNumericSensor | None = None
+    active_energy: RaritanAccumulatingSensor | None = None
+    apparent_energy: RaritanAccumulatingSensor | None = None
     outlet_state: RaritanSwitch | None = None
