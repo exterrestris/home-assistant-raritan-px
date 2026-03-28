@@ -1,28 +1,48 @@
 """API client for Raritan PX devices."""
 
 from __future__ import annotations
+from enum import Enum, Flag, auto
 from itertools import product
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
 from raritan import rpc
-from raritan.rpc import perform_bulk
+from raritan.rpc import perform_bulk, Enumeration as RpcEnumeration
 from raritan.rpc.pdumodel import Pdu, Outlet, Inlet, OverCurrentProtector
 from raritan.rpc.cascading import CascadeManager
 from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 from homeassistant.core import HomeAssistant
 
+from .model import RaritanUpdatable, RaritanUpdatableRpcMethodsList
 from .model.device import RaritanPdu, RaritanPduDevice, RaritanPduInlet, RaritanPduOutlet
 from .model.device.sensors import RaritanPduSensors
 from .model.device.sensors import RaritanPduInletSensors
 from .model.device.sensors import RaritanPduOutletSensors
+from .model.device.states import RaritanState, OutletPowerState
+from .model.sensor import RaritanSensor
 from .const import API_TIMEOUT
 from more_itertools import grouper, interleave, flatten
 
 _LOGGER = logging.getLogger(__name__)
 
 T = TypeVar('T', bound = "RaritanPduDevice", covariant = True)
+
+STATE_API_ENUMERATION_PAIRS: dict[type[RaritanState], list[tuple[RaritanState, RpcEnumeration]]] = {
+    OutletPowerState: [
+        (OutletPowerState.ON, Outlet.PowerState.PS_ON), # pyright: ignore[reportAttributeAccessIssue]
+        (OutletPowerState.OFF, Outlet.PowerState.PS_OFF), # pyright: ignore[reportAttributeAccessIssue]
+    ],
+}
+
+API_TO_STATE_MAPPING: dict[type[RaritanState], dict[int, RaritanState]] = {
+    state: { api_value.val: state for state, api_value in pairs} for state, pairs in STATE_API_ENUMERATION_PAIRS.items()
+}
+
+STATE_TO_API_MAPPING: dict[type[RaritanState], dict[RaritanState, RpcEnumeration]] = {
+    state: { state: api_value for state, api_value in pairs} for state, pairs in STATE_API_ENUMERATION_PAIRS.items()
+}
 
 
 @dataclass
@@ -43,6 +63,30 @@ class AuthenticationDetails:
     user: str
     passwd: str
 
+
+@dataclass(frozen=True)
+class _SensorUpdateMethod:
+    method: Callable[[RaritanUpdatable], RaritanUpdatableRpcMethodsList]
+
+
+class _SensorUpdate(Enum):
+    INFO = _SensorUpdateMethod(lambda sensor: sensor.update_info())
+    READINGS = _SensorUpdateMethod(lambda sensor: sensor.update_readings())
+
+    def get_update_methods(self, sensor: RaritanSensor) -> RaritanUpdatableRpcMethodsList:
+        return self.value.method(sensor)
+
+    def fetch_msg(self, count: int) -> str:
+        return "Fetching sensor {} for {} sensors".format(self.name.lower(), count)
+
+    def updated_msg(self, count: int) -> str:
+        return "Updated sensor {} for {} sensors".format(self.name.lower(), count)
+
+class UpdateSensors(Flag):
+    NONE = 0
+    INFO = auto()
+    READINGS = auto()
+    ALL = INFO | READINGS
 
 class RaritanClient:
     """Client for Raritan API."""
@@ -166,7 +210,7 @@ class RaritanClient:
 
                 await self._hass.async_add_executor_job(
                     session_manager.closeCurrentSession,
-                    SessionManager.CloseReason.CLOSE_REASON_FORCED_DISCONNECT, # pyright: ignore[reportAttributeAccessIssue]
+                    SessionManager.CloseReason.CLOSE_REASON_LOGOUT, # pyright: ignore[reportAttributeAccessIssue]
                 )
             except rpc.HttpException:
                 _LOGGER.debug("Failed to close session")
@@ -180,7 +224,7 @@ class RaritanClient:
         finally:
             self._token = None
 
-    async def get_pdu_info(self, pdu_idx: int = 0, *, update_sensor_data: bool = True) -> RaritanPdu:
+    async def get_pdu_info(self, pdu_idx: int = 0, *, update_sensor_data: UpdateSensors = UpdateSensors.ALL) -> RaritanPdu:
         """Get information for the Raritan PDU."""
         await self.authenticate()
 
@@ -238,8 +282,11 @@ class RaritanClient:
                 })
             )
 
-            if update_sensor_data:
-                return await self._update_device_sensors_data(device)
+            if update_sensor_data | UpdateSensors.INFO:
+                return await self._update_sensor_info_for_device(device)
+
+            if update_sensor_data | UpdateSensors.READINGS:
+                return await self._update_sensor_readings_for_device(device)
 
             return device
 
@@ -275,6 +322,7 @@ class RaritanClient:
                             'apparent_power': outlet_sensors.apparentPower,
                             'active_energy': outlet_sensors.activeEnergy,
                             'apparent_energy': outlet_sensors.apparentEnergy,
+                            'outlet_state': outlet_sensors.outletState,
                         }),
                     )
                 )
@@ -328,17 +376,17 @@ class RaritanClient:
         else:
             return inlets
 
-    async def _update_device_sensors_data(self, device: T) -> T:
+    async def _update_sensors_for_device(self, device: T, update_type: _SensorUpdate) -> T:
         update_requests = [
             (sensor, request, update) for sensor, (request, update) in list(
                 flatten([list(product([sensor], sensor_updates))
-                for sensor, sensor_updates in [(sensor, sensor.update_methods()) for (_, sensor) in [x for x in device.available_sensors]]])
+                for sensor, sensor_updates in [(sensor, update_type.get_update_methods(sensor)) for (_, sensor) in [x for x in device.all_available_sensors]]])
             )
         ]
 
         sensors, requests, update_methods = [list(tup) for tup in zip(*update_requests)]
 
-        _LOGGER.debug(f"Fetching sensor data for {len(sensors)} sensors")
+        _LOGGER.debug(update_type.fetch_msg(len(sensors)))
 
         responses = await self._hass.async_add_executor_job(
             perform_bulk, self._agent, interleave(requests)
@@ -347,14 +395,57 @@ class RaritanClient:
         for (_, response, method) in zip(sensors, responses, update_methods):
             method(response)
 
-        _LOGGER.debug("Updated sensor data")
+        _LOGGER.debug(update_type.updated_msg(len(sensors)))
 
         return device
 
-    async def update_pdu_sensors_data(self, pdu: RaritanPdu) -> RaritanPdu:
+    async def _update_sensor_info_for_device(self, device: T) -> T:
+        return await self._update_sensors_for_device(device, _SensorUpdate.INFO)
+
+    async def _update_sensor_readings_for_device(self, device: T) -> T:
+        return await self._update_sensors_for_device(device, _SensorUpdate.READINGS)
+
+    async def update_sensor_readings_for_pdu(self, pdu: RaritanPdu) -> RaritanPdu:
         await self.authenticate()
 
-        return await self._update_device_sensors_data(pdu)
+        return await self._update_sensor_readings_for_device(pdu)
+
+    async def set_outlet_power_state(
+        self,
+        pdu_idx: int = 0,
+        outlet_idx: int = 0,
+        state: OutletPowerState = OutletPowerState.ON
+    ) -> OutletPowerState:
+        """Get the power state for a specific Raritan PDU outlet."""
+        await self.authenticate()
+
+        try:
+            outlet = Outlet(f"/model/pdu/{pdu_idx}/outlet/{outlet_idx}", self._agent)
+
+            status: int = await self._hass.async_add_executor_job(
+                outlet.setPowerState, STATE_TO_API_MAPPING[OutletPowerState][state]
+            )
+        except rpc.HttpException as e:
+            _LOGGER.exception(
+                "Error setting PDU {pdu_idx} outlet {outlet_idx} power state"
+            )
+
+            message: str = f"Failed to set PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+            raise RaritanClientError(message) from e
+        else:
+            match status:
+                case 0: #OK
+                    return state
+                case Outlet.ERR_OUTLET_NOT_SWITCHABLE:
+                    message = f"Outlet not switchable for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                case Outlet.ERR_OUTLET_DISABLED:
+                    message = f"Outlet disabled for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                case Outlet.ERR_RELAY_CONTROL_DISABLED:
+                    message = f"Outlet relay control disabled for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                case _:
+                    message = f"Unexpected response setting PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+
+            raise RaritanClientError(message)
 
 
 class RaritanClientError(Exception):

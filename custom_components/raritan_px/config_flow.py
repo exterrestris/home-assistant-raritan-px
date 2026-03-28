@@ -32,6 +32,7 @@ from . import (
 from .api.model.device import RaritanPdu
 from .api.client import (
     RaritanClient,
+    UpdateSensors,
     AuthenticationDetails,
     ConnectionDetails,
     AuthenticationError,
@@ -266,7 +267,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.hass, ConnectionDetails(host=host, auth=credentials)
             )
 
-            pdu = await client.get_pdu_info(update_sensor_data=False)
+            pdu = await client.get_pdu_info(update_sensor_data=UpdateSensors.NONE)
         else:
             return None
 

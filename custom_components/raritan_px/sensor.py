@@ -1,4 +1,4 @@
-"""Support for RaritanPdu switch entities."""
+"""Support for RaritanPdu sensor entities."""
 
 from __future__ import annotations
 from typing import TypeVar
@@ -16,16 +16,19 @@ from homeassistant.components.sensor import (
 )
 
 from .api.model.device import (
+    RaritanPduDevice,
     RaritanPduInlet,
     RaritanPduOutlet,
     RaritanPdu,
 )
+from .api.model.sensor import RaritanSensor
 from .coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
     RaritanPduDataUpdateCoordinator,
 )
 from .entity import (
+    CoordinatedRaritanPduDeviceEntity,
     RaritanPduDeviceEntityDescription,
     RaritanPduEntityDescription,
     RaritanPduOutletEntityDescription,
@@ -41,13 +44,13 @@ _LOGGER = logging.getLogger(__name__)
 class RaritanPduDeviceSensorEntityDescription(
     SensorEntityDescription, RaritanPduDeviceEntityDescription
 ):
-    """Base class for a Raritan PDU outlet sensor entity description."""
+    """Base class for a Raritan PDU device sensor entity description."""
 
 @dataclass(frozen=True, kw_only=True)
 class RaritanPduSensorEntityDescription(
     RaritanPduDeviceSensorEntityDescription, RaritanPduEntityDescription
 ):
-    """Base class for a Raritan PDU outlet sensor entity description."""
+    """Base class for a Raritan PDU sensor entity description."""
 
 @dataclass(frozen=True, kw_only=True)
 class RaritanPduOutletSensorEntityDescription(
@@ -59,7 +62,7 @@ class RaritanPduOutletSensorEntityDescription(
 class RaritanPduInletSensorEntityDescription(
     RaritanPduDeviceSensorEntityDescription, RaritanPduInletEntityDescription
 ):
-    """Base class for a Raritan PDU outlet sensor entity description."""
+    """Base class for a Raritan PDU inlet sensor entity description."""
 
 
 SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
@@ -170,40 +173,39 @@ async def async_setup_entry(
             )
         )
 
+class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEntity):
+    """Representation of a Raritan PDU Outlet switch."""
 
-class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, SensorEntity):
+    _sensor: RaritanSensor
+    entity_description: RaritanPduDeviceSensorEntityDescription
+
+    def __init__(self, device: RaritanPduDevice, pdu: RaritanPdu, coordinator: RaritanPduDataUpdateCoordinator, description: RaritanPduDeviceEntityDescription) -> None:
+        super().__init__(device, pdu, coordinator, description)
+
+        self._sensor = self._device.sensors[self.entity_description.key]
+
+    @callback
+    def _async_update_attrs(self) -> bool:
+        """Update the entity's attributes."""
+        value = self._sensor.value
+
+        self._attr_native_value = value
+
+        if (self._sensor.unit) is not None:
+            self._attr_native_unit_of_measurement = self._sensor.unit
+
+        return True
+
+
+class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanPduDeviceSensorEntity):
     """Representation of a Raritan PDU Outlet switch."""
 
     _device: RaritanPduOutlet
     entity_description: RaritanPduOutletSensorEntityDescription
 
-    @callback
-    def _async_update_attrs(self) -> bool:
-        """Update the entity's attributes."""
-        value = self._device.sensors[self.entity_description.key].value
 
-        self._attr_native_value = value
-
-        if (self._device.sensors[self.entity_description.key].unit) is not None:
-            self._attr_native_unit_of_measurement = self._device.sensors[self.entity_description.key].unit
-
-        return True
-
-
-class RaritanPduInletSensorEntity(CoordinatedRaritanPduInletEntity, SensorEntity):
+class RaritanPduInletSensorEntity(CoordinatedRaritanPduInletEntity, RaritanPduDeviceSensorEntity):
     """Representation of a Raritan PDU Inlet switch."""
 
     _device: RaritanPduInlet
     entity_description: RaritanPduInletSensorEntityDescription
-
-    @callback
-    def _async_update_attrs(self) -> bool:
-        """Update the entity's attributes."""
-        value = self._device.sensors[self.entity_description.key].reading # pyright: ignore[reportAttributeAccessIssue]
-
-        self._attr_native_value = value
-
-        if (self._device.sensors[self.entity_description.key].unit) is not None:
-            self._attr_native_unit_of_measurement = self._device.sensors[self.entity_description.key].unit
-
-        return True

@@ -1,7 +1,9 @@
-from raritan.rpc import Interface as RpcInterface, Structure as RpcStructure
+from raritan.rpc import Interface as RpcInterface
 
 from dataclasses import dataclass
 from typing import Any, Callable
+
+type RaritanUpdatableRpcMethodsList = list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[Any], None]]]
 
 @dataclass
 class RaritanUpdatable():
@@ -9,5 +11,8 @@ class RaritanUpdatable():
 
     source: RpcInterface
 
-    def update_methods(self) -> list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[RpcStructure], None]]]:
+    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+        return []
+
+    def update_info(self) -> RaritanUpdatableRpcMethodsList:
         return []

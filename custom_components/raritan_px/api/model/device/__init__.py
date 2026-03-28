@@ -7,7 +7,7 @@ from .sensors import (
     RaritanPduSensors,
     RaritanPduOutletSensors
 )
-from ..sensor import RaritanSensor
+from ..sensor import RaritanSensor, RaritanSwitch
 
 
 @dataclass
@@ -20,8 +20,28 @@ class RaritanPduDevice:
     sensors: RaritanDeviceSensors
 
     @property
+    def all_defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
+        return [
+            (sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)
+        ]
+
+    @property
+    def all_available_sensors(self) -> list[tuple[str, RaritanSensor]]:
+        return [
+            (name, sensor) for (name, sensor) in self.all_defined_sensors if sensor is not None
+        ]
+
+    @property
     def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
-        return [(sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors) if getattr(self.sensors, sensor.name) is not None]
+        return [
+            (name, sensor) for (name, sensor) in self.all_available_sensors if not isinstance(sensor, RaritanSwitch)
+        ]
+
+    @property
+    def available_switches(self) -> list[tuple[str, RaritanSwitch]]:
+        return [
+            (name, sensor) for (name, sensor) in self.all_available_sensors if isinstance(sensor, RaritanSwitch)
+        ]
 
 
 @dataclass
@@ -84,5 +104,5 @@ class RaritanPdu(RaritanPduDevice):
         self.ocps.append(ocp)
 
     @property
-    def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
-        return list(flatten([super().available_sensors] + [outlet.available_sensors for outlet in self.outlets] + [inlet.available_sensors for inlet in self.inlets]))
+    def all_defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
+        return list(flatten([super().all_defined_sensors] + [outlet.all_defined_sensors for outlet in self.outlets] + [inlet.all_defined_sensors for inlet in self.inlets]))

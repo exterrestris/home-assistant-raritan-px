@@ -1,9 +1,13 @@
 from dataclasses import dataclass
-from typing import Self
+from typing import Self, get_type_hints, get_args
 
-from raritan.rpc.sensors import AccumulatingNumericSensor, NumericSensor, Sensor, StateSensor
+from raritan.rpc.sensors import Sensor
 
-from ..sensor import RaritanAccumulatingSensor, RaritanNumericSensor, RaritanSensor, RaritanStateSensor
+from ..sensor import (
+    RaritanNumericSensor,
+    RaritanSensor,
+    RaritanSwitch
+)
 
 @dataclass
 class RaritanDeviceSensors:
@@ -14,23 +18,15 @@ class RaritanDeviceSensors:
 
     @classmethod
     def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
-        state_sensors = {
-            name: RaritanStateSensor(source)
-            for name, source in sources.items()
-            if isinstance(source, StateSensor)
-        }
-        numeric_sensors = {
-            name: RaritanNumericSensor(source)
-            for name, source in sources.items()
-            if isinstance(source, NumericSensor) and not isinstance(source, AccumulatingNumericSensor)
-        }
-        accumulating_sensors = {
-            name: RaritanAccumulatingSensor(source)
-            for name, source in sources.items()
-            if isinstance(source, AccumulatingNumericSensor)
-        }
+        types = get_type_hints(cls)
 
-        return cls(**state_sensors, **numeric_sensors, **accumulating_sensors)
+        return cls(**{
+            name: sensor_type(source)
+            for (name, (sensor_type, _), source) in [(name, get_args(types[name]), source) for
+                name, source in sources.items()
+                if name in types and source is not None
+            ]
+        })
 
 
 @dataclass
@@ -66,3 +62,4 @@ class RaritanPduOutletSensors(RaritanDeviceSensors):
     apparent_power: RaritanNumericSensor | None = None
     active_energy: RaritanNumericSensor | None = None
     apparent_energy: RaritanNumericSensor | None = None
+    outlet_state: RaritanSwitch | None = None

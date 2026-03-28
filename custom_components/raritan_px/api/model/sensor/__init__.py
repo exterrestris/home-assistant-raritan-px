@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+
 from datetime import datetime
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from homeassistant.const import (
@@ -22,11 +23,11 @@ from homeassistant.const import (
     UnitOfTime,
     UnitOfVolume
 )
-from raritan.rpc import Interface as RpcInterface
+
 from raritan.rpc.sensors import AccumulatingNumericSensor, NumericSensor, Sensor, StateSensor
 
-from . import RaritanUpdatable
-
+from .. import RaritanUpdatable, RaritanUpdatableRpcMethodsList
+from .states import OnOff, OpenClosed, NormalAlarmed, OkFaulted, RaritanSensorState
 
 SENSOR_UNITS_MAPPING = {
     Sensor.NONE: None,
@@ -84,6 +85,59 @@ SENSOR_UNITS_MAPPING = {
     # Sensor.UG_PER_CUBIC_METER: ,
 }
 
+STATE_SENSOR_TYPE_VALUE_MAPPING: dict[type[RaritanSensorState], dict[int, RaritanSensorState]] = {
+    OnOff: {
+        Sensor.OnOffState.ON.val: OnOff.ON, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OnOffState.OFF.val: OnOff.OFF, # pyright: ignore[reportAttributeAccessIssue]
+    },
+    OpenClosed: {
+        Sensor.OpenClosedState.OPEN.val: OpenClosed.OPEN, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OpenClosedState.CLOSED.val: OpenClosed.CLOSED, # pyright: ignore[reportAttributeAccessIssue]
+    },
+    NormalAlarmed: {
+        Sensor.NormalAlarmedState.NORMAL.val: NormalAlarmed.NORMAL, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.NormalAlarmedState.ALARMED.val: NormalAlarmed.ALARMED, # pyright: ignore[reportAttributeAccessIssue]
+    },
+    OkFaulted: {
+        Sensor.OkFaultState.OK.val: OkFaulted.OK, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OkFaultState.FAULT.val: OkFaulted.FAULT, # pyright: ignore[reportAttributeAccessIssue]
+    },
+}
+
+STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
+    # On/Off State Sensors
+    StateSensor.ON_OFF_SENSOR: OnOff,
+    StateSensor.DRY_CONTACT: OnOff,
+    StateSensor.POWERED_DRY_CONTACT: OnOff,
+
+    # Open/Closed State Sensors
+    StateSensor.TRIP_SENSOR: OpenClosed,
+    StateSensor.DOOR_STATE: OpenClosed,
+    StateSensor.DOOR_LOCK_STATE: OpenClosed,
+    StateSensor.DOOR_HANDLE_LOCK: OpenClosed,
+
+    # Normal/Alarmed State Sensors
+    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
+    StateSensor.VIBRATION: NormalAlarmed,
+    StateSensor.WATER_LEAK: NormalAlarmed,
+    StateSensor.SMOKE_DETECTOR: NormalAlarmed,
+    StateSensor.OCCUPANCY: NormalAlarmed,
+    StateSensor.TAMPER: NormalAlarmed,
+    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
+    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
+    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
+
+    # Normal/Alarmed State Sensors if Discrete
+    StateSensor.MAGNETIC_FIELD_STRENGTH: NormalAlarmed,
+    StateSensor.FAULT_STATE: NormalAlarmed,
+}
+
+STATE_SENSOR_READING_TYPE = {
+    StateSensor.NUMERIC: 0,
+    StateSensor.DISCRETE_ON_OFF: 1, #  Sensor has two discrete readings: 0 (off) and 1 (on), see OnOffState
+    StateSensor.DISCRETE_MULTI: 2, # Sensor has multiple discrete readings
+}
+
 
 @dataclass
 class RaritanSensor(RaritanUpdatable):
@@ -102,19 +156,37 @@ class RaritanStateSensor(RaritanSensor):
     """Representation of a device state sensor."""
 
     source: StateSensor
-    state: Any = None
+    state: RaritanSensorState | None = None
+    type: Any = None
 
     @property
     def value(self) -> Any:
         return self.state
 
-    def update_methods(self) -> list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[StateSensor.State], None]]]:
+    def update_info(self) -> RaritanUpdatableRpcMethodsList:
+        return [
+            ((self.source.getTypeSpec, []), self.update_type),
+        ]
+
+    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
         return [
             ((self.source.getState, []), self.update_state),
         ]
 
     def update_state(self, state: StateSensor.State) -> None:
-        self.state = state.value
+        if (self.type):
+            self.state = STATE_SENSOR_TYPE_VALUE_MAPPING[self.type][state.value]
+
+    def update_type(self, spec: StateSensor.TypeSpec) -> None:
+        if (spec.type in STATE_SENSOR_TYPE_MAPPING):
+            self.type = STATE_SENSOR_TYPE_MAPPING[spec.type]
+
+
+@dataclass
+class RaritanSwitch(RaritanStateSensor):
+    """Representation of a device switch."""
+
+    state: OnOff | None = None
 
 
 @dataclass
@@ -129,10 +201,14 @@ class RaritanNumericSensor(RaritanSensor):
     def value(self) -> Any:
         return self.reading
 
-    def update_methods(self) -> list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[Any], None]]]:
+    def update_info(self) -> RaritanUpdatableRpcMethodsList:
+        return [
+            ((self.source.getMetaData, []), self.update_metadata),
+        ]
+
+    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
         return [
             ((self.source.getReading, []), self.update_reading),
-            ((self.source.getMetaData, []), self.update_metadata),
         ]
 
     def update_reading(self, reading: NumericSensor.Reading) -> None:
