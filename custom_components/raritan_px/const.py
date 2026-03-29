@@ -23,5 +23,3 @@ PLATFORMS: Final = [
 ]
 
 UPDATE_INTERVAL = datetime.timedelta(seconds=5)
-
-API_TIMEOUT = 10
