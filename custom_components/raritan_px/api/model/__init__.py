@@ -5,11 +5,9 @@ from typing import Any, Callable
 
 type RaritanUpdatableRpcMethodsList = list[tuple[tuple[RpcInterface.Method, list[Any]], Callable[[Any], None]]]
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanUpdatable():
     """Representation of a generic updatable value."""
-
-    source: RpcInterface
 
     def update_readings(self) -> RaritanUpdatableRpcMethodsList:
         return []

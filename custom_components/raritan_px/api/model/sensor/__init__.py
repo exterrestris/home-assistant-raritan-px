@@ -1,7 +1,8 @@
 
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Self, get_type_hints, get_args
+from itertools import chain
 
 from homeassistant.const import (
     DEGREE,
@@ -139,29 +140,29 @@ STATE_SENSOR_READING_TYPE = {
 }
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanSensor(RaritanUpdatable):
     """Representation of a generic device sensor."""
 
-    source: Sensor
-    unit: None = None
+    unit: Any = None
 
     @property
     def value(self) -> Any:
         raise NotImplementedError
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanStateSensor(RaritanSensor):
     """Representation of a device state sensor."""
 
     source: StateSensor
     state: RaritanSensorState | None = None
+    unit: None = None
     type: Any = None
 
     @property
-    def value(self) -> Any:
-        return self.state
+    def value(self) -> str | None:
+        return self.state.friendly_name() if self.state is not None else None
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
         return [
@@ -182,14 +183,14 @@ class RaritanStateSensor(RaritanSensor):
             self.type = STATE_SENSOR_TYPE_MAPPING[spec.type]
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanSwitch(RaritanStateSensor):
     """Representation of a device switch."""
 
     state: OnOff | None = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanNumericSensor(RaritanSensor):
     """Representation of a device numeric sensor."""
 
@@ -219,9 +220,42 @@ class RaritanNumericSensor(RaritanSensor):
             self.unit = SENSOR_UNITS_MAPPING[reading.type.unit]
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanAccumulatingSensor(RaritanNumericSensor):
     """Representation of a device accumulating numeric sensor."""
 
     source: AccumulatingNumericSensor
     last_reset: datetime | None = None
+
+
+@dataclass(kw_only=True)
+class RaritanMultiSensor(RaritanSensor):
+
+    sensors: list[RaritanSensor]
+
+    @classmethod
+    def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
+        types = get_type_hints(cls)
+        sensor_type = get_args(types['sensors'])[0]
+
+        return cls(sensors=[sensor_type(source=src) for src in sources])
+
+    @property
+    def value(self) -> Any:
+        return self.sensors[0].value if len(self.sensors) else None
+
+    def update_info(self) -> RaritanUpdatableRpcMethodsList:
+        return list(chain.from_iterable([
+            sensor.update_info() for sensor in self.sensors
+        ]))
+
+    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+        return list(chain.from_iterable([
+            sensor.update_readings() for sensor in self.sensors
+        ]))
+
+
+@dataclass(kw_only=True)
+class RaritanMultiStateSensor(RaritanMultiSensor):
+
+    sensors: list[RaritanStateSensor]

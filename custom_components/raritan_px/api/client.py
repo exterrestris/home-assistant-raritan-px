@@ -73,14 +73,14 @@ class _SensorUpdate(Enum):
     INFO = _SensorUpdateMethod(lambda sensor: sensor.update_info())
     READINGS = _SensorUpdateMethod(lambda sensor: sensor.update_readings())
 
-    def get_update_methods(self, sensor: RaritanSensor) -> RaritanUpdatableRpcMethodsList:
+    def get_update_methods(self, sensor: RaritanUpdatable) -> RaritanUpdatableRpcMethodsList:
         return self.value.method(sensor)
 
-    def fetch_msg(self, count: int) -> str:
-        return "Fetching sensor {} for {} sensors".format(self.name.lower(), count)
+    def fetch_msg(self, sensor_count: int, device_count: int, requests_count: int) -> str:
+        return "Fetching sensor {} for {} sensors for {} devices via {} requests".format(self.name.lower(), device_count, sensor_count, requests_count)
 
-    def updated_msg(self, count: int) -> str:
-        return "Updated sensor {} for {} sensors".format(self.name.lower(), count)
+    def updated_msg(self, sensor_count: int) -> str:
+        return "Updated sensor {} for {} sensors".format(self.name.lower(), sensor_count)
 
 class UpdateSensors(Flag):
     NONE = 0
@@ -378,15 +378,20 @@ class RaritanClient:
 
     async def _update_sensors_for_device(self, device: T, update_type: _SensorUpdate) -> T:
         update_requests = [
-            (sensor, request, update) for sensor, (request, update) in list(
-                flatten([list(product([sensor], sensor_updates))
-                for sensor, sensor_updates in [(sensor, update_type.get_update_methods(sensor)) for (_, sensor) in [x for x in device.all_available_sensors]]])
+            (device, (device, sensor), request, update) for (device, sensor), (request, update) in list(
+                flatten([
+                    list(product([sensor], sensor_updates))
+                    for sensor, sensor_updates in [
+                        ((device_name, sensor_name), update_type.get_update_methods(sensor))
+                        for (device_name, sensor_name, sensor) in [x for x in device.all_updatable_sensors]
+                    ]
+                ])
             )
         ]
 
-        sensors, requests, update_methods = [list(tup) for tup in zip(*update_requests)]
+        devices, sensors, requests, update_methods = [list(tup) for tup in zip(*update_requests)]
 
-        _LOGGER.debug(update_type.fetch_msg(len(sensors)))
+        _LOGGER.debug(update_type.fetch_msg(len(set(devices)), len(set(sensors)), len(requests)))
 
         responses = await self._hass.async_add_executor_job(
             perform_bulk, self._agent, interleave(requests)
@@ -395,7 +400,7 @@ class RaritanClient:
         for (_, response, method) in zip(sensors, responses, update_methods):
             method(response)
 
-        _LOGGER.debug(update_type.updated_msg(len(sensors)))
+        _LOGGER.debug(update_type.updated_msg(len(set(sensors))))
 
         return device
 

@@ -3,6 +3,14 @@ from enum import Enum, IntEnum
 class RaritanSensorState(Enum):
     """"""
 
+    def friendly_name(self) -> str:
+        return self.name.title()
+
+
+    @classmethod
+    def options(cls) -> list[str]:
+        return [opt.friendly_name() for opt in list(cls)]
+
 class OnOff(RaritanSensorState, IntEnum):
     """"""
 

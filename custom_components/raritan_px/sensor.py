@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import TypeVar
 from itertools import product
 from more_itertools import flatten
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import logging
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -22,6 +22,7 @@ from .api.model.device import (
     RaritanPdu,
 )
 from .api.model.sensor import RaritanSensor
+from .api.model.sensor.states import NormalAlarmed
 from .coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
@@ -66,6 +67,12 @@ class RaritanPduInletSensorEntityDescription(
 
 
 SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
+    RaritanPduSensorEntityDescription(
+        key="power_supply_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=NormalAlarmed.options(),
+        name="Power Supply {} Status"
+    ),
     RaritanPduOutletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -130,12 +137,35 @@ SENSOR_DESCRIPTIONS_MAP = { (type(desc), desc.key) : desc for desc in SENSOR_DES
 
 T = TypeVar('T', bound="RaritanPduDeviceSensorEntityDescription", covariant=True)
 
-def get_entity_description(type: type[T], key: str) -> T:
-    if (type, key) in SENSOR_DESCRIPTIONS_MAP:
-        return SENSOR_DESCRIPTIONS_MAP[(type, key)] # pyright: ignore[reportReturnType, reportArgumentType]
+def get_entity_description(desc_type: type[T], sensor_name: str, sensor: RaritanSensor) -> T:
+    def default_name(name: str = sensor_name) -> str:
+        return name.replace('_', ' ').replace(':', ' ').title()
 
-    return type(
-        key=key,
+    if (desc_type, sensor_name) in SENSOR_DESCRIPTIONS_MAP:
+        return SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)] # pyright: ignore[reportReturnType, reportArgumentType]
+
+    if ':' in sensor_name:
+        generic_name, idx = sensor_name.split(':')
+
+        if (desc_type, generic_name) in SENSOR_DESCRIPTIONS_MAP:
+            desc = SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)] # pyright: ignore[reportArgumentType]
+
+            def formatted_name():
+                if type(desc.name) is str:
+                    return desc.name.format(int(idx) + 1)
+
+                return f"{default_name(generic_name)} {int(idx) + 1}"
+
+            return desc_type(
+                **(asdict(desc) | {
+                    'key': sensor_name,
+                    'name': formatted_name(),
+                })
+            )
+
+    return desc_type(
+        key = sensor_name,
+        name = default_name(),
     )
 
 async def async_setup_entry(
@@ -149,14 +179,26 @@ async def async_setup_entry(
     pdu: RaritanPdu = coordinator.pdu
 
     async_add_entities(
+        RaritanPduSensorEntity(
+            pdu,
+            pdu,
+            coordinator,
+            get_entity_description(RaritanPduSensorEntityDescription, sensor_name, sensor),
+            sensor
+        )
+        for sensor_name, sensor in pdu.available_sensors
+    )
+
+    async_add_entities(
         RaritanPduInletSensorEntity(
             inlet,
             pdu,
             coordinator,
-            get_entity_description(RaritanPduInletSensorEntityDescription, sensor),
+            get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name, sensor),
+            sensor
         )
-        for inlet, sensor in list(
-            flatten([list(product([inlet], sensors)) for (inlet, sensors) in [(inlet, [sensor for sensor, _ in inlet.available_sensors]) for inlet in pdu.inlets]])
+        for inlet, (sensor_name, sensor) in list(
+            flatten([list(product([inlet], sensors)) for (inlet, sensors) in [(inlet, inlet.available_sensors) for inlet in pdu.inlets]])
         )
     )
 
@@ -166,10 +208,11 @@ async def async_setup_entry(
                 outlet,
                 pdu,
                 coordinator,
-                get_entity_description(RaritanPduOutletSensorEntityDescription, sensor),
+                get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name, sensor),
+                sensor
             )
-            for outlet, sensor in list(
-                flatten([list(product([outlet], sensors)) for (outlet, sensors) in [(outlet, [sensor for sensor, _ in outlet.available_sensors]) for outlet in pdu.outlets]])
+            for outlet, (sensor_name, sensor) in list(
+                flatten([list(product([outlet], sensors)) for (outlet, sensors) in [(outlet, outlet.available_sensors) for outlet in pdu.outlets]])
             )
         )
 
@@ -179,10 +222,17 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
     _sensor: RaritanSensor
     entity_description: RaritanPduDeviceSensorEntityDescription
 
-    def __init__(self, device: RaritanPduDevice, pdu: RaritanPdu, coordinator: RaritanPduDataUpdateCoordinator, description: RaritanPduDeviceEntityDescription) -> None:
+    def __init__(
+            self,
+            device: RaritanPduDevice,
+            pdu: RaritanPdu,
+            coordinator: RaritanPduDataUpdateCoordinator,
+            description: RaritanPduDeviceEntityDescription,
+            sensor: RaritanSensor
+        ) -> None:
         super().__init__(device, pdu, coordinator, description)
 
-        self._sensor = self._device.sensors[self.entity_description.key]
+        self._sensor = sensor
 
     @callback
     def _async_update_attrs(self) -> bool:
@@ -195,6 +245,13 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
             self._attr_native_unit_of_measurement = self._sensor.unit
 
         return True
+
+
+class RaritanPduSensorEntity(CoordinatedRaritanPduEntity, RaritanPduDeviceSensorEntity):
+    """Representation of a Raritan PDU Outlet switch."""
+
+    _device: RaritanPdu
+    entity_description: RaritanPduSensorEntityDescription
 
 
 class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanPduDeviceSensorEntity):

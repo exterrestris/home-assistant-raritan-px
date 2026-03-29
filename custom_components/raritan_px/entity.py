@@ -142,15 +142,6 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
     _device: RaritanPdu
     entity_description: RaritanPduEntityDescription
 
-    def __init__(
-        self,
-        device: RaritanPdu,
-        coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduEntityDescription,
-    ) -> None:
-        """Initialize the entity."""
-        super().__init__(device, device, coordinator, description)
-
     def _get_device_name(self) -> str:
         """Get the device name to use for this entity."""
         return self._get_pdu_name()
@@ -176,16 +167,6 @@ class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity,
     _device: RaritanPduEnergyDevice
     entity_description: RaritanPduDeviceEntityDescription
 
-    def __init__(
-        self,
-        device: RaritanPduEnergyDevice,
-        pdu: RaritanPdu,
-        coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduDeviceEntityDescription,
-    ) -> None:
-        """Initialize the entity."""
-        super().__init__(device, pdu, coordinator, description)
-
     def _get_device_name(self) -> str | None:
         """Get the device name to use for this entity."""
         if self._device.name:
@@ -209,16 +190,6 @@ class CoordinatedRaritanPduOutletEntity(CoordinatedRaritanPduEnergyDeviceEntity,
     _device: RaritanPduOutlet
     entity_description: RaritanPduOutletEntityDescription
 
-    def __init__(
-        self,
-        device: RaritanPduOutlet,
-        pdu: RaritanPdu,
-        coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduOutletEntityDescription,
-    ) -> None:
-        """Initialize the entity."""
-        super().__init__(device, pdu, coordinator, description)
-
     def _get_device_type(self) -> str:
         """Get the device type to use for this entity."""
         return "Outlet"
@@ -229,16 +200,6 @@ class CoordinatedRaritanPduInletEntity(CoordinatedRaritanPduEnergyDeviceEntity, 
 
     _device: RaritanPduInlet
     entity_description: RaritanPduInletEntityDescription
-
-    def __init__(
-        self,
-        device: RaritanPduInlet,
-        pdu: RaritanPdu,
-        coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduInletEntityDescription,
-    ) -> None:
-        """Initialize the entity."""
-        super().__init__(device, pdu, coordinator, description)
 
     def _get_device_type(self) -> str:
         """Get the device type to use for this entity."""

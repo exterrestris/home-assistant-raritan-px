@@ -7,10 +7,11 @@ from ..sensor import (
     RaritanAccumulatingSensor,
     RaritanNumericSensor,
     RaritanSensor,
+    RaritanMultiStateSensor,
     RaritanSwitch
 )
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanDeviceSensors:
     """Representation of a set of device sensors."""
 
@@ -21,27 +22,37 @@ class RaritanDeviceSensors:
     def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
         types = get_type_hints(cls)
 
-        return cls(**{
-            name: sensor_type(source)
-            for (name, (sensor_type, _), source) in [(name, get_args(types[name]), source) for
-                name, source in sources.items()
-                if name in types and source is not None
-            ]
-        })
+        return cls(
+            **{
+                name: sensor_type(source=src)
+                for (name, (sensor_type, _), src) in [
+                    (name, get_args(types[name]), src)
+                    for name, src in sources.items()
+                    if name in types and isinstance(src, Sensor)
+                ]
+            }, **{
+                name: sensor_type.from_sensor_sources(src)
+                for (name, (sensor_type, _), src) in [
+                    (name, get_args(types[name]), src)
+                    for name, src in sources.items()
+                    if name in types and type(src) is list
+                ]
+            },
+        )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduSensors(RaritanDeviceSensors):
     """Representation of the set of PDU device sensors."""
 
-    # power_supply_status: RaritanStateSensor | None = None
+    power_supply_status: RaritanMultiStateSensor | None = None
     active_power: RaritanNumericSensor | None = None
     apparent_power: RaritanNumericSensor | None = None
     active_energy: RaritanAccumulatingSensor | None = None
     apparent_energy: RaritanAccumulatingSensor | None = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduInletSensors(RaritanDeviceSensors):
     """Representation of the set of PDU inlet sensors."""
 
@@ -53,7 +64,7 @@ class RaritanPduInletSensors(RaritanDeviceSensors):
     apparent_energy: RaritanAccumulatingSensor | None = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduOutletSensors(RaritanDeviceSensors):
     """Representation of the set of PDU outlet sensors."""
 

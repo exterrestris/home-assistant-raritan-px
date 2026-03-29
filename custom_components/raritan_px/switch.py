@@ -84,10 +84,11 @@ async def async_setup_entry(
                 outlet,
                 pdu,
                 coordinator,
-                get_entity_description(RaritanPduOutletSwitchEntityDescription, switch),
+                get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name),
+                switch
             )
-            for outlet, switch in list(
-                flatten([list(product([outlet], switchs)) for (outlet, switchs) in [(outlet, [switch for switch, _ in outlet.available_switches]) for outlet in pdu.outlets]])
+            for outlet, (switch_name, switch) in list(
+                flatten([list(product([outlet], switches)) for (outlet, switches) in [(outlet, outlet.available_switches) for outlet in pdu.outlets]])
             )
         )
 
@@ -97,11 +98,17 @@ class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEnti
     _switch: RaritanSwitch
     entity_description: RaritanPduDeviceSwitchEntityDescription
 
-    def __init__(self, device: RaritanPduDevice, pdu: RaritanPdu, coordinator: RaritanPduDataUpdateCoordinator, description: RaritanPduDeviceEntityDescription) -> None:
+    def __init__(
+            self,
+            device: RaritanPduDevice,
+            pdu: RaritanPdu,
+            coordinator: RaritanPduDataUpdateCoordinator,
+            description: RaritanPduDeviceEntityDescription,
+            switch: RaritanSwitch
+        ) -> None:
         super().__init__(device, pdu, coordinator, description)
 
-        self._switch = self._device.sensors[self.entity_description.key] # pyright: ignore[reportAttributeAccessIssue]
-
+        self._switch = switch
 
     @callback
     def _async_update_attrs(self) -> bool:

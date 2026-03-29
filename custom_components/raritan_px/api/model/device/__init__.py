@@ -1,16 +1,17 @@
 from dataclasses import dataclass, field, fields
+from itertools import product
 from more_itertools import flatten
 
+from .. import RaritanUpdatable
+from ..sensor import RaritanSensor, RaritanMultiSensor, RaritanSwitch
 from .sensors import (
     RaritanDeviceSensors,
     RaritanPduInletSensors,
     RaritanPduSensors,
     RaritanPduOutletSensors
 )
-from ..sensor import RaritanSensor, RaritanSwitch
 
-
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduDevice:
     """Representation of a generic Raritan device."""
 
@@ -20,38 +21,57 @@ class RaritanPduDevice:
     sensors: RaritanDeviceSensors
 
     @property
-    def all_defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
+    def defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
         return [
             (sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)
         ]
 
     @property
-    def all_available_sensors(self) -> list[tuple[str, RaritanSensor]]:
+    def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
         return [
-            (name, sensor) for (name, sensor) in self.all_defined_sensors if sensor is not None
+            (self.device_id, sensor_name, sensor) for (sensor_name, sensor) in self.defined_sensors
+        ]
+
+    @property
+    def updatable_sensors(self) -> list[tuple[str, RaritanSensor]]:
+        return [
+            (name, sensor) for (name, sensor) in self.defined_sensors if sensor is not None
+        ]
+
+    @property
+    def all_updatable_sensors(self) -> list[tuple[str, str, RaritanSensor]]:
+        return [
+            (name, sensor_name, sensor) for (name, sensor_name, sensor) in self.all_defined_sensors if sensor is not None
         ]
 
     @property
     def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
         return [
-            (name, sensor) for (name, sensor) in self.all_available_sensors if not isinstance(sensor, RaritanSwitch)
+            (name, sensor) for (name, sensor) in self.updatable_sensors if not isinstance(sensor, RaritanMultiSensor)
+        ] + [
+            (f"{name}:{idx}", sensor)
+            for (name, (idx, sensor)) in list(flatten([
+                list(product([name], enumerate(sensorlist.sensors)))
+                for (name, sensorlist) in self.updatable_sensors
+                if isinstance(sensorlist, RaritanMultiSensor)
+            ]))
         ]
 
     @property
     def available_switches(self) -> list[tuple[str, RaritanSwitch]]:
         return [
-            (name, sensor) for (name, sensor) in self.all_available_sensors if isinstance(sensor, RaritanSwitch)
+            (name, sensor) for (name, sensor) in self.defined_sensors if isinstance(sensor, RaritanSwitch)
         ]
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduEnergyDevice(RaritanPduDevice):
     """Representation of a generic Raritan energy device."""
 
     label: str
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduOutlet(RaritanPduEnergyDevice):
     """Representation of a Raritan PDU outlet."""
 
@@ -60,7 +80,7 @@ class RaritanPduOutlet(RaritanPduEnergyDevice):
     sensors: RaritanPduOutletSensors
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduInlet(RaritanPduEnergyDevice):
     """Representation of a Raritan PDU inlet."""
 
@@ -68,14 +88,14 @@ class RaritanPduInlet(RaritanPduEnergyDevice):
     sensors: RaritanPduInletSensors
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPduOverCurrentProtector(RaritanPduEnergyDevice):
     """Representation of a Raritan PDU OCP."""
 
     ocp_id: int
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RaritanPdu(RaritanPduDevice):
     """Representation of a Raritan PDU."""
 
@@ -104,5 +124,5 @@ class RaritanPdu(RaritanPduDevice):
         self.ocps.append(ocp)
 
     @property
-    def all_defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
+    def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
         return list(flatten([super().all_defined_sensors] + [outlet.all_defined_sensors for outlet in self.outlets] + [inlet.all_defined_sensors for inlet in self.inlets]))
