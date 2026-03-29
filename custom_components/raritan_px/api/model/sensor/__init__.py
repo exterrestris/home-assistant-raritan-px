@@ -25,12 +25,13 @@ from homeassistant.const import (
     UnitOfVolume
 )
 
+from raritan.rpc import Time
 from raritan.rpc.sensors import AccumulatingNumericSensor, NumericSensor, Sensor, StateSensor
 
 from .. import RaritanUpdatable, RaritanUpdatableRpcMethodsList
 from .states import OnOff, OpenClosed, NormalAlarmed, OkFaulted, RaritanSensorState
 
-SENSOR_UNITS_MAPPING = {
+SENSOR_UNITS_MAPPING: dict[int, str | None] = {
     Sensor.NONE: None,
     Sensor.VOLT: UnitOfElectricPotential.VOLT,
     Sensor.AMPERE: UnitOfElectricCurrent.AMPERE,
@@ -144,7 +145,10 @@ STATE_SENSOR_READING_TYPE = {
 class RaritanSensor(RaritanUpdatable):
     """Representation of a generic device sensor."""
 
-    unit: Any = None
+    unit: str | None = None
+    last_reset: datetime | None = None
+    available: bool | None = None
+    last_sample: datetime | None = None
 
     @property
     def value(self) -> Any:
@@ -157,6 +161,7 @@ class RaritanStateSensor(RaritanSensor):
 
     source: StateSensor
     state: RaritanSensorState | None = None
+    last_reset: None = None
     unit: None = None
     type: Any = None
 
@@ -177,6 +182,8 @@ class RaritanStateSensor(RaritanSensor):
     def update_state(self, state: StateSensor.State) -> None:
         if (self.type):
             self.state = STATE_SENSOR_TYPE_VALUE_MAPPING[self.type][state.value]
+            self.available = state.available
+            self.last_sample = state.timestamp
 
     def update_type(self, spec: StateSensor.TypeSpec) -> None:
         if (spec.type in STATE_SENSOR_TYPE_MAPPING):
@@ -196,7 +203,6 @@ class RaritanNumericSensor(RaritanSensor):
 
     source: NumericSensor
     reading: float | None = None
-    unit: Any | None = None
 
     @property
     def value(self) -> Any:
@@ -225,7 +231,14 @@ class RaritanAccumulatingSensor(RaritanNumericSensor):
     """Representation of a device accumulating numeric sensor."""
 
     source: AccumulatingNumericSensor
-    last_reset: datetime | None = None
+
+    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+        return super().update_readings() + [
+            ((self.source.getLastResetTime, []), self.update_reset),
+        ]
+
+    def update_reset(self, last_reset: Time) -> None:
+        self.last_reset = last_reset
 
 
 @dataclass(kw_only=True)

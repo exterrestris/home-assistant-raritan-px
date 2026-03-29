@@ -241,7 +241,15 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
 
         self._attr_native_value = value
 
-        if (self._sensor.unit) is not None:
+        # This check is here because Home Assistant only supports last_reset with a
+        # state class of TOTAL, however the Raritan JSON-RPC API only supplies a last
+        # reset time for accumlating numeric sensors which best map to a state class
+        # of TOTAL_INCREASING
+        if self.entity_description.state_class == SensorStateClass.TOTAL:
+            if self._sensor.last_reset is not None:
+                self._attr_last_reset = self._sensor.last_reset
+
+        if self._sensor.unit is not None:
             self._attr_native_unit_of_measurement = self._sensor.unit
 
         return True
