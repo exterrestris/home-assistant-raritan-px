@@ -22,7 +22,8 @@ from homeassistant.const import (
     UnitOfSpeed,
     UnitOfTemperature,
     UnitOfTime,
-    UnitOfVolume
+    UnitOfVolume,
+    UnitOfVolumeFlowRate,
 )
 
 from raritan.rpc import Time
@@ -38,13 +39,13 @@ SENSOR_UNITS_MAPPING: dict[int, str | None] = {
     Sensor.WATT: UnitOfPower.WATT,
     Sensor.VOLT_AMP: UnitOfApparentPower.VOLT_AMPERE,
     Sensor.WATT_HOUR: UnitOfEnergy.WATT_HOUR,
-    # Sensor.VOLT_AMP_HOUR: ,
+    Sensor.VOLT_AMP_HOUR: "VAh",
     Sensor.DEGREE_CELSIUS: UnitOfTemperature.CELSIUS,
     Sensor.HZ: UnitOfFrequency.HERTZ,
     Sensor.PERCENT: PERCENTAGE,
     Sensor.METER_PER_SEC: UnitOfSpeed.METERS_PER_SECOND,
     Sensor.PASCAL: UnitOfPressure.PA,
-    # Sensor.G: ,
+    Sensor.G: 'G',
     Sensor.RPM: REVOLUTIONS_PER_MINUTE,
     Sensor.METER: UnitOfLength.METERS,
     Sensor.HOUR: UnitOfTime.HOURS,
@@ -53,38 +54,38 @@ SENSOR_UNITS_MAPPING: dict[int, str | None] = {
     Sensor.VOLT_AMP_REACTIVE: UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
     Sensor.VOLT_AMP_REACTIVE_HOUR: UnitOfReactiveEnergy.VOLT_AMPERE_REACTIVE_HOUR,
     Sensor.GRAM: UnitOfMass.GRAMS,
-    # Sensor.OHM: ,
-    # Sensor.LITERS_PER_HOUR: ,
-    # Sensor.CANDELA: ,
-    # Sensor.METER_PER_SQUARE_SEC: ,
-    # Sensor.METER_PER_SQARE_SEC: ,
-    # Sensor.TESLA: ,
-    # Sensor.VOLT_PER_METER: ,
-    # Sensor.VOLT_PER_AMPERE: ,
+    Sensor.OHM: "Ω",
+    Sensor.LITERS_PER_HOUR: UnitOfVolumeFlowRate.LITERS_PER_HOUR,
+    Sensor.CANDELA: "cd",
+    Sensor.METER_PER_SQUARE_SEC: "m/s²",
+    Sensor.METER_PER_SQARE_SEC: "m/s²",
+    Sensor.TESLA: "T",
+    Sensor.VOLT_PER_METER: "V/m",
+    Sensor.VOLT_PER_AMPERE: "V/A",
     Sensor.DEGREE: DEGREE,
     Sensor.DEGREE_FAHRENHEIT: UnitOfTemperature.CELSIUS,
     Sensor.KELVIN: UnitOfTemperature.KELVIN,
     Sensor.JOULE: UnitOfEnergy.JOULE,
-    # Sensor.COULOMB: ,
-    # Sensor.NIT: ,
-    # Sensor.LUMEN: ,
-    # Sensor.LUMEN_SECOND: ,
-    # Sensor.LUX: ,
+    Sensor.COULOMB: "C",
+    Sensor.NIT: "cd/m²",
+    Sensor.LUMEN: "lm",
+    Sensor.LUMEN_SECOND: "lm∙s",
+    Sensor.LUX: "lx",
     Sensor.PSI: UnitOfPressure.PSI,
-    # Sensor.NEWTON: ,
+    Sensor.NEWTON: "N",
     Sensor.FOOT: UnitOfLength.FEET,
     Sensor.FOOT_PER_SEC: UnitOfSpeed.FEET_PER_SECOND,
     Sensor.CUBIC_METER: UnitOfVolume.CUBIC_METERS,
-    # Sensor.RADIANT: ,
-    # Sensor.STERADIANT: ,
-    # Sensor.HENRY: ,
-    # Sensor.FARAD: ,
-    # Sensor.MOL: ,
-    # Sensor.BECQUEREL: ,
-    # Sensor.GRAY: ,
-    # Sensor.SIEVERT: ,
-    # Sensor.G_PER_CUBIC_METER: ,
-    # Sensor.UG_PER_CUBIC_METER: ,
+    Sensor.RADIANT: "rad",
+    Sensor.STERADIANT: "sr",
+    Sensor.HENRY: "H",
+    Sensor.FARAD: "F",
+    Sensor.MOL: "mol",
+    Sensor.BECQUEREL: "Bq",
+    Sensor.GRAY: "Gy",
+    Sensor.SIEVERT: "Sv",
+    Sensor.G_PER_CUBIC_METER: "g/m³",
+    Sensor.UG_PER_CUBIC_METER: "μg/m³",
 }
 
 STATE_SENSOR_TYPE_VALUE_MAPPING: dict[type[RaritanSensorState], dict[int, RaritanSensorState]] = {
@@ -148,6 +149,7 @@ class RaritanSensor(RaritanUpdatable):
     unit: str | None = None
     last_reset: datetime | None = None
     available: bool | None = None
+    precision: int | None = None
     last_sample: datetime | None = None
 
     @property
@@ -163,6 +165,7 @@ class RaritanStateSensor(RaritanSensor):
     state: RaritanSensorState | None = None
     last_reset: None = None
     unit: None = None
+    precision: None = None
     type: Any = None
 
     @property
@@ -201,6 +204,8 @@ class RaritanSwitch(RaritanStateSensor):
 class RaritanNumericSensor(RaritanSensor):
     """Representation of a device numeric sensor."""
 
+    MAX_PRECISION = 6
+
     source: NumericSensor
     reading: float | None = None
 
@@ -219,11 +224,13 @@ class RaritanNumericSensor(RaritanSensor):
         ]
 
     def update_reading(self, reading: NumericSensor.Reading) -> None:
-        self.reading = reading.value
+        self.reading = round(reading.value, self.MAX_PRECISION)
 
     def update_metadata(self, reading: NumericSensor.MetaData) -> None:
         if (reading.type.unit in SENSOR_UNITS_MAPPING):
             self.unit = SENSOR_UNITS_MAPPING[reading.type.unit]
+
+        self.precision = reading.decdigits
 
 
 @dataclass(kw_only=True)

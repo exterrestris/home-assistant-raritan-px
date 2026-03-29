@@ -1,13 +1,18 @@
 """Support for RaritanPdu sensor entities."""
 
 from __future__ import annotations
-from typing import TypeVar
+from typing import TypeVar, Any
+from collections.abc import Callable
+from datetime import date, datetime
+from decimal import Decimal
 from itertools import product
 from more_itertools import flatten
 from dataclasses import dataclass, asdict
 import logging
+from homeassistant.const import DEGREE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.typing import StateType
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -22,7 +27,7 @@ from .api.model.device import (
     RaritanPdu,
 )
 from .api.model.sensor import RaritanSensor
-from .api.model.sensor.states import NormalAlarmed
+from .api.model.sensor.states import NormalAlarmed, OkFaulted, ResidualCurrentStatus
 from .coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
@@ -39,6 +44,8 @@ from .entity import (
     CoordinatedRaritanPduInletEntity,
 )
 
+type SensorEntityValue = StateType | date | datetime | Decimal
+
 _LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,6 +53,8 @@ class RaritanPduDeviceSensorEntityDescription(
     SensorEntityDescription, RaritanPduDeviceEntityDescription
 ):
     """Base class for a Raritan PDU device sensor entity description."""
+
+    convert_fn: Callable[[Any], SensorEntityValue | None] | None = None
 
 @dataclass(frozen=True, kw_only=True)
 class RaritanPduSensorEntityDescription(
@@ -67,12 +76,36 @@ class RaritanPduInletSensorEntityDescription(
 
 
 SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
+    #region PDU Sensors
     RaritanPduSensorEntityDescription(
         key="power_supply_status",
         device_class=SensorDeviceClass.ENUM,
         options=NormalAlarmed.options(),
         name="Power Supply {} Status"
     ),
+    RaritanPduSensorEntityDescription(
+        key="active_power",
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="apparent_power",
+        device_class=SensorDeviceClass.APPARENT_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="active_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="apparent_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        name="Apparent Energy",
+    ),
+    #endregion
+    #region Outlet Sensors
     RaritanPduOutletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -84,8 +117,31 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
     ),
     RaritanPduOutletSensorEntityDescription(
+        key="peak_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Peak Current",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="maximum_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Maximum Current",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="unbalanced_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Unbalanced Current",
+    ),
+    RaritanPduOutletSensorEntityDescription(
         key="active_power",
         device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="reactive_power",
+        device_class=SensorDeviceClass.REACTIVE_POWER,
         state_class=SensorStateClass.MEASUREMENT,
     ),
     RaritanPduOutletSensorEntityDescription(
@@ -94,14 +150,62 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
     ),
     RaritanPduOutletSensorEntityDescription(
+        key="power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="displacement_power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Displacement Power Factor",
+    ),
+    RaritanPduOutletSensorEntityDescription(
         key="active_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     RaritanPduOutletSensorEntityDescription(
         key="apparent_energy",
+        device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        name="Apparent Energy",
     ),
+    RaritanPduOutletSensorEntityDescription(
+        key="phase_angle",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Phase Angle",
+        native_unit_of_measurement=DEGREE,
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="line_frequency",
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Line Frequency",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="crest_factor",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Crest Factor",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="voltage_total_harmonic_distortion",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Voltage Total Harmonic Distortion",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="current_total_harmonic_distortion",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Voltage Total Harmonic Distortion",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="inrush_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Inrush Current",
+    ),
+    #endregion
+    #region Inlet Sensors
     RaritanPduInletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -113,8 +217,37 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
     ),
     RaritanPduInletSensorEntityDescription(
+        key="peak_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Peak Current",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="residual_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual Current",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="residual_ac_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual AC Current",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="residual_dc_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual DC Current",
+    ),
+    RaritanPduInletSensorEntityDescription(
         key="active_power",
         device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="reactive_power",
+        device_class=SensorDeviceClass.REACTIVE_POWER,
         state_class=SensorStateClass.MEASUREMENT,
     ),
     RaritanPduInletSensorEntityDescription(
@@ -123,14 +256,96 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
     ),
     RaritanPduInletSensorEntityDescription(
+        key="power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="displacement_power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Displacement Power Factor",
+    ),
+    RaritanPduInletSensorEntityDescription(
         key="active_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     RaritanPduInletSensorEntityDescription(
         key="apparent_energy",
+        device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        name="Apparent Energy",
     ),
+    RaritanPduInletSensorEntityDescription(
+        key="unbalanced_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Unbalanced Current",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="unbalanced_line_line_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Unbalanced Line-Line Current",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="unbalanced_voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Unbalanced Voltage",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="unbalanced_line_line_voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Unbalanced Line-Line Voltage",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="line_frequency",
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="phase_angle",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Phase Angle",
+        native_unit_of_measurement=DEGREE,
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="crest_factor",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Crest Factor",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="voltage_total_harmonic_distortion",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Voltage Total Harmonic Distortion",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="current_total_harmonic_distortion",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Voltage Total Harmonic Distortion",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="power_quality",
+        device_class=SensorDeviceClass.ENUM,
+        options=NormalAlarmed.options(),
+        name="Power_Quality",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="surge_protector_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=OkFaulted.options(),
+        name="Surge Protector Status",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="residual current status",
+        device_class=SensorDeviceClass.ENUM,
+        options=ResidualCurrentStatus.options(),
+        name="Residual Current Status",
+    ),
+    #endregion
 )
 
 SENSOR_DESCRIPTIONS_MAP = { (type(desc), desc.key) : desc for desc in SENSOR_DESCRIPTIONS}
@@ -238,6 +453,13 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
         value = self._sensor.value
+
+        if value is not None:
+            if self.entity_description.convert_fn is not None:
+                value = self.entity_description.convert_fn(value)
+
+            if self._sensor.precision is not None:
+                self._attr_suggested_display_precision = self._sensor.precision
 
         self._attr_native_value = value
 

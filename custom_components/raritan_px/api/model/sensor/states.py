@@ -35,3 +35,13 @@ class OkFaulted(RaritanSensorState, IntEnum):
 
     OK = 0
     FAULT = 1
+
+
+class ResidualCurrentStatus(RaritanSensorState, IntEnum):
+    """"""
+
+    NORMAL = 0
+    WARNING = 1
+    CRITICAL = 2
+    SELF_TEST = 3
+    FAILURE = 4
