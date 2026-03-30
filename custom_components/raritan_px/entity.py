@@ -87,6 +87,7 @@ class CoordinatedRaritanPduDeviceEntity(
                 manufacturer=self._pdu.manufacturer,
                 model=self._get_device_model(),
                 name=self._get_device_name(),
+                configuration_url=self._device.url,
             ),
             self._get_device_connection_info()
         )

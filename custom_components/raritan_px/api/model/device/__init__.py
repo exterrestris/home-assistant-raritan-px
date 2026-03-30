@@ -18,6 +18,7 @@ class RaritanPduDevice:
     device_id: str
     pdu_id: int
     name: str
+    url: str | None = None
     sensors: RaritanDeviceSensors
 
     @property

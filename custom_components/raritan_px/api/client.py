@@ -261,6 +261,7 @@ class RaritanClient:
                 device_id = f"{pdu_metadata.nameplate.serialNumber}:/model/pdu/{pdu_idx}",
                 pdu_id = pdu_idx,
                 host = self._config.host,
+                url = f"{self.PROTOCOL}://{self._config.host}/",
                 name = psu_settings.name,
                 manufacturer = pdu_metadata.nameplate.manufacturer,
                 model = pdu_metadata.nameplate.model,
