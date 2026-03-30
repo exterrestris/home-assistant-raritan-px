@@ -66,7 +66,7 @@ class CoordinatedRaritanPduDeviceEntity(
         self._device = device
         self._pdu = pdu
 
-        self._attr_device_info = DeviceInfo(**self._get_device_info())
+        self._attr_device_info = self._get_device_info()
         self._attr_unique_id = f"{device.device_id}_{description.key}"
 
     def _get_pdu_name(self) -> str:
@@ -76,18 +76,25 @@ class CoordinatedRaritanPduDeviceEntity(
 
         return f"{self._pdu.model} {self._pdu.serial_number}"
 
-    def _get_device_info(self) -> dict[str, Any]:
-        return {
-            "identifiers": {(DOMAIN, str(self._device.device_id))},
-            "manufacturer": self._pdu.manufacturer,
-            "model": self._get_device_model(),
-            "name": self._get_device_name(),
-        } | self._get_device_connection_info()
+    @staticmethod
+    def _merge_device_info(info: DeviceInfo, merge: DeviceInfo) -> DeviceInfo:
+        return DeviceInfo(**{**info, **merge}) # pyright: ignore[reportArgumentType]
 
-    def _get_device_connection_info(self) -> dict[str, Any]:
-        return {
-            "via_device": (DOMAIN, self._pdu.device_id)
-        }
+    def _get_device_info(self) -> DeviceInfo:
+        return self._merge_device_info(
+            DeviceInfo(
+                identifiers={(DOMAIN, str(self._device.device_id))},
+                manufacturer=self._pdu.manufacturer,
+                model=self._get_device_model(),
+                name=self._get_device_name(),
+            ),
+            self._get_device_connection_info()
+        )
+
+    def _get_device_connection_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            via_device=(DOMAIN, self._pdu.device_id)
+        )
 
     @abstractmethod
     @callback
@@ -150,16 +157,19 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
         """Get the device model to use for this entity."""
         return self._pdu.model
 
-    def _get_device_info(self) -> dict[str, Any]:
-        return super()._get_device_info() | {
-            "sw_version": self._pdu.firmware_version,
-            "hw_version": self._pdu.hardware_version,
-        }
+    def _get_device_info(self) -> DeviceInfo:
+        return self._merge_device_info(
+            super()._get_device_info(),
+            DeviceInfo(
+                sw_version=self._pdu.firmware_version,
+                hw_version=self._pdu.hardware_version,
+            )
+        )
 
-    def _get_device_connection_info(self) -> dict[str, Any]:
-        return {
-            "connections": {(dr.CONNECTION_NETWORK_MAC, self._pdu.mac_address)},
-        }
+    def _get_device_connection_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            connections={(dr.CONNECTION_NETWORK_MAC, self._pdu.mac_address)},
+        )
 
 class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
