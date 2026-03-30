@@ -400,9 +400,9 @@ class RaritanClient:
                     )
                 )
         except rpc.HttpException as e:
-            _LOGGER.exception("Error fetching PDU outlets")
+            _LOGGER.exception("Error fetching PDU inlets")
 
-            message: str = f"Failed to fetch PDU outlets for {self._config.host}"
+            message: str = f"Failed to fetch PDU inlets for {self._config.host}"
             raise RaritanClientError(message) from e
         else:
             return inlets

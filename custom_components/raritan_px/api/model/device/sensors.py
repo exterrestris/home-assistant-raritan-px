@@ -102,7 +102,7 @@ class RaritanPduOutletSensors(RaritanDeviceSensors):
     apparent_energy: RaritanAccumulatingSensor | None = None
     phase_angle: RaritanNumericSensor | None = None
     line_frequency: RaritanNumericSensor | None = None
-    crest_factor: RaritanAccumulatingSensor | None = None
+    crest_factor: RaritanNumericSensor | None = None
     voltage_total_harmonic_distortion: RaritanNumericSensor | None = None
     current_total_harmonic_distortion: RaritanNumericSensor | None = None
     inrush_current: RaritanNumericSensor | None = None
