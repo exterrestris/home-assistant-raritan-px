@@ -258,7 +258,7 @@ class RaritanClient:
             raise RaritanClientError(message) from e
         else:
             device = RaritanPdu(
-                device_id = f"{self._config.host}/model/pdu/{pdu_idx}",
+                device_id = f"{pdu_metadata.nameplate.serialNumber}:/model/pdu/{pdu_idx}",
                 pdu_id = pdu_idx,
                 host = self._config.host,
                 name = psu_settings.name,
@@ -271,8 +271,8 @@ class RaritanClient:
                 has_switchable_outlets = pdu_metadata.hasSwitchableOutlets,
                 has_metered_outlets = pdu_metadata.hasMeteredOutlets,
                 is_standalone = status.role == CascadeManager.Role.STANDALONE, # pyright: ignore[reportAttributeAccessIssue]
-                outlets = await self._get_outlets_info(pdu_idx, pdu_outlets),
-                inlets = await self._get_inlets_info(pdu_idx, pdu_inlets),
+                outlets = await self._get_outlets_info(pdu_outlets, pdu_idx, pdu_metadata.nameplate.serialNumber),
+                inlets = await self._get_inlets_info(pdu_inlets, pdu_idx, pdu_metadata.nameplate.serialNumber),
                 sensors = RaritanPduSensors.from_sensor_sources({
                     'power_supply_status': pdu_sensors.powerSupplyStatus,
                     'active_power': pdu_sensors.activePower,
@@ -290,7 +290,7 @@ class RaritanClient:
 
             return device
 
-    async def _get_outlets_info(self, pdu_idx: int, pdu_outlets: list[Outlet]) -> list[RaritanPduOutlet]:
+    async def _get_outlets_info(self, pdu_outlets: list[Outlet], pdu_idx: int, pdu_serial: str) -> list[RaritanPduOutlet]:
         try:
             responses = await self._hass.async_add_executor_job(
                 perform_bulk, self._agent, interleave(
@@ -309,7 +309,7 @@ class RaritanClient:
             for outlet_idx, (outlet_metadata, outlet_settings, outlet_sensors) in enumerate(grouper(responses, 3)): # pyright: ignore[reportAssignmentType]
                 outlets.append(
                     RaritanPduOutlet(
-                        device_id = f"{self._config.host}/model/pdu/{pdu_idx}/outlet/{outlet_idx}",
+                        device_id = f"{pdu_serial}:/model/pdu/{pdu_idx}/outlet/{outlet_idx}",
                         pdu_id = pdu_idx,
                         outlet_id = outlet_idx,
                         name = outlet_settings.name,
@@ -345,7 +345,7 @@ class RaritanClient:
         else:
             return outlets
 
-    async def _get_inlets_info(self, pdu_idx: int, pdu_inlets: list[Inlet]) -> list[RaritanPduInlet]:
+    async def _get_inlets_info(self, pdu_inlets: list[Inlet], pdu_idx: int, pdu_serial: str) -> list[RaritanPduInlet]:
         try:
             responses = await self._hass.async_add_executor_job(
                 perform_bulk, self._agent, interleave(
@@ -364,7 +364,7 @@ class RaritanClient:
             for inlet_idx, (inlet_metadata, inlet_settings, inlet_sensors) in enumerate(grouper(responses, 3)): # pyright: ignore[reportAssignmentType]
                 inlets.append(
                     RaritanPduInlet(
-                        device_id = f"{self._config.host}/model/pdu/{pdu_idx}/inlet/{inlet_idx}",
+                        device_id = f"{pdu_serial}:/model/pdu/{pdu_idx}/inlet/{inlet_idx}",
                         pdu_id = pdu_idx,
                         inlet_id = inlet_idx,
                         name = inlet_settings.name,
