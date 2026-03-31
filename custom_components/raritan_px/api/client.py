@@ -5,9 +5,10 @@ from enum import Enum, Flag, auto
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import TypeVar
 from raritan import rpc
-from raritan.rpc import perform_bulk
+from raritan.rpc import Time, perform_bulk
 from raritan.rpc.pdumodel import Pdu, Outlet, Inlet, OverCurrentProtector
 from raritan.rpc.cascading import CascadeManager
 from raritan.rpc.session import Session, SessionManager
@@ -80,7 +81,8 @@ class RaritanClient:
         """Init Raritan client."""
         self._hass: HomeAssistant = hass
         self._config: ConnectionDetails = config
-        self._token: str | None = None
+        self._session_token: str | None = None
+        self._session_created: datetime | None = None
         self._agent: rpc.Agent = rpc.Agent(
             self.PROTOCOL,
             f"{self._config.host}:{self._config.port}",
@@ -97,28 +99,37 @@ class RaritanClient:
             raise AuthenticationError(message)
 
         session_manager = SessionManager("/session", self._agent)
-        session_details: Session
 
-        if self._token is not None:
+        if self._session_token is not None:
             try:
-                self._agent.set_auth_token(self._token)
+                self._agent.set_auth_token(self._session_token)
 
-                session_details = await self._hass.async_add_executor_job(
+                session_details: Session = await self._hass.async_add_executor_job(
                     session_manager.getCurrentSession
                 )
 
+                if session_details.username != self._config.auth.user:
+                    force_reauth = True
+
+                    _LOGGER.warning(
+                        "User %s attempting to use session token for user %s to authenticate with %s",
+                        self._config.auth.user,
+                        session_details.username,
+                        self._config.host
+                    )
+
                 if force_reauth:
                     try:
-                        _LOGGER.debug("Closing existing session and forcing re-authentication")
+                        _LOGGER.info("Closing existing session and forcing re-authentication")
 
                         await self._hass.async_add_executor_job(
                             session_manager.closeCurrentSession,
                             SessionManager.CloseReason.CLOSE_REASON_FORCED_DISCONNECT, # pyright: ignore[reportAttributeAccessIssue]
                         )
                     except rpc.HttpException:
-                        _LOGGER.debug("Failed to close existing session")
+                        _LOGGER.warning("Failed to close existing session")
                     finally:
-                        self._token = None
+                        self._clear_session_data()
                 else:
                     await self._hass.async_add_executor_job(
                         session_manager.touchCurrentSession, True # noqa: FBT003
@@ -127,16 +138,16 @@ class RaritanClient:
                     _LOGGER.debug(
                         "Authenticated using session token for %s, session created at %s",
                         session_details.username,
-                        session_details.creationTime,
+                        self._session_created
                     )
             except rpc.HttpException:
-                self._token = None
+                self._session_token = None
 
                 _LOGGER.debug(
                     "Session has expired, will attempt to authenticate using credentials"
                 )
 
-        if self._token is None:
+        if self._session_token is None:
             try:
                 success: int
 
@@ -149,16 +160,19 @@ class RaritanClient:
                     user.getInfo
                 )
 
-                _LOGGER.debug(
-                    "Authenticated as %s (%s)",
+                _LOGGER.info(
+                    "Authenticated with %s as %s (%s)",
+                    self._config.host,
                     self._config.auth.user,
                     user_info.auxInfo.fullname,
                 )
 
+                session_details: Session
+
                 (
                     success,
                     session_details,
-                    self._token,
+                    self._session_token,
                 ) = await self._hass.async_add_executor_job(session_manager.newSession)
 
                 if success == 1:
@@ -166,23 +180,36 @@ class RaritanClient:
                         f"Failed to create session for user {self._config.auth.user}"
                     )
                     raise SessionCreationError(message)
+
+                # The Raritan JSON-RPC API returns the session created time as a timestamp in microseconds relative to
+                # system boot, however the Raritan Python SDK creates datetime instance from that value as if it were a
+                # POSIX timestamp. To get an accurate creation time, we need to undo this
+
+                session_creation: Time = session_details.creationTime # pyright: ignore[reportAssignmentType]
+                self._session_created = datetime.now() - timedelta(microseconds=session_creation.timestamp())
+
+                _LOGGER.debug("Session created for %s at %s", session_details.username, self._session_created)
             except rpc.HttpException as e:
                 _LOGGER.exception("Authentication Error")
 
                 message: str = f"Failed to authenticate as {self._config.auth.user}"
                 raise AuthenticationError(message) from e
 
-    async def close_session(self) -> None:
+    def _clear_session_data(self) -> None:
+        self._session_token = None
+        self._session_created = None
+
+    async def close_session(self) -> bool:
         """Close the current session and clear any stored session information."""
 
-        if self._token is None:
+        if self._session_token is None:
             _LOGGER.debug("No active session to close")
-            return
+            return False
 
         session_manager = SessionManager("/session", self._agent)
 
         try:
-            self._agent.set_auth_token(self._token)
+            self._agent.set_auth_token(self._session_token)
 
             await self._hass.async_add_executor_job(
                 session_manager.getCurrentSession
@@ -198,14 +225,13 @@ class RaritanClient:
             except rpc.HttpException:
                 _LOGGER.debug("Failed to close session")
 
-            else:
-                await self._hass.async_add_executor_job(
-                    session_manager.touchCurrentSession, True # noqa: FBT003
-                )
+                raise SessionCloseError
         except rpc.HttpException:
             _LOGGER.debug("Session has expired")
         finally:
-            self._token = None
+            self._clear_session_data()
+
+        return True
 
     async def get_pdu_info(self, pdu_idx: int = 0, *, update_sensor_data: UpdateSensors = UpdateSensors.ALL) -> RaritanPdu:
         """Get information for the Raritan PDU."""
@@ -466,8 +492,16 @@ class RaritanClientError(Exception):
 
 
 class AuthenticationError(RaritanClientError):
-    """Raised when authentication with the Raritan API fails."""
+    """Raised when authentication fails."""
 
 
-class SessionCreationError(RaritanClientError):
-    """Raised when creation of a new session with the Raritan API fails."""
+class SessionError(RaritanClientError):
+    """Raised when session operations fail."""
+
+
+class SessionCreationError(SessionError):
+    """Raised when creation of a new session fails."""
+
+
+class SessionCloseError(SessionError):
+    """Raised when closing the current session."""
