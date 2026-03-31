@@ -1,9 +1,7 @@
 from dataclasses import dataclass, field, fields
-from itertools import product
 from more_itertools import flatten
 
-from .. import RaritanUpdatable
-from ..sensor import RaritanSensor, RaritanMultiSensor, RaritanSwitch
+from ..sensor import RaritanSensor, RaritanSwitch
 from .sensors import (
     RaritanDeviceSensors,
     RaritanPduInletSensors,
@@ -48,14 +46,9 @@ class RaritanPduDevice:
     @property
     def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
         return [
-            (name, sensor) for (name, sensor) in self.updatable_sensors if not isinstance(sensor, RaritanMultiSensor)
-        ] + [
-            (f"{name}:{idx}", sensor)
-            for (name, (idx, sensor)) in list(flatten([
-                list(product([name], enumerate(sensorlist.sensors)))
-                for (name, sensorlist) in self.updatable_sensors
-                if isinstance(sensorlist, RaritanMultiSensor)
-            ]))
+            (f"{name}:{idx}" if idx is not None else name, sensor)
+            for (name, _sensor) in self.updatable_sensors
+            for (idx, sensor) in _sensor.sensors
         ]
 
     @property

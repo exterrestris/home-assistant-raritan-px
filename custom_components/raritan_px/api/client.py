@@ -2,48 +2,31 @@
 
 from __future__ import annotations
 from enum import Enum, Flag, auto
-from itertools import product
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
 from raritan import rpc
-from raritan.rpc import perform_bulk, Enumeration as RpcEnumeration
+from raritan.rpc import perform_bulk
 from raritan.rpc.pdumodel import Pdu, Outlet, Inlet, OverCurrentProtector
 from raritan.rpc.cascading import CascadeManager
 from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 from homeassistant.core import HomeAssistant
+from more_itertools import grouper, interleave
 
 from .model import RaritanUpdatable, RaritanUpdatableRpcMethodsList
 from .model.device import RaritanPdu, RaritanPduDevice, RaritanPduInlet, RaritanPduOutlet
 from .model.device.sensors import RaritanPduSensors
 from .model.device.sensors import RaritanPduInletSensors
 from .model.device.sensors import RaritanPduOutletSensors
-from .model.device.states import RaritanState, OutletPowerState
-from .model.sensor import RaritanSensor
+from .model.device.states import OutletPowerState
 from .const import API_TIMEOUT
-from more_itertools import grouper, interleave, flatten
+from .mappings import STATE_TO_API_MAPPING
 
 _LOGGER = logging.getLogger(__name__)
 
 T = TypeVar('T', bound = "RaritanPduDevice", covariant = True)
-
-STATE_API_ENUMERATION_PAIRS: dict[type[RaritanState], list[tuple[RaritanState, RpcEnumeration]]] = {
-    OutletPowerState: [
-        (OutletPowerState.ON, Outlet.PowerState.PS_ON), # pyright: ignore[reportAttributeAccessIssue]
-        (OutletPowerState.OFF, Outlet.PowerState.PS_OFF), # pyright: ignore[reportAttributeAccessIssue]
-    ],
-}
-
-API_TO_STATE_MAPPING: dict[type[RaritanState], dict[int, RaritanState]] = {
-    state: { api_value.val: state for state, api_value in pairs} for state, pairs in STATE_API_ENUMERATION_PAIRS.items()
-}
-
-STATE_TO_API_MAPPING: dict[type[RaritanState], dict[RaritanState, RpcEnumeration]] = {
-    state: { state: api_value for state, api_value in pairs} for state, pairs in STATE_API_ENUMERATION_PAIRS.items()
-}
-
 
 @dataclass
 class ConnectionDetails:
@@ -409,15 +392,9 @@ class RaritanClient:
 
     async def _update_sensors_for_device(self, device: T, update_type: _SensorUpdate) -> T:
         update_requests = [
-            (device, (device, sensor), request, update) for (device, sensor), (request, update) in list(
-                flatten([
-                    list(product([sensor], sensor_updates))
-                    for sensor, sensor_updates in [
-                        ((device_name, sensor_name), update_type.get_update_methods(sensor))
-                        for (device_name, sensor_name, sensor) in [x for x in device.all_updatable_sensors]
-                    ]
-                ])
-            )
+            (device_name, (device_name, sensor_name), request, update)
+            for (device_name, sensor_name, sensor) in device.all_updatable_sensors
+            for (request, update) in update_type.get_update_methods(sensor)
         ]
 
         devices, sensors, requests, update_methods = [list(tup) for tup in zip(*update_requests)]
@@ -428,7 +405,7 @@ class RaritanClient:
             perform_bulk, self._agent, interleave(requests)
         )
 
-        for (_, response, method) in zip(sensors, responses, update_methods):
+        for (response, method) in zip(responses, update_methods):
             method(response)
 
         _LOGGER.debug(update_type.updated_msg(len(set(sensors))))

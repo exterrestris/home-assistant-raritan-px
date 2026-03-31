@@ -12,9 +12,6 @@ DOMAIN = "raritan_px"
 DISCOVERY_TIMEOUT = 5  # Home Assistant will complain if startup takes > 10s
 CONNECT_TIMEOUT = 5
 
-DEFAULT_USERNAME: Final = "admin"
-DEFAULT_PASSWORD: Final = "raritan"
-
 CONF_CONFIG_ENTRY_MINOR_VERSION: Final = 1
 
 PLATFORMS: Final = [

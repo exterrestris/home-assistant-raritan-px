@@ -20,23 +20,25 @@ from homeassistant.helpers import (
     device_registry as dr,
 )
 
-from .api.model.device import RaritanPdu
-from .api.client import (
+from custom_components.raritan_px.api.model.device import RaritanPdu
+from custom_components.raritan_px.api.client import (
     RaritanClient,
     AuthenticationDetails,
     ConnectionDetails,
     AuthenticationError,
     RaritanClientError,
 )
-from .const import (
+from custom_components.raritan_px.api.const import (
     DEFAULT_USERNAME,
     DEFAULT_PASSWORD,
+)
+from custom_components.raritan_px.const import (
     DOMAIN,
     PLATFORMS,
     CONF_CONFIG_ENTRY_MINOR_VERSION,
     UPDATE_INTERVAL,
 )
-from .coordinator import (
+from custom_components.raritan_px.coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
     RaritanPduDataUpdateCoordinator,

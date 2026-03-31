@@ -412,9 +412,8 @@ async def async_setup_entry(
             get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name, sensor),
             sensor
         )
-        for inlet, (sensor_name, sensor) in list(
-            flatten([list(product([inlet], sensors)) for (inlet, sensors) in [(inlet, inlet.available_sensors) for inlet in pdu.inlets]])
-        )
+        for inlet in pdu.inlets
+        for (sensor_name, sensor) in inlet.available_sensors
     )
 
     if pdu.has_metered_outlets:
@@ -426,9 +425,8 @@ async def async_setup_entry(
                 get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name, sensor),
                 sensor
             )
-            for outlet, (sensor_name, sensor) in list(
-                flatten([list(product([outlet], sensors)) for (outlet, sensors) in [(outlet, outlet.available_sensors) for outlet in pdu.outlets]])
-            )
+            for outlet in pdu.outlets
+            for (sensor_name, sensor) in outlet.available_sensors
         )
 
 class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEntity):

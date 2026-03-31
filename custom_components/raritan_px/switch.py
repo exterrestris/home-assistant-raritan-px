@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 from typing import Any, TypeVar
-from itertools import product
-from more_itertools import flatten
 from dataclasses import dataclass
 import logging
 from homeassistant.core import HomeAssistant, callback
@@ -87,9 +85,8 @@ async def async_setup_entry(
                 get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name),
                 switch
             )
-            for outlet, (switch_name, switch) in list(
-                flatten([list(product([outlet], switches)) for (outlet, switches) in [(outlet, outlet.available_switches) for outlet in pdu.outlets]])
-            )
+            for outlet in pdu.outlets
+            for (switch_name, switch) in outlet.available_switches
         )
 
 class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEntity):
