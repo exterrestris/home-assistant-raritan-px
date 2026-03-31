@@ -1,46 +1,32 @@
 """Common code for RaritanPdu."""
 
 from __future__ import annotations
-from dataclasses import dataclass
 import logging
-from typing import Any
 from abc import ABC, abstractmethod
 from homeassistant.core import callback
-from homeassistant.helpers.entity import EntityDescription
 
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api.model.device import (
+from custom_components.raritan_px.entity.description import (
+    RaritanPduDeviceEntityDescription,
+    RaritanPduEntityDescription,
+    RaritanPduOutletEntityDescription,
+    RaritanPduInletEntityDescription,
+)
+from custom_components.raritan_px.api.model.device import (
     RaritanPdu,
     RaritanPduDevice,
     RaritanPduEnergyDevice,
     RaritanPduInlet,
     RaritanPduOutlet,
 )
-from .coordinator import RaritanPduDataUpdateCoordinator
-from .const import (
-    DOMAIN,
-)
+from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+from custom_components.raritan_px.const import DOMAIN
+
 _LOGGER = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduDeviceEntityDescription(EntityDescription):
-    """Base class for a Raritan PDU entity description."""
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduEntityDescription(RaritanPduDeviceEntityDescription):
-    """Base class for a Raritan PDU entity description."""
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletEntityDescription(RaritanPduDeviceEntityDescription):
-    """Base class for a Raritan PDU entity description."""
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduInletEntityDescription(RaritanPduDeviceEntityDescription):
-    """Base class for a Raritan PDU entity description."""
 
 class CoordinatedRaritanPduDeviceEntity(
     CoordinatorEntity[RaritanPduDataUpdateCoordinator], ABC
