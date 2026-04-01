@@ -1,7 +1,7 @@
 {
   "domain": "raritan_px",
   "name": "Raritan PX-Series PDU",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "integration_type": "device",
   "documentation": "https://github.com/exterrestris/home-assistant-raritan-px",
   "issue_tracker": "https://github.com/exterrestris/home-assistant-raritan-px/issues",
