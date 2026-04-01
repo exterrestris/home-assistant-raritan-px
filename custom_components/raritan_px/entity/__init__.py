@@ -53,7 +53,10 @@ class CoordinatedRaritanPduDeviceEntity(
         self._pdu = pdu
 
         self._attr_device_info = self._get_device_info()
-        self._attr_unique_id = f"{device.device_id}_{description.key}"
+        self._attr_unique_id = self._get_unique_id()
+
+    def _get_unique_id(self) -> str:
+        return f"{self._device.device_id}_{self.entity_description.key}"
 
     def _get_pdu_name(self) -> str:
         """Get the pdu name to use for this entity."""

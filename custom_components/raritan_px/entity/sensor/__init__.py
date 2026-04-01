@@ -6,6 +6,7 @@ from custom_components.raritan_px.entity.sensor.description import (
     RaritanPduOutletSensorEntityDescription,
     RaritanPduInletSensorEntityDescription,
     RaritanPduDeviceSensorEntityDescription,
+    SensorEntityValue,
 )
 from custom_components.raritan_px.entity.description import (
     RaritanPduDeviceEntityDescription,
@@ -17,19 +18,85 @@ from custom_components.raritan_px.entity import (
     CoordinatedRaritanPduInletEntity,
 )
 from custom_components.raritan_px.api.model.sensor import RaritanSensor
-from custom_components.raritan_px.api.model.device import (
-    RaritanPdu,
-    RaritanPduDevice,
-    RaritanPduOutlet,
-    RaritanPduInlet
-)
+from custom_components.raritan_px.api.model.device import RaritanPdu, RaritanPduDevice
 from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
 
 class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEntity):
-    """Representation of a Raritan PDU device sensor."""
+    """Base class of a Raritan PDU device sensor."""
+
+    entity_description: RaritanPduDeviceSensorEntityDescription
+
+    def __init__(
+            self,
+            device: RaritanPduDevice,
+            pdu: RaritanPdu,
+            coordinator: RaritanPduDataUpdateCoordinator,
+            description: RaritanPduDeviceEntityDescription,
+        ) -> None:
+        super().__init__(device, pdu, coordinator, description)
+
+    def _get_value(self) -> SensorEntityValue:
+        raise NotImplementedError
+
+    @callback
+    def _async_update_attrs(self) -> bool:
+        """Update the entity's attributes."""
+        value = self._get_value()
+
+        if value is not None:
+            if self.entity_description.convert_fn is not None:
+                value = self.entity_description.convert_fn(value)
+
+        self._attr_native_value = value
+
+        return True
+
+
+class RaritanPduDevicePropertyBackedSensorEntity(RaritanPduDeviceSensorEntity):
+    """Representation of a Raritan PDU device property backed sensor."""
+
+    _property: str
+
+    def __init__(
+            self,
+            device: RaritanPduDevice,
+            pdu: RaritanPdu,
+            coordinator: RaritanPduDataUpdateCoordinator,
+            description: RaritanPduDeviceEntityDescription,
+            property: str
+        ) -> None:
+        super().__init__(device, pdu, coordinator, description)
+
+        self._property = property
+
+    def _get_unique_id(self) -> str:
+        return f"{self._device.device_id}_prop_{self.entity_description.key}"
+
+    def _get_value(self) -> SensorEntityValue:
+        return getattr(self._device, self._property)
+
+class RaritanPduPropertyBackedSensorEntity(CoordinatedRaritanPduEntity, RaritanPduDevicePropertyBackedSensorEntity):
+    """Representation of a Raritan PDU Outlet property backed sensor."""
+
+    entity_description: RaritanPduSensorEntityDescription
+
+
+class RaritanPduOutletPropertyBackedSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanPduDevicePropertyBackedSensorEntity):
+    """Representation of a Raritan PDU Outlet property backed sensor."""
+
+    entity_description: RaritanPduOutletSensorEntityDescription
+
+
+class RaritanPduInletPropertyBackedSensorEntity(CoordinatedRaritanPduInletEntity, RaritanPduDevicePropertyBackedSensorEntity):
+    """Representation of a Raritan PDU Inlet property backed sensor."""
+
+    entity_description: RaritanPduInletSensorEntityDescription
+
+
+class RaritanPduDeviceSensorBackedSensorEntity(RaritanPduDeviceSensorEntity):
+    """Representation of a Raritan PDU device sensor backed sensor."""
 
     _sensor: RaritanSensor
-    entity_description: RaritanPduDeviceSensorEntityDescription
 
     def __init__(
             self,
@@ -43,19 +110,16 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
 
         self._sensor = sensor
 
+    def _get_value(self) -> SensorEntityValue:
+        return self._sensor.value
+
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
-        value = self._sensor.value
+        super()._async_update_attrs()
 
-        if value is not None:
-            if self.entity_description.convert_fn is not None:
-                value = self.entity_description.convert_fn(value)
-
-            if self._sensor.precision is not None:
-                self._attr_suggested_display_precision = self._sensor.precision
-
-        self._attr_native_value = value
+        if self._sensor.precision is not None:
+            self._attr_suggested_display_precision = self._sensor.precision
 
         # This check is here because Home Assistant only supports last_reset with a
         # state class of TOTAL, however the Raritan JSON-RPC API only supplies a last
@@ -71,22 +135,19 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
         return True
 
 
-class RaritanPduInletSensorEntity(CoordinatedRaritanPduInletEntity, RaritanPduDeviceSensorEntity):
-    """Representation of a Raritan PDU Inlet sensor."""
+class RaritanPduSensorBackedSensorEntity(CoordinatedRaritanPduEntity, RaritanPduDeviceSensorBackedSensorEntity):
+    """Representation of a Raritan PDU Outlet sensor backed sensor."""
 
-    _device: RaritanPduInlet
-    entity_description: RaritanPduInletSensorEntityDescription
+    entity_description: RaritanPduSensorEntityDescription
 
 
-class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanPduDeviceSensorEntity):
-    """Representation of a Raritan PDU Outlet sensor."""
+class RaritanPduOutletSensorBackedSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanPduDeviceSensorBackedSensorEntity):
+    """Representation of a Raritan PDU Outlet sensor backed sensor."""
 
-    _device: RaritanPduOutlet
     entity_description: RaritanPduOutletSensorEntityDescription
 
 
-class RaritanPduSensorEntity(CoordinatedRaritanPduEntity, RaritanPduDeviceSensorEntity):
-    """Representation of a Raritan PDU Outlet sensor."""
+class RaritanPduInletSensorBackedSensorEntity(CoordinatedRaritanPduInletEntity, RaritanPduDeviceSensorBackedSensorEntity):
+    """Representation of a Raritan PDU Inlet sensor backed sensor."""
 
-    _device: RaritanPdu
-    entity_description: RaritanPduSensorEntityDescription
+    entity_description: RaritanPduInletSensorEntityDescription
