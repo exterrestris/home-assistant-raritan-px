@@ -13,5 +13,5 @@
     "raritan==4.3.13.52458",
     "more-itertools==10.8.0"
   ],
-  "version": "0.3.0"
+  "version": "1.0.0"
 }
