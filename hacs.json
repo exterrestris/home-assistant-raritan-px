@@ -1,5 +1,7 @@
 {
     "name": "Raritan PX2/PX3 PDU",
     "homeassistant": "2026.3.2",
-    "hacs": "2.0.5"
+    "hacs": "2.0.5",
+    "render_readme": true,
+    "hide_default_branch": true
 }

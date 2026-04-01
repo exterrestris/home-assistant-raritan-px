@@ -1,4 +1,5 @@
 
+from collections.abc import Iterable
 from datetime import datetime
 from dataclasses import dataclass
 from typing import Any, Self, get_type_hints, get_args
@@ -156,6 +157,9 @@ class RaritanSensor(RaritanUpdatable):
     def value(self) -> Any:
         raise NotImplementedError
 
+    @property
+    def sensors(self) -> Iterable[tuple[None, RaritanSensor]]:
+        return [(None, self)]
 
 @dataclass(kw_only=True)
 class RaritanStateSensor(RaritanSensor):
@@ -251,31 +255,35 @@ class RaritanAccumulatingSensor(RaritanNumericSensor):
 @dataclass(kw_only=True)
 class RaritanMultiSensor(RaritanSensor):
 
-    sensors: list[RaritanSensor]
+    children: list[RaritanSensor]
 
     @classmethod
     def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
         types = get_type_hints(cls)
-        sensor_type = get_args(types['sensors'])[0]
+        sensor_type = get_args(types['children'])[0]
 
-        return cls(sensors=[sensor_type(source=src) for src in sources])
+        return cls(children=[sensor_type(source=src) for src in sources])
 
     @property
     def value(self) -> Any:
-        return self.sensors[0].value if len(self.sensors) else None
+        return self.children[0].value if len(self.children) else None
+
+    @property
+    def sensors(self) -> Iterable[tuple[int, RaritanSensor]]:
+        return enumerate(self.children)
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
         return list(chain.from_iterable([
-            sensor.update_info() for sensor in self.sensors
+            sensor.update_info() for sensor in self.children
         ]))
 
     def update_readings(self) -> RaritanUpdatableRpcMethodsList:
         return list(chain.from_iterable([
-            sensor.update_readings() for sensor in self.sensors
+            sensor.update_readings() for sensor in self.children
         ]))
 
 
 @dataclass(kw_only=True)
 class RaritanMultiStateSensor(RaritanMultiSensor):
 
-    sensors: list[RaritanStateSensor]
+    children: list[RaritanStateSensor]

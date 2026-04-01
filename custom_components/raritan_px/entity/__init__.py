@@ -1,46 +1,32 @@
 """Common code for RaritanPdu."""
 
 from __future__ import annotations
-from dataclasses import dataclass
 import logging
-from typing import Any
 from abc import ABC, abstractmethod
 from homeassistant.core import callback
-from homeassistant.helpers.entity import EntityDescription
 
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api.model.device import (
+from custom_components.raritan_px.entity.description import (
+    RaritanPduDeviceEntityDescription,
+    RaritanPduEntityDescription,
+    RaritanPduOutletEntityDescription,
+    RaritanPduInletEntityDescription,
+)
+from custom_components.raritan_px.api.model.device import (
     RaritanPdu,
     RaritanPduDevice,
     RaritanPduEnergyDevice,
     RaritanPduInlet,
     RaritanPduOutlet,
 )
-from .coordinator import RaritanPduDataUpdateCoordinator
-from .const import (
-    DOMAIN,
-)
+from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+from custom_components.raritan_px.const import DOMAIN
+
 _LOGGER = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduDeviceEntityDescription(EntityDescription):
-    """Base class for a Raritan PDU entity description."""
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduEntityDescription(RaritanPduDeviceEntityDescription):
-    """Base class for a Raritan PDU entity description."""
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletEntityDescription(RaritanPduDeviceEntityDescription):
-    """Base class for a Raritan PDU entity description."""
-
-@dataclass(frozen=True, kw_only=True)
-class RaritanPduInletEntityDescription(RaritanPduDeviceEntityDescription):
-    """Base class for a Raritan PDU entity description."""
 
 class CoordinatedRaritanPduDeviceEntity(
     CoordinatorEntity[RaritanPduDataUpdateCoordinator], ABC
@@ -66,7 +52,7 @@ class CoordinatedRaritanPduDeviceEntity(
         self._device = device
         self._pdu = pdu
 
-        self._attr_device_info = DeviceInfo(**self._get_device_info())
+        self._attr_device_info = self._get_device_info()
         self._attr_unique_id = f"{device.device_id}_{description.key}"
 
     def _get_pdu_name(self) -> str:
@@ -76,18 +62,26 @@ class CoordinatedRaritanPduDeviceEntity(
 
         return f"{self._pdu.model} {self._pdu.serial_number}"
 
-    def _get_device_info(self) -> dict[str, Any]:
-        return {
-            "identifiers": {(DOMAIN, str(self._device.device_id))},
-            "manufacturer": self._pdu.manufacturer,
-            "model": self._get_device_model(),
-            "name": self._get_device_name(),
-        } | self._get_device_connection_info()
+    @staticmethod
+    def _merge_device_info(info: DeviceInfo, merge: DeviceInfo) -> DeviceInfo:
+        return DeviceInfo(**{**info, **merge}) # pyright: ignore[reportArgumentType]
 
-    def _get_device_connection_info(self) -> dict[str, Any]:
-        return {
-            "via_device": (DOMAIN, self._pdu.device_id)
-        }
+    def _get_device_info(self) -> DeviceInfo:
+        return self._merge_device_info(
+            DeviceInfo(
+                identifiers={(DOMAIN, str(self._device.device_id))},
+                manufacturer=self._pdu.manufacturer,
+                model=self._get_device_model(),
+                name=self._get_device_name(),
+                configuration_url=self._device.url,
+            ),
+            self._get_device_connection_info()
+        )
+
+    def _get_device_connection_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            via_device=(DOMAIN, self._pdu.device_id)
+        )
 
     @abstractmethod
     @callback
@@ -150,16 +144,19 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
         """Get the device model to use for this entity."""
         return self._pdu.model
 
-    def _get_device_info(self) -> dict[str, Any]:
-        return super()._get_device_info() | {
-            "sw_version": self._pdu.firmware_version,
-            "hw_version": self._pdu.hardware_version,
-        }
+    def _get_device_info(self) -> DeviceInfo:
+        return self._merge_device_info(
+            super()._get_device_info(),
+            DeviceInfo(
+                sw_version=self._pdu.firmware_version,
+                hw_version=self._pdu.hardware_version,
+            )
+        )
 
-    def _get_device_connection_info(self) -> dict[str, Any]:
-        return {
-            "connections": {(dr.CONNECTION_NETWORK_MAC, self._pdu.mac_address)},
-        }
+    def _get_device_connection_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            connections={(dr.CONNECTION_NETWORK_MAC, self._pdu.mac_address)},
+        )
 
 class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
