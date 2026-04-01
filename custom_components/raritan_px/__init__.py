@@ -169,15 +169,28 @@ async def async_migrate_entry(
             "Migrating from version %s.%s", entry_version, entry_minor_version
         )
 
-        if (upgrade_fn := f"migrate_to_{new_minor_version}") in locals():
-            locals()[upgrade_fn]()
+        try:
+            upgrade_fn = globals()[f"migrate_config_entry_to_version_{entry_version}_{new_minor_version}"]
+            await upgrade_fn(hass, config_entry)
 
-        hass.config_entries.async_update_entry(
-            config_entry, minor_version=new_minor_version
-        )
+            hass.config_entries.async_update_entry(
+                config_entry, minor_version=new_minor_version
+            )
 
-        _LOGGER.debug(
-            "Migration to version %s.%s complete", entry_version, entry_minor_version := new_minor_version
-        )
+            _LOGGER.debug(
+                "Migration to version %s.%s complete", entry_version, entry_minor_version := new_minor_version
+            )
+        except KeyError:
+            _LOGGER.error(
+                "Unable to migrate config to version %s.%s: Migration method not defined",
+                entry_version,
+                new_minor_version,
+            )
+        except Exception as e:
+            _LOGGER.exception(
+                "Unable to migrate config to version %s.%s: %s", entry_version, entry_minor_version, str(e)
+            )
+
+            return False
 
     return True
