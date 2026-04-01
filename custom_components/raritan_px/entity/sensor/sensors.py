@@ -3,7 +3,7 @@ from dataclasses import asdict
 from typing import TypeVar
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
-from homeassistant.const import DEGREE
+from homeassistant.const import EntityCategory, DEGREE
 
 from custom_components.raritan_px.api.model.sensor import RaritanSensor
 from custom_components.raritan_px.entity.sensor.description import RaritanPduSensorEntityDescription
@@ -15,8 +15,8 @@ from custom_components.raritan_px.entity.sensor.description import (
 )
 
 
-SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
-    #region PDU Sensors
+SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
+    #region PDU sensor-backed sensors
     RaritanPduSensorEntityDescription(
         key="power_supply_status",
         device_class=SensorDeviceClass.ENUM,
@@ -45,7 +45,7 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         name="Apparent Energy",
     ),
     #endregion
-    #region Outlet Sensors
+    #region Outlet sensor-backed sensors
     RaritanPduOutletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -145,7 +145,7 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         name="Inrush Current",
     ),
     #endregion
-    #region Inlet Sensors
+    #region Inlet sensor-backed sensors
     RaritanPduInletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -287,7 +287,25 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
     ),
     #endregion
 )
-SENSOR_DESCRIPTIONS_MAP = { (type(desc), desc.key) : desc for desc in SENSOR_DESCRIPTIONS}
+SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP = { (type(desc), desc.key) : desc for desc in SENSOR_BACKED_SENSOR_DESCRIPTIONS}
+
+OUTLET_PROPERTY_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityDescription, ...] = (
+    RaritanPduOutletSensorEntityDescription(
+        key="outlet_id",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        convert_fn=lambda idx: idx + 1,
+        name="Outlet",
+    ),
+)
+
+INLET_PROPERTY_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduInletSensorEntityDescription, ...] = (
+    RaritanPduInletSensorEntityDescription(
+        key="inlet_id",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        convert_fn=lambda idx: idx + 1,
+        name="Inlet",
+    ),
+)
 
 T = TypeVar('T', bound="RaritanPduDeviceSensorEntityDescription", covariant=True)
 
@@ -295,14 +313,14 @@ def get_entity_description(desc_type: type[T], sensor_name: str, sensor: Raritan
     def default_name(name: str = sensor_name) -> str:
         return name.replace('_', ' ').replace(':', ' ').title()
 
-    if (desc_type, sensor_name) in SENSOR_DESCRIPTIONS_MAP:
-        return SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)] # pyright: ignore[reportReturnType, reportArgumentType]
+    if (desc_type, sensor_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
+        return SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)] # pyright: ignore[reportReturnType, reportArgumentType]
 
     if ':' in sensor_name:
         generic_name, idx = sensor_name.split(':')
 
-        if (desc_type, generic_name) in SENSOR_DESCRIPTIONS_MAP:
-            desc = SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)] # pyright: ignore[reportArgumentType]
+        if (desc_type, generic_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
+            desc = SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)] # pyright: ignore[reportArgumentType]
 
             def formatted_name():
                 if type(desc.name) is str:
