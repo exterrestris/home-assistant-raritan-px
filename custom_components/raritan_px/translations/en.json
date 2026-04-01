@@ -1,0 +1,83 @@
+{
+  "config": {
+    "abort": {
+      "reconfigure_successful": "Raritan PDU successfully reconfigured"
+    },
+    "error": {
+      "cannot_connect": "Connection error: {error}",
+      "invalid_auth": "Unable to authenticate: {error}"
+    },
+    "flow_title": "{name} {model} ({host})",
+    "step": {
+      "reauth_confirm": {
+        "data": {
+          "password": "Password",
+          "username": "Username"
+        },
+        "data_description": {
+          "password": "Account password for your Raritan PDU.",
+          "username": "Account username for your Raritan PDU."
+        },
+        "description": "Please input your updated Raritan PDU account credentials below.",
+        "title": "Reauthentication"
+      },
+      "reconfigure": {
+        "title": "Reconfigure {name} {model}",
+        "data": {
+          "host": "Host/IP address",
+          "password": "Password",
+          "username": "Username"
+        },
+        "data_description": {
+          "host": "Hostname or IP address of your Raritan PDU.",
+          "password": "Account password for your Raritan PDU. Leave blank if unchanged",
+          "username": "Account username for your Raritan PDU."
+        },
+        "sections": {
+          "options": {
+            "name": "Advanced connection options",
+            "data": {
+              "ssl": "Use HTTPS",
+              "verify_ssl": "Verify SSL certificate"
+            },
+            "data_description": {
+              "ssl": "Connect to your Raritan PDU over HTTPS (recommended)",
+              "verify_ssl": "Verify the SSL certificate is valid. Disable if your Raritan PDU has a self-signed certificate"
+            }
+          }
+        }
+      },
+      "user": {
+        "data": {
+          "host": "Host/IP address",
+          "password": "Password",
+          "username": "Username"
+        },
+        "data_description": {
+          "host": "Hostname or IP address of your Raritan PDU.",
+          "password": "Account password for your Raritan PDU.",
+          "username": "Account username for your Raritan PDU."
+        },
+        "sections": {
+          "options": {
+            "name": "Advanced connection options",
+            "data": {
+              "ssl": "Use HTTPS",
+              "verify_ssl": "Verify SSL certificate"
+            },
+            "data_description": {
+              "ssl": "Connect to your Raritan PDU over HTTPS (recommended)",
+              "verify_ssl": "Verify the SSL certificate is valid. Disable if your Raritan PDU has a self-signed certificate"
+            }
+          }
+        },
+        "description": "Enter the connection details for your Raritan PX-Series PDU.\nIf both username and password are left blank, then the integration will attempt to connect using the default Raritan credentials."
+      }
+    }
+  },
+  "device": {
+    "unnamed_device": {
+      "name": "Unnamed {model}"
+    }
+  }
+}
