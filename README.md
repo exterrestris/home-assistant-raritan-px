@@ -29,12 +29,20 @@ The simplest way to install is via [HACS](https://github.com/hacs/integration)
 ## Setup
 
 1. Go to [Settings > Devices & services](https://my.home-assistant.io/redirect/integrations/)
+
 2. Click [Add integration](https://my.home-assistant.io/redirect/config_flow_start/?domain=raritan_px)
-3. Search for and select "Raritan PX-Series PDU": ![Screenshot of the Home Assistant "Set up a new integration" dialog.](./imgs/add-integration-search.png)
-4. Enter the connection details for your Raritan PDU: ![Screenshot of the Raritan PX-Series PDU device setup dialog.](./imgs/setup-connection-details.png)
+
+3. Search for and select "Raritan PX-Series PDU":
+
+   ![Screenshot of the Home Assistant "Set up a new integration" dialog.](./imgs/add-integration-search.png)
+
+4. Enter the connection details for your Raritan PDU:
+
+   ![Screenshot of the Raritan PX-Series PDU device setup dialog.](./imgs/setup-connection-details.png)
+
 5. Your PDU will then be visible in Home Assistant!
 
-> [!INFO]
+> [!TIP]
 > By default, the integration will try to connect to your Raritan PDU over HTTPS unless configured otherwise. If your PDU has a self-signed certificate be sure to disable certificate verification in the Advanced connection options.
 >
 > Installing a verifiable certificate on your PDU is recommended, and can be done via the PDUs Web UI
