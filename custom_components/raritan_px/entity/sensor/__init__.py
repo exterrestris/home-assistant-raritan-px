@@ -5,6 +5,7 @@ from custom_components.raritan_px.entity.sensor.description import (
     RaritanPduSensorEntityDescription,
     RaritanPduOutletSensorEntityDescription,
     RaritanPduInletSensorEntityDescription,
+    RaritanPduOverCurrentProtectorSensorEntityDescription,
     RaritanPduDeviceSensorEntityDescription,
 )
 from custom_components.raritan_px.entity.description import (
@@ -15,13 +16,15 @@ from custom_components.raritan_px.entity import (
     CoordinatedRaritanPduEntity,
     CoordinatedRaritanPduOutletEntity,
     CoordinatedRaritanPduInletEntity,
+    CoordinatedRaritanPduOverCurrentProtectorEntity,
 )
 from custom_components.raritan_px.api.model.sensor import RaritanSensor
 from custom_components.raritan_px.api.model.device import (
     RaritanPdu,
     RaritanPduDevice,
     RaritanPduOutlet,
-    RaritanPduInlet
+    RaritanPduInlet,
+    RaritanPduOverCurrentProtector,
 )
 from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
 
@@ -36,7 +39,7 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
             device: RaritanPduDevice,
             pdu: RaritanPdu,
             coordinator: RaritanPduDataUpdateCoordinator,
-            description: RaritanPduDeviceEntityDescription,
+            description: RaritanPduDeviceSensorEntityDescription,
             sensor: RaritanSensor
         ) -> None:
         super().__init__(device, pdu, coordinator, description)
@@ -83,6 +86,13 @@ class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanPdu
 
     _device: RaritanPduOutlet
     entity_description: RaritanPduOutletSensorEntityDescription
+
+
+class RaritanPduOverCurrentProtectorSensorEntity(CoordinatedRaritanPduOverCurrentProtectorEntity, RaritanPduDeviceSensorEntity):
+    """Representation of a Raritan PDU Overcurrent Protector sensor."""
+
+    _device: RaritanPduOverCurrentProtector
+    entity_description: RaritanPduOverCurrentProtectorSensorEntityDescription
 
 
 class RaritanPduSensorEntity(CoordinatedRaritanPduEntity, RaritanPduDeviceSensorEntity):

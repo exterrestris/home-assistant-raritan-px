@@ -10,6 +10,7 @@ from custom_components.raritan_px.entity.description import (
     RaritanPduOutletEntityDescription,
     RaritanPduInletEntityDescription,
     RaritanPduDeviceEntityDescription,
+    RaritanPduOverCurrentProtectorEntityDescription,
 )
 
 type SensorEntityValue = StateType | date | datetime | Decimal
@@ -33,6 +34,13 @@ class RaritanPduInletSensorEntityDescription(
 @dataclass(frozen=True, kw_only=True)
 class RaritanPduOutletSensorEntityDescription(
     RaritanPduDeviceSensorEntityDescription, RaritanPduOutletEntityDescription
+):
+    """Base class for a Raritan PDU outlet sensor entity description."""
+
+
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduOverCurrentProtectorSensorEntityDescription(
+    RaritanPduDeviceSensorEntityDescription, RaritanPduOverCurrentProtectorEntityDescription
 ):
     """Base class for a Raritan PDU outlet sensor entity description."""
 

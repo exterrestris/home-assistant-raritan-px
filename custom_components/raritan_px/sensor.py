@@ -8,12 +8,14 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from custom_components.raritan_px.entity.sensor.description import (
     RaritanPduSensorEntityDescription,
     RaritanPduInletSensorEntityDescription,
-    RaritanPduOutletSensorEntityDescription
+    RaritanPduOutletSensorEntityDescription,
+    RaritanPduOverCurrentProtectorSensorEntityDescription,
 )
 from custom_components.raritan_px.entity.sensor import (
     RaritanPduSensorEntity,
     RaritanPduOutletSensorEntity,
-    RaritanPduInletSensorEntity
+    RaritanPduInletSensorEntity,
+    RaritanPduOverCurrentProtectorSensorEntity,
 )
 from custom_components.raritan_px.api.model.device import RaritanPdu
 from custom_components.raritan_px.coordinator import (
@@ -56,6 +58,18 @@ async def async_setup_entry(
         )
         for inlet in pdu.inlets
         for (sensor_name, sensor) in inlet.available_sensors
+    )
+
+    async_add_entities(
+        RaritanPduOverCurrentProtectorSensorEntity(
+            ocp,
+            pdu,
+            coordinator,
+            get_entity_description(RaritanPduOverCurrentProtectorSensorEntityDescription, sensor_name, sensor),
+            sensor
+        )
+        for ocp in pdu.ocps
+        for (sensor_name, sensor) in ocp.available_sensors
     )
 
     if pdu.has_metered_outlets:
