@@ -6,7 +6,8 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TypeVar
+from ssl import SSLCertVerificationError
+from typing import TypeVar, Final
 from raritan import rpc
 from raritan.rpc import Time, perform_bulk
 from raritan.rpc.pdumodel import Pdu, Outlet, Inlet, OverCurrentProtector
@@ -16,31 +17,42 @@ from raritan.rpc.usermgmt import User, UserInfo
 from homeassistant.core import HomeAssistant
 from more_itertools import grouper, interleave
 
-from .model import RaritanUpdatable, RaritanUpdatableRpcMethodsList
-from .model.device import RaritanPdu, RaritanPduDevice, RaritanPduInlet, RaritanPduOutlet
-from .model.device.sensors import RaritanPduSensors
-from .model.device.sensors import RaritanPduInletSensors
-from .model.device.sensors import RaritanPduOutletSensors
-from .model.device.states import OutletPowerState
-from .const import API_TIMEOUT
-from .mappings import STATE_TO_API_MAPPING
+from custom_components.raritan_px.api.model import (
+    RaritanUpdatable,
+    RaritanUpdatableRpcMethodsList
+)
+from custom_components.raritan_px.api.model.device import (
+    RaritanPdu,
+    RaritanPduDevice,
+    RaritanPduInlet,
+    RaritanPduOutlet
+)
+from custom_components.raritan_px.api.model.device.sensors import (
+    RaritanPduSensors,
+    RaritanPduInletSensors,
+    RaritanPduOutletSensors
+)
+from custom_components.raritan_px.api.model.device.states import OutletPowerState
+from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
+from custom_components.raritan_px.api.mappings import STATE_TO_API_MAPPING
 
 _LOGGER = logging.getLogger(__name__)
 
 T = TypeVar('T', bound = "RaritanPduDevice", covariant = True)
 
-@dataclass
+@dataclass(frozen=True)
 class ConnectionDetails:
     """Connection information for Raritan API."""
 
     host: str
-    port: int = 443
     auth: AuthenticationDetails | None = None
-    use_ssl: bool = False
+    port: int = DEFAULT_PORT
+    use_ssl: bool = True
+    verify_ssl: bool = True
     timeout: int = API_TIMEOUT
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuthenticationDetails:
     """Authentication information for Raritan API."""
 
@@ -75,20 +87,46 @@ class UpdateSensors(Flag):
 class RaritanClient:
     """Client for Raritan API."""
 
-    PROTOCOL = "https"
+    _agent: rpc.Agent
+    _hass: HomeAssistant
+    _config: ConnectionDetails
+    _session_token: str | None = None
+    _session_created: datetime | None = None
 
     def __init__(self, hass: HomeAssistant, config: ConnectionDetails) -> None:
         """Init Raritan client."""
-        self._hass: HomeAssistant = hass
-        self._config: ConnectionDetails = config
-        self._session_token: str | None = None
-        self._session_created: datetime | None = None
-        self._agent: rpc.Agent = rpc.Agent(
-            self.PROTOCOL,
+
+        if not config.host:
+            raise ConfigError("No host provider")
+
+        self._hass = hass
+        self._config = config
+        self._agent = rpc.Agent(
+            self._get_protocol(),
             f"{self._config.host}:{self._config.port}",
-            disable_certificate_verification = not self._config.use_ssl,
+            disable_certificate_verification = not self._config.verify_ssl,
             timeout = self._config.timeout,
         )
+
+    def _get_protocol(self) -> str:
+        HTTPS: Final = "https"
+        HTTP: Final = "http"
+
+        if self._config.use_ssl:
+            return HTTPS
+
+        return HTTP
+
+    def _extract_original_exception(self, e: rpc.HttpException):
+        try:
+            previous = e.args[1]
+        except IndexError:
+            return
+        else:
+            if not isinstance(e.args[1], Exception):
+                return
+
+        raise previous
 
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
@@ -190,10 +228,15 @@ class RaritanClient:
 
                 _LOGGER.debug("Session created for %s at %s", session_details.username, self._session_created)
             except rpc.HttpException as e:
-                _LOGGER.exception("Authentication Error")
+                try:
+                    self._extract_original_exception(e)
+                except SSLCertVerificationError as e:
+                    raise CertificateVerificationError() from e
+                else:
+                    _LOGGER.exception("Authentication Error")
 
-                message: str = f"Failed to authenticate as {self._config.auth.user}"
-                raise AuthenticationError(message) from e
+                    message: str = f"Failed to authenticate as {self._config.auth.user}"
+                    raise AuthenticationError(message) from e
 
     def _clear_session_data(self) -> None:
         self._session_token = None
@@ -270,7 +313,7 @@ class RaritanClient:
                 device_id = f"{pdu_metadata.nameplate.serialNumber}:/model/pdu/{pdu_idx}",
                 pdu_id = pdu_idx,
                 host = self._config.host,
-                url = f"{self.PROTOCOL}://{self._config.host}/",
+                url = f"{self._get_protocol()}://{self._config.host}/",
                 name = psu_settings.name,
                 manufacturer = pdu_metadata.nameplate.manufacturer,
                 model = pdu_metadata.nameplate.model,
@@ -488,14 +531,26 @@ class RaritanClient:
 
 
 class RaritanClientError(Exception):
+    """Base exception for all client exceptions"""
+
+
+class ConfigError(RaritanClientError):
+    """Raised when configuration is invalid."""
+
+
+class CommunicationError(Exception):
     """Raised when a generic error occurs while communicating with the Raritan API."""
 
 
-class AuthenticationError(RaritanClientError):
+class CertificateVerificationError(CommunicationError):
+    """Raised when SSL certificate verification fails"""
+
+
+class AuthenticationError(CommunicationError):
     """Raised when authentication fails."""
 
 
-class SessionError(RaritanClientError):
+class SessionError(CommunicationError):
     """Raised when session operations fail."""
 
 
