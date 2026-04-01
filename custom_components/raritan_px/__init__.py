@@ -11,7 +11,10 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_MODEL,
     CONF_PASSWORD,
+    CONF_PORT,
+    CONF_SSL,
     CONF_USERNAME,
+    CONF_VERIFY_SSL,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -25,10 +28,13 @@ from custom_components.raritan_px.api.client import (
     RaritanClient,
     AuthenticationDetails,
     ConnectionDetails,
+    ConfigError as ClientConfigError,
     AuthenticationError,
+    CertificateVerificationError,
     RaritanClientError,
 )
 from custom_components.raritan_px.api.const import (
+    DEFAULT_PORT,
     DEFAULT_USERNAME,
     DEFAULT_PASSWORD,
 )
@@ -53,18 +59,24 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -> bool:
     """Set up RaritanPdu from a config entry."""
-    host: str = entry.data[CONF_HOST]
-    credentials = await get_credentials(hass, entry)
-
-    config = ConnectionDetails(host=host, auth=credentials)
-    client = RaritanClient(hass, config)
+    config = await get_connection_details_from_entry(entry)
 
     try:
+        client = RaritanClient(hass, config)
         pdu: RaritanPdu = await client.get_pdu_info()
     except AuthenticationError as ex:
         raise ConfigEntryAuthFailed(
             translation_domain=DOMAIN,
             translation_key="device_authentication",
+            translation_placeholders={
+                "func": "connect",
+                "exc": str(ex),
+            },
+        ) from ex
+    except CertificateVerificationError as ex:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="cert_error",
             translation_placeholders={
                 "func": "connect",
                 "exc": str(ex),
@@ -103,7 +115,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             translation_domain=DOMAIN,
             translation_key="unexpected_device",
             translation_placeholders={
-                "host": host,
+                "host": config.host,
                 # all entries have a unique id
                 "expected": cast(str, entry.unique_id),
                 "found": pdu.serial_number,
@@ -129,7 +141,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) 
     return unload_ok
 
 
-async def get_credentials(hass: HomeAssistant, entry: RaritanPduConfigEntry | None = None) -> AuthenticationDetails | None:
+async def get_credentials(hass: HomeAssistant, entry: RaritanPduConfigEntry | None = None) -> AuthenticationDetails:
     """Retrieve the credentials from hass data."""
     if entry and CONF_USERNAME in entry.data and CONF_PASSWORD in entry.data:
         return AuthenticationDetails(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
@@ -140,16 +152,31 @@ async def get_credentials(hass: HomeAssistant, entry: RaritanPduConfigEntry | No
 
     return AuthenticationDetails(DEFAULT_USERNAME, DEFAULT_PASSWORD)
 
+async def get_connection_details_from_entry(entry: RaritanPduConfigEntry) -> ConnectionDetails:
+    host: str = entry.data[CONF_HOST]
+    port: int = entry.data[CONF_PORT]
+    use_ssl: bool = entry.data[CONF_SSL]
+    verify_ssl: bool = entry.data[CONF_VERIFY_SSL]
+    credentials = AuthenticationDetails(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
+
+    return ConnectionDetails(
+        host=host,
+        auth=credentials,
+        port=port,
+        use_ssl=use_ssl,
+        verify_ssl=verify_ssl,
+    )
 
 async def set_credentials(
-    hass: HomeAssistant, credentials: AuthenticationDetails
+    hass: HomeAssistant, credentials: AuthenticationDetails | None
 ) -> None:
     """Save the credentials to HASS data."""
-    hass.data.setdefault(DOMAIN, {})[CONF_AUTHENTICATION] = {
-        CONF_USERNAME: credentials.user,
-        CONF_PASSWORD: credentials.passwd,
-    }
 
+    if credentials:
+        hass.data.setdefault(DOMAIN, {})[CONF_AUTHENTICATION] = {
+            CONF_USERNAME: credentials.user,
+            CONF_PASSWORD: credentials.passwd,
+        }
 
 async def async_migrate_entry(
     hass: HomeAssistant, config_entry: RaritanPduConfigEntry
@@ -194,3 +221,19 @@ async def async_migrate_entry(
             return False
 
     return True
+
+async def migrate_config_entry_to_version_1_2(
+    hass: HomeAssistant, config_entry: RaritanPduConfigEntry
+) -> None:
+    updates = {
+        **config_entry.data,
+        **{
+            CONF_PORT: DEFAULT_PORT,
+            CONF_SSL: True,
+            CONF_VERIFY_SSL: False,
+        },
+    }
+
+    hass.config_entries.async_update_entry(
+        config_entry, data=updates
+    )
