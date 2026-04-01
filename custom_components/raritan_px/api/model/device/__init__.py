@@ -6,7 +6,8 @@ from .sensors import (
     RaritanDeviceSensors,
     RaritanPduInletSensors,
     RaritanPduSensors,
-    RaritanPduOutletSensors
+    RaritanPduOutletSensors,
+    RaritanPduOverCurrentProtectorSensors,
 )
 
 @dataclass(kw_only=True)
@@ -87,6 +88,7 @@ class RaritanPduOverCurrentProtector(RaritanPduEnergyDevice):
     """Representation of a Raritan PDU OCP."""
 
     ocp_id: int
+    sensors: RaritanPduOverCurrentProtectorSensors
 
 
 @dataclass(kw_only=True)
@@ -119,4 +121,14 @@ class RaritanPdu(RaritanPduDevice):
 
     @property
     def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
-        return list(flatten([super().all_defined_sensors] + [outlet.all_defined_sensors for outlet in self.outlets] + [inlet.all_defined_sensors for inlet in self.inlets]))
+        return list(flatten(
+            [
+                super().all_defined_sensors
+            ] + [
+                outlet.all_defined_sensors for outlet in self.outlets
+            ] + [
+                inlet.all_defined_sensors for inlet in self.inlets
+            ] + [
+                ocp.all_defined_sensors for ocp in self.ocps
+            ]
+        ))

@@ -13,6 +13,7 @@ from custom_components.raritan_px.entity.description import (
     RaritanPduDeviceEntityDescription,
     RaritanPduEntityDescription,
     RaritanPduOutletEntityDescription,
+    RaritanPduOverCurrentProtectorEntityDescription,
     RaritanPduInletEntityDescription,
 )
 from custom_components.raritan_px.api.model.device import (
@@ -21,12 +22,12 @@ from custom_components.raritan_px.api.model.device import (
     RaritanPduEnergyDevice,
     RaritanPduInlet,
     RaritanPduOutlet,
+    RaritanPduOverCurrentProtector,
 )
 from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
 from custom_components.raritan_px.const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
 
 class CoordinatedRaritanPduDeviceEntity(
     CoordinatorEntity[RaritanPduDataUpdateCoordinator], ABC
@@ -201,3 +202,14 @@ class CoordinatedRaritanPduInletEntity(CoordinatedRaritanPduEnergyDeviceEntity, 
     def _get_device_type(self) -> str:
         """Get the device type to use for this entity."""
         return "Inlet"
+
+
+class CoordinatedRaritanPduOverCurrentProtectorEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
+    """Common base class for all coordinated tplink module based entities."""
+
+    _device: RaritanPduOverCurrentProtector
+    entity_description: RaritanPduOverCurrentProtectorEntityDescription
+
+    def _get_device_type(self) -> str:
+        """Get the device type to use for this entity."""
+        return "Overcurrent Protector"

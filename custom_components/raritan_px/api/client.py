@@ -26,12 +26,14 @@ from custom_components.raritan_px.api.model.device import (
     RaritanPdu,
     RaritanPduDevice,
     RaritanPduInlet,
-    RaritanPduOutlet
+    RaritanPduOutlet,
+    RaritanPduOverCurrentProtector,
 )
 from custom_components.raritan_px.api.model.device.sensors import (
     RaritanPduSensors,
     RaritanPduInletSensors,
-    RaritanPduOutletSensors
+    RaritanPduOutletSensors,
+    RaritanPduOverCurrentProtectorSensors,
 )
 from custom_components.raritan_px.api.model.device.states import OutletPowerState
 from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
@@ -321,6 +323,7 @@ class RaritanClient:
                     (pdu.getSettings, []),
                     (pdu.getOutlets, []),
                     (pdu.getInlets, []),
+                    (pdu.getOverCurrentProtectors, []),
                     (pdu.getSensors, []),
                     (cascade.getStatus, []),
                 ],
@@ -331,8 +334,9 @@ class RaritanClient:
             psu_settings: Pdu.Settings = responses[1] # pyright: ignore[reportAssignmentType]
             pdu_outlets: list[Outlet] = responses[2] # pyright: ignore[reportAssignmentType]
             pdu_inlets: list[Inlet] = responses[3] # pyright: ignore[reportAssignmentType]
-            pdu_sensors: Pdu.Sensors = responses[4] # pyright: ignore[reportAssignmentType]
-            status: CascadeManager.Status = responses[5] # pyright: ignore[reportAssignmentType]
+            pdu_ocps: list[OverCurrentProtector] = responses[4] # pyright: ignore[reportAssignmentType]
+            pdu_sensors: Pdu.Sensors = responses[5] # pyright: ignore[reportAssignmentType]
+            status: CascadeManager.Status = responses[6] # pyright: ignore[reportAssignmentType]
         except rpc.HttpException as e:
             self._logger.exception(f"Error fetching PDU {pdu_idx} information")
 
@@ -358,6 +362,7 @@ class RaritanClient:
                 is_standalone = status.role == CascadeManager.Role.STANDALONE, # pyright: ignore[reportAttributeAccessIssue]
                 outlets = await self._get_outlets_info(pdu_outlets, pdu_idx, pdu_metadata.nameplate.serialNumber),
                 inlets = await self._get_inlets_info(pdu_inlets, pdu_idx, pdu_metadata.nameplate.serialNumber),
+                ocps = await self._get_ocps_info(pdu_ocps, pdu_idx, pdu_metadata.nameplate.serialNumber),
                 sensors = RaritanPduSensors.from_sensor_sources({
                     'power_supply_status': pdu_sensors.powerSupplyStatus,
                     'active_power': pdu_sensors.activePower,
@@ -492,6 +497,62 @@ class RaritanClient:
             raise RaritanClientError(message) from e
         else:
             return inlets
+
+    async def _get_ocps_info(self, pdu_ocps: list[OverCurrentProtector], pdu_idx: int, pdu_serial: str) -> list[RaritanPduOverCurrentProtector]:
+        try:
+            responses = await self._execute_bulk_requests(
+                interleave(
+                    [(ocp.getMetaData, []) for ocp in pdu_ocps],
+                    [(ocp.getSettings, []) for ocp in pdu_ocps],
+                    [(ocp.getSensors, []) for ocp in pdu_ocps],
+                ),
+                f"overcurrent protector data for PDU {pdu_idx}",
+            )
+
+            ocps: list[RaritanPduOverCurrentProtector] = []
+
+            ocp_metadata: OverCurrentProtector.MetaData
+            ocp_settings: OverCurrentProtector.Settings
+            ocp_sensors: OverCurrentProtector.Sensors
+
+            for ocp_idx, (ocp_metadata, ocp_settings, ocp_sensors) in enumerate(grouper(responses, 3)): # pyright: ignore[reportAssignmentType]
+                ocps.append(
+                    RaritanPduOverCurrentProtector(
+                        device_id = f"{pdu_serial}:/model/pdu/{pdu_idx}/ocp/{ocp_idx}",
+                        pdu_id = pdu_idx,
+                        ocp_id = ocp_idx,
+                        name = ocp_settings.name,
+                        label = ocp_metadata.label,
+                        sensors = RaritanPduOverCurrentProtectorSensors.from_sensor_sources({
+                            'trip': ocp_sensors.trip,
+                            'voltage': ocp_sensors.voltage,
+                            'current': ocp_sensors.current,
+                            'peak_current': ocp_sensors.peakCurrent,
+                            'maximum_current': ocp_sensors.maximumCurrent,
+                            'active_power': ocp_sensors.activePower,
+                            'reactive_power': ocp_sensors.reactivePower,
+                            'apparent_power': ocp_sensors.apparentPower,
+                            'power_factor': ocp_sensors.powerFactor,
+                            'displacement_power_factor': ocp_sensors.displacementPowerFactor,
+                            'crest_factor': ocp_sensors.crestFactor,
+                            'active_energy': ocp_sensors.activeEnergy,
+                            'apparent_energy': ocp_sensors.apparentEnergy,
+                            'line_frequency': ocp_sensors.lineFrequency,
+                            'phase_angle': ocp_sensors.phaseAngle,
+                            'residual_current': ocp_sensors.residualCurrent,
+                            'residual_ac_current': ocp_sensors.residualACCurrent,
+                            'residual_dc_current': ocp_sensors.residualDCCurrent,
+                            'residual_current_status': ocp_sensors.residualCurrentStatus,
+                        }),
+                    )
+                )
+        except rpc.HttpException as e:
+            _LOGGER.exception("Error fetching PDU overcurrent protectors")
+
+            message: str = f"Failed to fetch PDU overcurrent protectors for {self._config.host}"
+            raise RaritanClientError(message) from e
+        else:
+            return ocps
 
     async def _update_sensors_for_device(self, device: T, update_type: _SensorUpdate) -> T:
         update_requests = [

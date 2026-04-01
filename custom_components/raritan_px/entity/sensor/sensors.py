@@ -7,11 +7,12 @@ from homeassistant.const import DEGREE
 
 from custom_components.raritan_px.api.model.sensor import RaritanSensor
 from custom_components.raritan_px.entity.sensor.description import RaritanPduSensorEntityDescription
-from custom_components.raritan_px.api.model.sensor.states import NormalAlarmed, OkFaulted, ResidualCurrentStatus
+from custom_components.raritan_px.api.model.sensor.states import NormalAlarmed, OkFaulted, OpenClosed, ResidualCurrentStatus
 from custom_components.raritan_px.entity.sensor.description import (
     RaritanPduDeviceSensorEntityDescription,
     RaritanPduInletSensorEntityDescription,
     RaritanPduOutletSensorEntityDescription,
+    RaritanPduOverCurrentProtectorSensorEntityDescription,
 )
 
 
@@ -280,6 +281,113 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         name="Surge Protector Status",
     ),
     RaritanPduInletSensorEntityDescription(
+        key="residual current status",
+        device_class=SensorDeviceClass.ENUM,
+        options=ResidualCurrentStatus.options(),
+        name="Residual Current Status",
+    ),
+    #endregion
+    #region Overcurrent Protector Sensors
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="trip",
+        device_class=SensorDeviceClass.ENUM,
+        options=OpenClosed.options(),
+        name="Trip Status",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="peak_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Peak Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="maximum_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Maximum Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="active_power",
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="reactive_power",
+        device_class=SensorDeviceClass.REACTIVE_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="apparent_power",
+        device_class=SensorDeviceClass.APPARENT_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="displacement_power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Displacement Power Factor",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="crest_factor",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Crest Factor",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="active_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="apparent_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        name="Apparent Energy",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="phase_angle",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Phase Angle",
+        native_unit_of_measurement=DEGREE,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="line_frequency",
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="residual_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="residual_ac_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual AC Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="residual_dc_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual DC Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
         key="residual current status",
         device_class=SensorDeviceClass.ENUM,
         options=ResidualCurrentStatus.options(),
