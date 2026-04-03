@@ -73,6 +73,9 @@ Outlet monitoring support is PDU specific. If your PDU supports outlet monitorin
 #### I can't turn my outlets on/off
 Outlet switching support is PDU specific. If your PDU supports outlet switching, the switches for the outlets will be exposed automatically
 
+#### I changed the name of my inlet/outlet/PDU via the PDU web UI, but the name hasn't updated in Home Assistant
+Names are currently only updated when the integration first loads. Reloading the integration for the PDU will be update the names in Home Assistant
+
 ## Screenshots
 
 ### PDU
