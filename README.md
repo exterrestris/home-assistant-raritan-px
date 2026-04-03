@@ -54,7 +54,9 @@ Any PX-Series (PX2/PX3/PX4/PXO/PXC) PDU running Xerus 4.3.11 or greater
 > [!NOTE]
 > Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
 >
-> PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes. Versions of Xerus prior to 4.0.10 are highly unlikely to work correctly
+> PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
+>
+> PDUs running Xerus 3.6.xx and earlier will **not** work
 
 ### Known working Devices
 - [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8)
