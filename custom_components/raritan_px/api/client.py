@@ -552,11 +552,11 @@ class RaritanClient:
                 case 0: #OK
                     return state
                 case Outlet.ERR_OUTLET_NOT_SWITCHABLE:
-                    message = f"Outlet not switchable for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                    message = f"PDU {pdu_idx} outlet {outlet_idx} not switchable for {self._config.host}"
                 case Outlet.ERR_OUTLET_DISABLED:
-                    message = f"Outlet disabled for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                    message = f"PDU {pdu_idx} outlet {outlet_idx} disabled for {self._config.host}"
                 case Outlet.ERR_RELAY_CONTROL_DISABLED:
-                    message = f"Outlet relay control disabled for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                    message = f"PDU {pdu_idx} outlet {outlet_idx} relay control disabled for {self._config.host}"
                 case _:
                     message = f"Unexpected response setting PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
 
