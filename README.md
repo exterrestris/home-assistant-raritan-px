@@ -12,19 +12,10 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
 
 ## Installation
 
-The simplest way to install is via [HACS](https://github.com/hacs/integration)
+This integration is included in the default [HACS](https://github.com/hacs/integration) catalogue. Click the button below to open this repository in your Home Assistant instance, then click install
 
-### HACS
+[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=exterrestris&repository=home-assistant-raritan-px&category=integration)
 
-1. [Add the repository](https://my.home-assistant.io/redirect/hacs_repository/?owner=exterrestris&repository=home-assistant-raritan-px&category=integration) to your HACS installation
-2. Click `Download`
-3. Restart Home Assistant
-
-### Manual Install
-
-1. Download the latest [published release](https://github.com/exterrestris/home-assistant-raritan-px/releases)
-2. Place the contents of `custom_components` into the `<config directory>/custom_components` folder of your Home Assistant installation
-3. Restart Home Assistant
 
 ## Setup
 
