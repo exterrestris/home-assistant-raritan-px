@@ -1,6 +1,10 @@
 # Home Assistant Raritan PX-Series PDU Integration
 
-A custom integration to expose and control your Raritan PX-Series PDUs within Home Assistant, using the built-in local [Xerus™ JSON-RPC API](https://help.raritan.com/json-rpc/4.3.13/index.html) - no Internet access required
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge&logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
+[![version](https://shields.io/github/v/release/exterrestris/home-assistant-raritan-px?style=for-the-badge)](https://github.com/exterrestris/home-assistant-raritan-px)
+
+
+A custom integration to expose and control your Raritan PX-Series PDUs within Home Assistant, using the built-in local [Xerus™ JSON-RPC API](https://help.raritan.com/json-rpc/4.3.15/index.html) - no Internet access required
 
 This is an **unofficial** integration that is in **no way affiliated, endorsed or supported** by Raritan or Legrand
 
@@ -12,19 +16,10 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
 
 ## Installation
 
-The simplest way to install is via [HACS](https://github.com/hacs/integration)
+This integration is included in the default [HACS](https://github.com/hacs/integration) catalogue. Click the button below to open this repository in your Home Assistant instance, then click install
 
-### HACS
+[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=exterrestris&repository=home-assistant-raritan-px&category=integration)
 
-1. [Add the repository](https://my.home-assistant.io/redirect/hacs_repository/?owner=exterrestris&repository=home-assistant-raritan-px&category=integration) to your HACS installation
-2. Click `Download`
-3. Restart Home Assistant
-
-### Manual Install
-
-1. Download the latest [published release](https://github.com/exterrestris/home-assistant-raritan-px/releases)
-2. Place the contents of `custom_components` into the `<config directory>/custom_components` folder of your Home Assistant installation
-3. Restart Home Assistant
 
 ## Setup
 
@@ -54,7 +49,9 @@ Any PX-Series (PX2/PX3/PX4/PXO/PXC) PDU running Xerus 4.3.11 or greater
 > [!NOTE]
 > Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
 >
-> PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes. Versions of Xerus prior to 4.0.10 are highly unlikely to work correctly
+> PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
+>
+> PDUs running Xerus 3.6.xx and earlier will **not** work
 
 ### Known working Devices
 - [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8)
@@ -70,6 +67,9 @@ Outlet monitoring support is PDU specific. If your PDU supports outlet monitorin
 
 #### I can't turn my outlets on/off
 Outlet switching support is PDU specific. If your PDU supports outlet switching, the switches for the outlets will be exposed automatically
+
+#### I changed the name of my inlet/outlet/PDU via the PDU web UI, but the name hasn't updated in Home Assistant
+Names are currently only updated when the integration first loads. Reloading the integration for the PDU will be update the names in Home Assistant
 
 ## Screenshots
 
