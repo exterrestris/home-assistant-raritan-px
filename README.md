@@ -1,5 +1,9 @@
 # Home Assistant Raritan PX-Series PDU Integration
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge&logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
+[![version](https://shields.io/github/v/release/exterrestris/home-assistant-raritan-px?style=for-the-badge)](https://github.com/exterrestris/home-assistant-raritan-px)
+
+
 A custom integration to expose and control your Raritan PX-Series PDUs within Home Assistant, using the built-in local [Xerus™ JSON-RPC API](https://help.raritan.com/json-rpc/4.3.13/index.html) - no Internet access required
 
 This is an **unofficial** integration that is in **no way affiliated, endorsed or supported** by Raritan or Legrand
