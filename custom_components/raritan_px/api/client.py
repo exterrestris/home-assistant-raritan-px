@@ -291,23 +291,22 @@ class RaritanClient:
         return True
 
     async def _execute_bulk_requests(self, requests: Iterable, data_name: str | None = None) -> list[Structure]:
-        try:
-            if log_timing := self._logger.isEnabledFor(logging.DEBUG):
-                start = monotonic()
+        if log_timing := self._logger.isEnabledFor(logging.DEBUG):
+            start = monotonic()
 
-            responses = await self._hass.async_add_executor_job(
-                perform_bulk, self._agent, requests
+        responses = await self._hass.async_add_executor_job(
+            perform_bulk, self._agent, requests
+        )
+
+        if log_timing:
+            self._logger.debug(
+                "%s %s requests in %.3f seconds",
+                f"Fetched {data_name} via" if data_name else "Fetched",
+                len(responses),
+                monotonic() - start,
             )
 
-            return responses # pyright: ignore[reportReturnType]
-        finally:
-            if log_timing and responses:
-                self._logger.debug(
-                    "%s %s requests in %.3f seconds",
-                    f"Fetched {data_name} via" if data_name else "Fetched",
-                    len(responses),
-                    monotonic() - start,
-                )
+        return responses # pyright: ignore[reportReturnType]
 
     async def get_pdu_info(self, pdu_idx: int = 0, *, update_sensor_data: UpdateSensors = UpdateSensors.ALL) -> RaritanPdu:
         """Get information for the Raritan PDU."""
