@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from asyncio import Lock
 from dataclasses import dataclass
 from datetime import timedelta
 import logging
@@ -35,6 +36,7 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
     """DataUpdateCoordinator to gather data for a specific RaritanPdu device."""
 
     config_entry: RaritanPduConfigEntry
+    client_lock: Lock
 
     def __init__(
         self,
@@ -56,40 +58,43 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
         self.pdu = pdu
         self.client = client
         self.config_entry = config_entry
+        self.client_lock = Lock()
 
 
     async def _async_update_data(self) -> None:
         """Fetch all device and sensor data from api."""
-        try:
-            await self.client.update_sensor_readings_for_pdu(self.pdu)
-        except Exception as ex:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="device_error",
-                translation_placeholders={
-                    "func": "update_outlets",
-                    "exc": str(ex),
-                },
-            ) from ex
+        async with self.client_lock:
+            try:
+                await self.client.update_sensor_readings_for_pdu(self.pdu)
+            except Exception as ex:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN,
+                    translation_key="device_error",
+                    translation_placeholders={
+                        "func": "update_outlets",
+                        "exc": str(ex),
+                    },
+                ) from ex
 
     async def set_outlet_power_state(
         self, outlet: RaritanPduOutlet, state: OutletPowerState
     ) -> bool:
         """Set the state of an outlet."""
-        try:
-            updated = await self.client.set_outlet_power_state(
-                outlet.pdu_id,
-                outlet.outlet_id,
-                state,
-            )
-        except Exception as ex:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="device_error",
-                translation_placeholders={
-                    "func": "set_outlet_state",
-                    "exc": str(ex),
-                },
-            ) from ex
-        else:
-            return updated == state
+        async with self.client_lock:
+            try:
+                updated = await self.client.set_outlet_power_state(
+                    outlet.pdu_id,
+                    outlet.outlet_id,
+                    state,
+                )
+            except Exception as ex:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN,
+                    translation_key="device_error",
+                    translation_placeholders={
+                        "func": "set_outlet_state",
+                        "exc": str(ex),
+                    },
+                ) from ex
+            else:
+                return updated == state

@@ -52,7 +52,7 @@ class CoordinatedRaritanPduDeviceEntity(
         self._device = device
         self._pdu = pdu
 
-        self._attr_device_info = self._get_device_info()
+        self._attr_device_info = self._get_device_info(coordinator)
         self._attr_unique_id = f"{device.device_id}_{description.key}"
 
     def _get_pdu_name(self) -> str:
@@ -66,7 +66,7 @@ class CoordinatedRaritanPduDeviceEntity(
     def _merge_device_info(info: DeviceInfo, merge: DeviceInfo) -> DeviceInfo:
         return DeviceInfo(**{**info, **merge}) # pyright: ignore[reportArgumentType]
 
-    def _get_device_info(self) -> DeviceInfo:
+    def _get_device_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
         return self._merge_device_info(
             DeviceInfo(
                 identifiers={(DOMAIN, str(self._device.device_id))},
@@ -75,12 +75,12 @@ class CoordinatedRaritanPduDeviceEntity(
                 name=self._get_device_name(),
                 configuration_url=self._device.url,
             ),
-            self._get_device_connection_info()
+            self._get_device_connection_info(coordinator)
         )
 
-    def _get_device_connection_info(self) -> DeviceInfo:
+    def _get_device_connection_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
         return DeviceInfo(
-            via_device=(DOMAIN, self._pdu.device_id)
+            via_device_id=dr.async_get_device_id_by_identifier(coordinator.hass, (DOMAIN, self._pdu.device_id), config_entry_id=coordinator.config_entry.entry_id)
         )
 
     @abstractmethod
@@ -144,16 +144,16 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
         """Get the device model to use for this entity."""
         return self._pdu.model
 
-    def _get_device_info(self) -> DeviceInfo:
+    def _get_device_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
         return self._merge_device_info(
-            super()._get_device_info(),
+            super()._get_device_info(coordinator),
             DeviceInfo(
                 sw_version=self._pdu.firmware_version,
                 hw_version=self._pdu.hardware_version,
             )
         )
 
-    def _get_device_connection_info(self) -> DeviceInfo:
+    def _get_device_connection_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
         return DeviceInfo(
             connections={(dr.CONNECTION_NETWORK_MAC, self._pdu.mac_address)},
         )

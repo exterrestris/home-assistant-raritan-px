@@ -73,8 +73,8 @@ class _SensorUpdate(Enum):
     def get_update_methods(self, sensor: RaritanUpdatable) -> RaritanUpdatableRpcMethodsList:
         return self.value.method(sensor)
 
-    def fetch_msg(self, sensor_count: int, device_count: int) -> str:
-        return "sensor {} for {} sensors across {} devices".format(self.name.lower(), device_count, sensor_count)
+    def fetch_msg(self, device: RaritanPdu, sensor_count: int, device_count: int) -> str:
+        return "sensor {} from {} for {} sensors across {} devices".format(self.name.lower(), device.device_id, device_count, sensor_count)
 
 class UpdateSensors(Flag):
     NONE = 0
@@ -160,7 +160,7 @@ class RaritanClient:
 
                 if force_reauth:
                     try:
-                        self._logger.info("Closing existing session and forcing re-authentication")
+                        self._logger.info("Closing existing session on %s and forcing re-authentication", self._config.host)
 
                         await self._close_session(
                             session_details,
@@ -177,7 +177,8 @@ class RaritanClient:
                     )
 
                     self._logger.debug(
-                        "Authenticated using session token for %s, session created at %s",
+                        "Authenticated with %s using session token for %s, session created at %s",
+                        self._config.host,
                         session_details.username,
                         self._session_created
                     )
@@ -185,7 +186,8 @@ class RaritanClient:
                 self._clear_session_data()
 
                 self._logger.debug(
-                    "Session has expired, will attempt to authenticate using credentials"
+                    "Session token for %s has expired, will attempt to authenticate using credentials",
+                    self._config.host
                 )
 
         if self._session_token is None:
@@ -218,7 +220,7 @@ class RaritanClient:
 
                 if response == SessionManager.ERR_ACTIVE_SESSION_EXCLUSIVE_FOR_USER:
                     message: str = (
-                        f"Failed to create new session for logged-in user {self._config.auth.user}"
+                        f"Failed to create new session on {self._config.host} for logged-in user {self._config.auth.user}"
                     )
                     raise ConcurrentLoginError(message)
 
@@ -229,7 +231,7 @@ class RaritanClient:
                 session_creation: Time = session_details.creationTime # pyright: ignore[reportAssignmentType]
                 self._session_created = datetime.now() - timedelta(microseconds=session_creation.timestamp())
 
-                self._logger.debug("Session created for %s at %s", session_details.username, self._session_created)
+                self._logger.debug("Session created for %s on %s at %s", session_details.username, self._config.host, self._session_created)
             except rpc.HttpException as e:
                 try:
                     self._extract_original_exception(e)
@@ -238,7 +240,7 @@ class RaritanClient:
                 else:
                     self._logger.exception("Authentication Error")
 
-                    message: str = f"Failed to authenticate as {self._config.auth.user}"
+                    message: str = f"Failed to authenticate as {self._config.auth.user} on {self._config.host}"
                     raise AuthenticationError(message) from e
 
     def _clear_session_data(self) -> None:
@@ -249,15 +251,15 @@ class RaritanClient:
         try:
             self._agent.set_auth_token(self._session_token)
 
-            self._logger.debug("Closing session for %s created at %s", session_details.username, self._session_created)
+            self._logger.debug("Closing session for %s on %s created at %s", session_details.username, self._config.host, self._session_created)
 
             await self._hass.async_add_executor_job(self._session_manager.closeCurrentSession, reason)
         except rpc.HttpException as e:
-            self._logger.warning("Failed to close existing session for %s", session_details.username, exc_info=True)
+            self._logger.warning("Failed to close existing session for %s on %s", session_details.username, self._config.host, exc_info=True)
 
             raise SessionCloseError
         else:
-            self._logger.info("Session closed for %s", session_details.username)
+            self._logger.info("Session closed for %s on %s", session_details.username, self._config.host)
         finally:
             self._clear_session_data()
 
@@ -289,23 +291,22 @@ class RaritanClient:
         return True
 
     async def _execute_bulk_requests(self, requests: Iterable, data_name: str | None = None) -> list[Structure]:
-        try:
-            if log_timing := self._logger.isEnabledFor(logging.DEBUG):
-                start = monotonic()
+        if log_timing := self._logger.isEnabledFor(logging.DEBUG):
+            start = monotonic()
 
-            responses = await self._hass.async_add_executor_job(
-                perform_bulk, self._agent, requests
+        responses = await self._hass.async_add_executor_job(
+            perform_bulk, self._agent, requests
+        )
+
+        if log_timing:
+            self._logger.debug(
+                "%s %s requests in %.3f seconds",
+                f"Fetched {data_name} via" if data_name else "Fetched",
+                len(responses),
+                monotonic() - start,
             )
 
-            return responses # pyright: ignore[reportReturnType]
-        finally:
-            if log_timing:
-                self._logger.debug(
-                    "%s %s requests in %.3f seconds",
-                    f"Fetched {data_name} via" if data_name else "Fetched",
-                    len(responses),
-                    monotonic() - start,
-                )
+        return responses # pyright: ignore[reportReturnType]
 
     async def get_pdu_info(self, pdu_idx: int = 0, *, update_sensor_data: UpdateSensors = UpdateSensors.ALL) -> RaritanPdu:
         """Get information for the Raritan PDU."""
@@ -493,7 +494,7 @@ class RaritanClient:
         else:
             return inlets
 
-    async def _update_sensors_for_device(self, device: T, update_type: _SensorUpdate) -> T:
+    async def _update_sensors_for_device(self, device: RaritanPdu, update_type: _SensorUpdate) -> RaritanPdu:
         update_requests = [
             (device_name, (device_name, sensor_name), request, update)
             for (device_name, sensor_name, sensor) in device.all_updatable_sensors
@@ -504,7 +505,7 @@ class RaritanClient:
 
         responses = await self._execute_bulk_requests(
             interleave(requests),
-            update_type.fetch_msg(len(set(devices)), len(set(sensors)))
+            update_type.fetch_msg(device, len(set(devices)), len(set(sensors)))
         )
 
         for (response, method) in zip(responses, update_methods):
@@ -512,10 +513,10 @@ class RaritanClient:
 
         return device
 
-    async def _update_sensor_info_for_device(self, device: T) -> T:
+    async def _update_sensor_info_for_device(self, device: RaritanPdu) -> RaritanPdu:
         return await self._update_sensors_for_device(device, _SensorUpdate.INFO)
 
-    async def _update_sensor_readings_for_device(self, device: T) -> T:
+    async def _update_sensor_readings_for_device(self, device: RaritanPdu) -> RaritanPdu:
         return await self._update_sensors_for_device(device, _SensorUpdate.READINGS)
 
     async def update_sensor_readings_for_pdu(self, pdu: RaritanPdu) -> RaritanPdu:
@@ -552,11 +553,11 @@ class RaritanClient:
                 case 0: #OK
                     return state
                 case Outlet.ERR_OUTLET_NOT_SWITCHABLE:
-                    message = f"Outlet not switchable for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                    message = f"PDU {pdu_idx} outlet {outlet_idx} not switchable for {self._config.host}"
                 case Outlet.ERR_OUTLET_DISABLED:
-                    message = f"Outlet disabled for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                    message = f"PDU {pdu_idx} outlet {outlet_idx} disabled for {self._config.host}"
                 case Outlet.ERR_RELAY_CONTROL_DISABLED:
-                    message = f"Outlet relay control disabled for PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+                    message = f"PDU {pdu_idx} outlet {outlet_idx} relay control disabled for {self._config.host}"
                 case _:
                     message = f"Unexpected response setting PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
 

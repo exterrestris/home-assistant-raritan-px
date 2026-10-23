@@ -1,7 +1,9 @@
 {
     "name": "Raritan PX2/PX3 PDU",
-    "homeassistant": "2026.3.2",
+    "homeassistant": "2026.8.0",
     "hacs": "2.0.5",
     "render_readme": true,
-    "hide_default_branch": true
+    "hide_default_branch": true,
+    "zip_release": true,
+    "filename": "raritan_px.zip"
 }
