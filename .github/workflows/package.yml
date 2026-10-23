@@ -1,0 +1,69 @@
+name: Build & Release
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify release version
+        id: version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME}"
+          manifest_version=$(jq -r .version custom_components/raritan_px/manifest.json)
+          if [ "$version" != "v$manifest_version" ]; then
+            echo "Tag ($version) must match manifest version ($manifest_version)." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create integration archive
+        shell: bash
+        run: |
+          cd custom_components/raritan_px
+          zip -r "$RUNNER_TEMP/raritan_px.zip" .
+
+      - name: Upload release package for inspection
+        uses: actions/upload-artifact@v7
+        with:
+          name: raritan-px-pkg
+          path: ${{ runner.temp }}/raritan_px.zip
+          if-no-files-found: error
+
+  publish:
+    name: Attach package to published release
+    if: github.event_name == 'release'
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: raritan-px-pkg
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: raritan_px.zip
+          fail_on_unmatched_files: true
