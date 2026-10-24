@@ -1,7 +1,7 @@
 {
     "name": "exterrestris/home-assistant-raritan-pdu",
     "image": "mcr.microsoft.com/devcontainers/python:3.14",
-    "onCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg libturbojpeg libpcap-dev",
+    "onCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg libturbojpeg0 libpcap-dev",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [
         8123
@@ -20,7 +20,10 @@
                 "ms-python.python",
                 "ms-python.vscode-pylance",
                 "ryanluker.vscode-coverage-gutters",
-                "EditorConfig.EditorConfig"
+                "EditorConfig.EditorConfig",
+                "mhutchie.git-graph",
+                "github.vscode-github-actions",
+                "bierner.github-markdown-preview"
             ],
             "settings": {
                 "files.eol": "\n",
@@ -32,7 +35,10 @@
                 "python.analysis.typeCheckingMode": "basic",
                 "python.analysis.autoImportCompletions": true,
                 "[python]": {
-                    "editor.defaultFormatter": "charliermarsh.ruff"
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                      "source.organizeImports": "explicit"
+                    }
                 }
             }
         }

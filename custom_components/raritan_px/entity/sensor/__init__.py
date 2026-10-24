@@ -1,29 +1,34 @@
+"""Raritan PDU sensor entities."""
+
+from typing import TYPE_CHECKING
+
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import callback
 
-from custom_components.raritan_px.entity.sensor.description import (
-    RaritanPduSensorEntityDescription,
-    RaritanPduOutletSensorEntityDescription,
-    RaritanPduInletSensorEntityDescription,
-    RaritanPduDeviceSensorEntityDescription,
-)
-from custom_components.raritan_px.entity.description import (
-    RaritanPduDeviceEntityDescription,
-)
 from custom_components.raritan_px.entity import (
     CoordinatedRaritanPduDeviceEntity,
     CoordinatedRaritanPduEntity,
-    CoordinatedRaritanPduOutletEntity,
     CoordinatedRaritanPduInletEntity,
+    CoordinatedRaritanPduOutletEntity,
 )
-from custom_components.raritan_px.api.model.sensor import RaritanSensor
-from custom_components.raritan_px.api.model.device import (
-    RaritanPdu,
-    RaritanPduDevice,
-    RaritanPduOutlet,
-    RaritanPduInlet
-)
-from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from custom_components.raritan_px.api.model.device import RaritanDevice
+    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+    from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
+    from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
+    from custom_components.raritan_px.api.model.sensor import RaritanSensor
+    from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+    from custom_components.raritan_px.entity.descriptions import (
+        RaritanPduDeviceEntityDescription,
+    )
+    from custom_components.raritan_px.entity.sensor.descriptions import (
+        RaritanPduDeviceSensorEntityDescription,
+        RaritanPduInletSensorEntityDescription,
+        RaritanPduOutletSensorEntityDescription,
+        RaritanPduSensorEntityDescription,
+    )
+
 
 class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEntity):
     """Representation of a Raritan PDU device sensor."""
@@ -32,13 +37,14 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
     entity_description: RaritanPduDeviceSensorEntityDescription
 
     def __init__(
-            self,
-            device: RaritanPduDevice,
-            pdu: RaritanPdu,
-            coordinator: RaritanPduDataUpdateCoordinator,
-            description: RaritanPduDeviceEntityDescription,
-            sensor: RaritanSensor
-        ) -> None:
+        self,
+        device: RaritanDevice,
+        pdu: RaritanPdu,
+        coordinator: RaritanPduDataUpdateCoordinator,
+        description: RaritanPduDeviceEntityDescription,
+        sensor: RaritanSensor,
+    ) -> None:
+        """Initialise the entity."""
         super().__init__(device, pdu, coordinator, description)
 
         self._sensor = sensor
@@ -57,13 +63,11 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
 
         self._attr_native_value = value
 
-        # This check is here because Home Assistant only supports last_reset with a
-        # state class of TOTAL, however the Raritan JSON-RPC API only supplies a last
-        # reset time for accumlating numeric sensors which best map to a state class
-        # of TOTAL_INCREASING
-        if self.entity_description.state_class == SensorStateClass.TOTAL:
-            if self._sensor.last_reset is not None:
-                self._attr_last_reset = self._sensor.last_reset
+        # This check is here because Home Assistant only supports last_reset with a state class of TOTAL, however the
+        # Raritan JSON-RPC API only supplies a last reset time for accumlating numeric sensors which best map to a state
+        # class of TOTAL_INCREASING
+        if self.entity_description.state_class == SensorStateClass.TOTAL and self._sensor.last_reset is not None:
+            self._attr_last_reset = self._sensor.last_reset
 
         if self._sensor.unit is not None:
             self._attr_native_unit_of_measurement = self._sensor.unit

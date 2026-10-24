@@ -3,4 +3,4 @@ homeassistant==2026.8.0
 raritan==4.3.15.53139
 more-itertools==10.8.0
 pip>=21.3.1
-ruff==0.15.7
+ruff==0.17.2

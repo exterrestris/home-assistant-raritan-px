@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from collections.abc import Mapping
-import logging
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import voluptuous as vol
-
-from homeassistant.data_entry_flow import section
 from homeassistant.config_entries import (
     SOURCE_REAUTH,
     SOURCE_RECONFIGURE,
@@ -29,21 +25,21 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 
 from custom_components.raritan_px import (
-    get_credentials,
     get_connection_details_from_entry,
+    get_credentials,
     set_credentials,
 )
-from custom_components.raritan_px.api.model.device import RaritanPdu
 from custom_components.raritan_px.api.client import (
-    RaritanClient,
-    UpdateSensors,
     AuthenticationDetails,
-    ConnectionDetails,
     AuthenticationError,
     CertificateVerificationError,
+    ConnectionDetails,
+    RaritanClient,
     RaritanClientError,
+    UpdateSensors,
 )
 from custom_components.raritan_px.api.const import DEFAULT_PORT
 from custom_components.raritan_px.const import (
@@ -51,7 +47,10 @@ from custom_components.raritan_px.const import (
     DOMAIN,
 )
 
-_LOGGER = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
 
 STEP_AUTH_DATA_SCHEMA = vol.Schema(
     {
@@ -72,10 +71,8 @@ STEP_DEVICE_DATA_SCHEMA = vol.Schema(
                     vol.Optional(CONF_VERIFY_SSL, default=True): bool,
                 }
             ),
-            {
-                "collapsed": True
-            },
-        )
+            {"collapsed": True},
+        ),
     }
 )
 
@@ -91,12 +88,11 @@ STEP_RECONFIGURE_DATA_SCHEMA = vol.Schema(
                     vol.Optional(CONF_VERIFY_SSL, default=True): bool,
                 }
             ),
-            {
-                "collapsed": True
-            },
-        )
+            {"collapsed": True},
+        ),
     }
 )
+
 
 class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for RaritanPdu."""
@@ -140,6 +136,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
         if new_connection_params:
             pass
         return updates
+
     def is_matching(self, other_flow: Self) -> bool:
         """Return True if other_flow is matching this flow."""
         return other_flow.host == self.host
@@ -159,9 +156,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return host, port
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
         placeholders: dict[str, str] = {}
@@ -212,8 +207,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 return self._async_create_or_update_entry_from_device(device, self.config)
 
-        suggested = {
-        }
+        suggested = {}
 
         if user_input is not None:
             suggested = {
@@ -239,13 +233,11 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
         if self.source == SOURCE_REAUTH:
             await _config_entries.async_reload(self._get_reauth_entry().entry_id)
 
-        for flow in _config_entries.flow.async_progress_by_handler(
-            DOMAIN, include_uninitialized=True
-        ):
-            context = flow["context"] # pyright: ignore[reportTypedDictNotRequiredAccess]
+        for flow in _config_entries.flow.async_progress_by_handler(DOMAIN, include_uninitialized=True):
+            context = flow["context"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
             if context.get("source") != SOURCE_REAUTH:
                 continue
-            entry_id = context["entry_id"] # pyright: ignore[reportTypedDictNotRequiredAccess]
+            entry_id = context["entry_id"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
             if entry := _config_entries.async_get_entry(entry_id):
                 await _config_entries.async_reload(entry.entry_id)
 
@@ -291,10 +283,10 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _async_try_connect(
         self,
         config: ConnectionDetails,
+        *,
         raise_on_progress: bool,
     ) -> RaritanPdu:
         """Try to connect to the device speculatively."""
-
         client = RaritanClient(self.hass, config)
 
         pdu = await client.get_pdu_info(update_sensor_data=UpdateSensors.NONE)
@@ -306,16 +298,11 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         return pdu
 
-
-    async def async_step_reauth(
-        self, entry_data: Mapping[str, Any]
-    ) -> ConfigFlowResult:
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:  # noqa: ARG002
         """Start the reauthentication flow if the device needs updated credentials."""
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Dialog that informs the user that reauth is required."""
         errors: dict[str, str] = {}
         placeholders: dict[str, str] = {}
@@ -326,7 +313,10 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
         host = entry_data[CONF_HOST]
 
         if user_input:
-            config = replace(config, auth=AuthenticationDetails(user_input[CONF_USERNAME], user_input[CONF_PASSWORD]))
+            config = replace(
+                config,
+                auth=AuthenticationDetails(user_input[CONF_USERNAME], user_input[CONF_PASSWORD]),
+            )
 
             try:
                 device = await self._async_try_connect(
@@ -350,12 +340,8 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
                     )
                     await set_credentials(self.hass, config.auth)
                     if updates := self._get_config_updates(reauth_entry, config, device):
-                        self.hass.config_entries.async_update_entry(
-                            reauth_entry, data=updates
-                        )
-                    self.hass.async_create_task(
-                        self._async_reload_requires_auth_entries(), eager_start=False
-                    )
+                        self.hass.config_entries.async_update_entry(reauth_entry, data=updates)
+                    self.hass.async_create_task(self._async_reload_requires_auth_entries(), eager_start=False)
                     return self.async_abort(reason="reauth_successful")
 
         alias = entry_data.get(CONF_ALIAS) or "unknown"
@@ -371,15 +357,13 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders=placeholders,
         )
 
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Trigger a reconfiguration flow."""
         errors: dict[str, str] = {}
         placeholders: dict[str, str] = {}
 
         reconfigure_entry = self._get_reconfigure_entry()
-        assert reconfigure_entry.unique_id
+
         await self.async_set_unique_id(reconfigure_entry.unique_id)
 
         placeholders[CONF_ALIAS] = reconfigure_entry.data[CONF_ALIAS]
@@ -428,7 +412,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_OPTIONS: {
                 CONF_SSL: reconfigure_entry.data[CONF_SSL],
                 CONF_VERIFY_SSL: reconfigure_entry.data[CONF_VERIFY_SSL],
-            }
+            },
         }
 
         if user_input is not None:

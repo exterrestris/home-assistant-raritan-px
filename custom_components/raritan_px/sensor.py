@@ -1,32 +1,35 @@
 """Support for RaritanPdu sensor entities."""
 
 from __future__ import annotations
-import logging
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from custom_components.raritan_px.entity.sensor.description import (
-    RaritanPduSensorEntityDescription,
-    RaritanPduInletSensorEntityDescription,
-    RaritanPduOutletSensorEntityDescription
-)
+from typing import TYPE_CHECKING
+
 from custom_components.raritan_px.entity.sensor import (
-    RaritanPduSensorEntity,
+    RaritanPduInletSensorEntity,
     RaritanPduOutletSensorEntity,
-    RaritanPduInletSensorEntity
+    RaritanPduSensorEntity,
 )
-from custom_components.raritan_px.api.model.device import RaritanPdu
-from custom_components.raritan_px.coordinator import (
-    RaritanPduConfigEntry,
-    RaritanPduData,
-    RaritanPduDataUpdateCoordinator,
+from custom_components.raritan_px.entity.sensor.descriptions import (
+    RaritanPduInletSensorEntityDescription,
+    RaritanPduOutletSensorEntityDescription,
+    RaritanPduSensorEntityDescription,
+    get_entity_description,
 )
-from custom_components.raritan_px.entity.sensor.sensors import get_entity_description
 
-_LOGGER = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+    from custom_components.raritan_px.coordinator import (
+        RaritanPduConfigEntry,
+        RaritanPduData,
+        RaritanPduDataUpdateCoordinator,
+    )
+
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    hass: HomeAssistant,  # noqa: ARG001
     config_entry: RaritanPduConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
@@ -40,8 +43,8 @@ async def async_setup_entry(
             pdu,
             pdu,
             coordinator,
-            get_entity_description(RaritanPduSensorEntityDescription, sensor_name, sensor),
-            sensor
+            get_entity_description(RaritanPduSensorEntityDescription, sensor_name),
+            sensor,
         )
         for sensor_name, sensor in pdu.available_sensors
     )
@@ -51,8 +54,8 @@ async def async_setup_entry(
             inlet,
             pdu,
             coordinator,
-            get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name, sensor),
-            sensor
+            get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name),
+            sensor,
         )
         for inlet in pdu.inlets
         for (sensor_name, sensor) in inlet.available_sensors
@@ -64,8 +67,8 @@ async def async_setup_entry(
                 outlet,
                 pdu,
                 coordinator,
-                get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name, sensor),
-                sensor
+                get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name),
+                sensor,
             )
             for outlet in pdu.outlets
             for (sensor_name, sensor) in outlet.available_sensors

@@ -1,16 +1,15 @@
-from dataclasses import dataclass, field, fields
-from more_itertools import flatten
+"""Raritan PDU API base device models."""
 
-from ..sensor import RaritanSensor, RaritanSwitch
-from .sensors import (
-    RaritanDeviceSensors,
-    RaritanPduInletSensors,
-    RaritanPduSensors,
-    RaritanPduOutletSensors
-)
+from dataclasses import dataclass, fields
+from typing import Self, get_args, get_type_hints
+
+from raritan.rpc.sensors import Sensor
+
+from custom_components.raritan_px.api.model.sensor import RaritanSensor, RaritanSwitch
+
 
 @dataclass(kw_only=True)
-class RaritanPduDevice:
+class RaritanDevice:
     """Representation of a generic Raritan device."""
 
     device_id: str
@@ -21,30 +20,31 @@ class RaritanPduDevice:
 
     @property
     def defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
-        return [
-            (sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)
-        ]
+        """Return a list of sensors defined on this device by sensor name."""
+        return [(sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)]
 
     @property
     def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
-        return [
-            (self.device_id, sensor_name, sensor) for (sensor_name, sensor) in self.defined_sensors
-        ]
+        """Return a list of sensors defined on this device by device ID and sensor name."""
+        return [(self.device_id, sensor_name, sensor) for (sensor_name, sensor) in self.defined_sensors]
 
     @property
     def updatable_sensors(self) -> list[tuple[str, RaritanSensor]]:
-        return [
-            (name, sensor) for (name, sensor) in self.defined_sensors if sensor is not None
-        ]
+        """Return a list of updatable sensors defined on this device by sensor name."""
+        return [(name, sensor) for (name, sensor) in self.defined_sensors if sensor is not None]
 
     @property
     def all_updatable_sensors(self) -> list[tuple[str, str, RaritanSensor]]:
+        """Return a list of updatable sensors defined on this device by device ID and sensor name."""
         return [
-            (name, sensor_name, sensor) for (name, sensor_name, sensor) in self.all_defined_sensors if sensor is not None
+            (name, sensor_name, sensor)
+            for (name, sensor_name, sensor) in self.all_defined_sensors
+            if sensor is not None
         ]
 
     @property
     def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
+        """Return a list of available sensors defined on this device by sensor name."""
         return [
             (f"{name}:{idx}" if idx is not None else name, sensor)
             for (name, _sensor) in self.updatable_sensors
@@ -53,70 +53,45 @@ class RaritanPduDevice:
 
     @property
     def available_switches(self) -> list[tuple[str, RaritanSwitch]]:
-        return [
-            (name, sensor) for (name, sensor) in self.defined_sensors if isinstance(sensor, RaritanSwitch)
-        ]
+        """Return a list of available switches defined on this device by switch name."""
+        return [(name, sensor) for (name, sensor) in self.defined_sensors if isinstance(sensor, RaritanSwitch)]
 
 
 @dataclass(kw_only=True)
-class RaritanPduEnergyDevice(RaritanPduDevice):
+class RaritanEnergyDevice(RaritanDevice):
     """Representation of a generic Raritan energy device."""
 
     label: str
 
 
 @dataclass(kw_only=True)
-class RaritanPduOutlet(RaritanPduEnergyDevice):
-    """Representation of a Raritan PDU outlet."""
+class RaritanDeviceSensors:
+    """Representation of a set of device sensors."""
 
-    outlet_id: int
-    is_switchable: bool
-    sensors: RaritanPduOutletSensors
+    def __getitem__(self, key: str) -> RaritanSensor:
+        """Return a specific sensor by its name."""
+        return getattr(self, key)
 
+    @classmethod
+    def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
+        """Build a class instance from a list of sensor sources."""
+        types = get_type_hints(cls)
 
-@dataclass(kw_only=True)
-class RaritanPduInlet(RaritanPduEnergyDevice):
-    """Representation of a Raritan PDU inlet."""
-
-    inlet_id: int
-    sensors: RaritanPduInletSensors
-
-
-@dataclass(kw_only=True)
-class RaritanPduOverCurrentProtector(RaritanPduEnergyDevice):
-    """Representation of a Raritan PDU OCP."""
-
-    ocp_id: int
-
-
-@dataclass(kw_only=True)
-class RaritanPdu(RaritanPduDevice):
-    """Representation of a Raritan PDU."""
-
-    host: str
-    manufacturer: str
-    model: str
-    serial_number: str
-    firmware_version: str
-    hardware_version: str
-    mac_address: str
-    has_switchable_outlets: bool
-    has_metered_outlets: bool
-    is_standalone: bool
-    sensors: RaritanPduSensors
-    outlets: list[RaritanPduOutlet] = field(default_factory=list[RaritanPduOutlet])
-    inlets: list[RaritanPduInlet] = field(default_factory=list[RaritanPduInlet])
-    ocps: list[RaritanPduOverCurrentProtector] = field(default_factory=list[RaritanPduOverCurrentProtector])
-
-    def add_outlet(self, outlet: RaritanPduOutlet):
-        self.outlets.append(outlet)
-
-    def add_inlet(self, inlet: RaritanPduInlet):
-        self.inlets.append(inlet)
-
-    def add_ocp(self, ocp: RaritanPduOverCurrentProtector):
-        self.ocps.append(ocp)
-
-    @property
-    def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
-        return list(flatten([super().all_defined_sensors] + [outlet.all_defined_sensors for outlet in self.outlets] + [inlet.all_defined_sensors for inlet in self.inlets]))
+        return cls(
+            **{
+                name: sensor_type(source=src)
+                for (name, (sensor_type, _), src) in [
+                    (name, get_args(types[name]), src)
+                    for name, src in sources.items()
+                    if name in types and isinstance(src, Sensor)
+                ]
+            },
+            **{
+                name: sensor_type.from_sensor_sources(src)
+                for (name, (sensor_type, _), src) in [
+                    (name, get_args(types[name]), src)
+                    for name, src in sources.items()
+                    if name in types and type(src) is list
+                ]
+            },
+        )
