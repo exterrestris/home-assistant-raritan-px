@@ -20,7 +20,10 @@
                 "ms-python.python",
                 "ms-python.vscode-pylance",
                 "ryanluker.vscode-coverage-gutters",
-                "EditorConfig.EditorConfig"
+                "EditorConfig.EditorConfig",
+                "mhutchie.git-graph",
+                "github.vscode-github-actions",
+                "bierner.github-markdown-preview"
             ],
             "settings": {
                 "files.eol": "\n",
