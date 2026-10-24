@@ -1,7 +1,7 @@
 {
     "name": "exterrestris/home-assistant-raritan-pdu",
     "image": "mcr.microsoft.com/devcontainers/python:3.14",
-    "onCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg libturbojpeg libpcap-dev",
+    "onCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg libturbojpeg0 libpcap-dev",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [
         8123
