@@ -1,24 +1,29 @@
 """Support for RaritanPdu switch entities."""
 
 from __future__ import annotations
-import logging
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+from typing import TYPE_CHECKING
 
 from custom_components.raritan_px.entity.switch import RaritanPduOutletSwitchEntity
-from custom_components.raritan_px.entity.switch.description import RaritanPduOutletSwitchEntityDescription
-from custom_components.raritan_px.entity.switch.switches import get_entity_description
-from custom_components.raritan_px.api.model.device import RaritanPdu
-from custom_components.raritan_px.coordinator import (
-    RaritanPduConfigEntry,
-    RaritanPduData,
-    RaritanPduDataUpdateCoordinator,
+from custom_components.raritan_px.entity.switch.descriptions import (
+    RaritanPduOutletSwitchEntityDescription,
+    get_entity_description,
 )
 
-_LOGGER = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+    from custom_components.raritan_px.coordinator import (
+        RaritanPduConfigEntry,
+        RaritanPduData,
+        RaritanPduDataUpdateCoordinator,
+    )
+
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    hass: HomeAssistant,  # noqa: ARG001
     config_entry: RaritanPduConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
@@ -34,7 +39,7 @@ async def async_setup_entry(
                 pdu,
                 coordinator,
                 get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name),
-                switch
+                switch,
             )
             for outlet in pdu.outlets
             for (switch_name, switch) in outlet.available_switches

@@ -21,6 +21,10 @@ ignore = [
 [lint.flake8-pytest-style]
 fixture-parentheses = false
 
+[lint.flake8-type-checking.runtime-evaluated-base-classes]
+"custom_components.raritan_px.api.model.RaritanUpdatable" = "required"
+"custom_components.raritan_px.api.model.device.RaritanDeviceSensors" = "required"
+
 [lint.pyupgrade]
 keep-runtime-typing = true
 

@@ -1,10 +1,8 @@
 """Raritan PX2/PX3 PDU Integration."""
 
-import asyncio
-from collections.abc import Iterable
-from datetime import timedelta
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
 from homeassistant.const import (
     CONF_ALIAS,
     CONF_AUTHENTICATION,
@@ -16,33 +14,29 @@ from homeassistant.const import (
     CONF_USERNAME,
     CONF_VERIFY_SSL,
 )
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
-    device_registry as dr,
 )
 
-from custom_components.raritan_px.api.model.device import RaritanPdu
 from custom_components.raritan_px.api.client import (
-    RaritanClient,
     AuthenticationDetails,
-    ConnectionDetails,
-    ConfigError as ClientConfigError,
     AuthenticationError,
     CertificateVerificationError,
+    ConnectionDetails,
+    RaritanClient,
     RaritanClientError,
 )
 from custom_components.raritan_px.api.const import (
+    DEFAULT_PASSWORD,
     DEFAULT_PORT,
     DEFAULT_USERNAME,
-    DEFAULT_PASSWORD,
 )
 from custom_components.raritan_px.const import (
+    CONF_CONFIG_ENTRY_MINOR_VERSION,
+    DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     PLATFORMS,
-    CONF_CONFIG_ENTRY_MINOR_VERSION,
-    UPDATE_INTERVAL,
 )
 from custom_components.raritan_px.coordinator import (
     RaritanPduConfigEntry,
@@ -50,8 +44,11 @@ from custom_components.raritan_px.coordinator import (
     RaritanPduDataUpdateCoordinator,
 )
 
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
-DISCOVERY_INTERVAL = timedelta(minutes=15)
+    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
@@ -117,13 +114,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             translation_placeholders={
                 "host": config.host,
                 # all entries have a unique id
-                "expected": cast(str, entry.unique_id),
+                "expected": cast("str", entry.unique_id),
                 "found": pdu.serial_number,
             },
         )
 
     coordinator = RaritanPduDataUpdateCoordinator(
-        hass, _LOGGER, entry, UPDATE_INTERVAL, client, pdu
+        hass, _LOGGER, entry, client, pdu, update_interval=DEFAULT_UPDATE_INTERVAL
     )
 
     entry.runtime_data = RaritanPduData(client=client, coordinator=coordinator)
@@ -152,7 +149,11 @@ async def get_credentials(hass: HomeAssistant, entry: RaritanPduConfigEntry | No
 
     return AuthenticationDetails(DEFAULT_USERNAME, DEFAULT_PASSWORD)
 
-async def get_connection_details_from_entry(entry: RaritanPduConfigEntry) -> ConnectionDetails:
+
+async def get_connection_details_from_entry(
+    entry: RaritanPduConfigEntry,
+) -> ConnectionDetails:
+    """Get PDU connection details struct from config entry."""
     host: str = entry.data[CONF_HOST]
     port: int = entry.data[CONF_PORT]
     use_ssl: bool = entry.data[CONF_SSL]
@@ -167,73 +168,62 @@ async def get_connection_details_from_entry(entry: RaritanPduConfigEntry) -> Con
         verify_ssl=verify_ssl,
     )
 
-async def set_credentials(
-    hass: HomeAssistant, credentials: AuthenticationDetails | None
-) -> None:
-    """Save the credentials to HASS data."""
 
+async def set_credentials(hass: HomeAssistant, credentials: AuthenticationDetails | None) -> None:
+    """Save the credentials to HASS data."""
     if credentials:
         hass.data.setdefault(DOMAIN, {})[CONF_AUTHENTICATION] = {
             CONF_USERNAME: credentials.user,
             CONF_PASSWORD: credentials.passwd,
         }
 
-async def async_migrate_entry(
-    hass: HomeAssistant, config_entry: RaritanPduConfigEntry
-) -> bool:
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: RaritanPduConfigEntry) -> bool:
     """Migrate old entry."""
     entry_version: int = config_entry.version
     entry_minor_version: int = config_entry.minor_version
 
-    if (entry_minor_version >= CONF_CONFIG_ENTRY_MINOR_VERSION):
-        if (entry_minor_version > CONF_CONFIG_ENTRY_MINOR_VERSION):
+    if entry_minor_version >= CONF_CONFIG_ENTRY_MINOR_VERSION:
+        if entry_minor_version > CONF_CONFIG_ENTRY_MINOR_VERSION:
             _LOGGER.warning("Config version is newer than expected")
 
         return True
 
     for new_minor_version in range(entry_minor_version + 1, CONF_CONFIG_ENTRY_MINOR_VERSION + 1):
-        _LOGGER.debug(
-            "Migrating from version %s.%s", entry_version, entry_minor_version
-        )
+        _LOGGER.debug("Migrating from version %s.%s", entry_version, entry_minor_version)
 
         try:
             upgrade_fn = globals()[f"migrate_config_entry_to_version_{entry_version}_{new_minor_version}"]
             await upgrade_fn(hass, config_entry)
 
-            hass.config_entries.async_update_entry(
-                config_entry, minor_version=new_minor_version
-            )
+            hass.config_entries.async_update_entry(config_entry, minor_version=new_minor_version)
 
             _LOGGER.debug(
-                "Migration to version %s.%s complete", entry_version, entry_minor_version := new_minor_version
+                "Migration to version %s.%s complete",
+                entry_version,
+                entry_minor_version := new_minor_version,
             )
         except KeyError:
-            _LOGGER.error(
+            _LOGGER.exception(
                 "Unable to migrate config to version %s.%s: Migration method not defined",
                 entry_version,
                 new_minor_version,
             )
-        except Exception as e:
-            _LOGGER.exception(
-                "Unable to migrate config to version %s.%s: %s", entry_version, entry_minor_version, str(e)
-            )
+        except Exception:
+            _LOGGER.exception("Unable to migrate config to version %s.%s", entry_version, entry_minor_version)
 
             return False
 
     return True
 
-async def migrate_config_entry_to_version_1_2(
-    hass: HomeAssistant, config_entry: RaritanPduConfigEntry
-) -> None:
+
+async def migrate_config_entry_to_version_1_2(hass: HomeAssistant, config_entry: RaritanPduConfigEntry) -> None:
+    """Migrate config entry data to 1.2."""
     updates = {
         **config_entry.data,
-        **{
-            CONF_PORT: DEFAULT_PORT,
-            CONF_SSL: True,
-            CONF_VERIFY_SSL: False,
-        },
+        CONF_PORT: DEFAULT_PORT,
+        CONF_SSL: True,
+        CONF_VERIFY_SSL: False,
     }
 
-    hass.config_entries.async_update_entry(
-        config_entry, data=updates
-    )
+    hass.config_entries.async_update_entry(config_entry, data=updates)
