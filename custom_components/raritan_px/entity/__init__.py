@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.entity.descriptions import (
-        RaritanPduDeviceEntityDescription,
+        RaritanDeviceEntityDescription,
         RaritanPduEntityDescription,
         RaritanPduInletEntityDescription,
         RaritanPduOutletEntityDescription,
@@ -32,21 +32,21 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-class CoordinatedRaritanPduDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoordinator], ABC):
+class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoordinator], ABC):
     """Common base class for all coordinated raritan pdu entities."""
 
     _attr_has_entity_name = True
     _device: RaritanDevice
     _pdu: RaritanPdu
 
-    entity_description: RaritanPduDeviceEntityDescription
+    entity_description: RaritanDeviceEntityDescription
 
     def __init__(
         self,
         device: RaritanDevice,
         pdu: RaritanPdu,
         coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduDeviceEntityDescription,
+        description: RaritanDeviceEntityDescription,
     ) -> None:
         """Initialise the entity."""
         super().__init__(coordinator)
@@ -138,7 +138,7 @@ class CoordinatedRaritanPduDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCo
         raise NotImplementedError
 
 
-class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
+class CoordinatedRaritanPduEntity(CoordinatedRaritanDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
 
     _device: RaritanPdu
@@ -169,11 +169,11 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanPduDeviceEntity, ABC):
         )
 
 
-class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanPduDeviceEntity, ABC):
+class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanDeviceEntity, ABC):
     """Common base class for all coordinated tplink module based entities."""
 
     _device: RaritanEnergyDevice
-    entity_description: RaritanPduDeviceEntityDescription
+    entity_description: RaritanDeviceEntityDescription
 
     def _get_device_name(self) -> str | None:
         """Get the device name to use for this entity."""
