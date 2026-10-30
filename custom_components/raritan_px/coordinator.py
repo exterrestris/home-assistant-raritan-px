@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
     from custom_components.raritan_px.api.client import RaritanClient
+    from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
@@ -63,11 +64,25 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
         self.config_entry = config_entry
         self.client_lock = Lock()
 
-    async def _async_update_data(self) -> None:
+    async def _async_update_data(self) -> RaritanPdu:
         """Fetch all device and sensor data from api."""
         async with self.client_lock:
             try:
-                await self.client.update_sensor_readings_for_pdu(self.pdu)
+                device_ids = {device_id for device_id, _ in self.async_contexts()}
+
+                if device_ids:
+                    devices: list[RaritanDevice] = []
+
+                    if self.pdu.device_id in device_ids:
+                        devices.append(self.pdu)
+
+                    devices.extend([inlet for inlet in self.pdu.inlets if inlet.device_id in device_ids])
+                    devices.extend([outlet for outlet in self.pdu.outlets if outlet.device_id in device_ids])
+                    devices.extend([ocp for ocp in self.pdu.ocps if ocp.device_id in device_ids])
+
+                    await self.client.update_sensor_readings_for_devices(self.pdu, devices)
+                else:
+                    await self.client.update_sensor_readings_for_pdu(self.pdu)
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,
@@ -77,6 +92,8 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
                         "exc": str(ex),
                     },
                 ) from ex
+            else:
+                return self.pdu
 
     async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> bool:
         """Set the state of an outlet."""
