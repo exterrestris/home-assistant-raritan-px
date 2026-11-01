@@ -63,6 +63,15 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
         self.client = client
         self.config_entry = config_entry
         self.client_lock = Lock()
+        self._devices = self._cache_devices_by_id(pdu)
+
+    def _cache_devices_by_id(self, pdu: RaritanPdu) -> dict[str, RaritanDevice]:
+        devices: dict[str, RaritanDevice] = {}
+
+        for device in [pdu, *pdu.inlets, *pdu.outlets, *pdu.ocps]:
+            devices[device.device_id] = device
+
+        return devices
 
     async def _async_update_data(self) -> RaritanPdu:
         """Fetch all device and sensor data from api."""
@@ -71,16 +80,9 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
                 device_ids = {device_id for device_id, _ in self.async_contexts()}
 
                 if device_ids:
-                    devices: list[RaritanDevice] = []
-
-                    if self.pdu.device_id in device_ids:
-                        devices.append(self.pdu)
-
-                    devices.extend([inlet for inlet in self.pdu.inlets if inlet.device_id in device_ids])
-                    devices.extend([outlet for outlet in self.pdu.outlets if outlet.device_id in device_ids])
-                    devices.extend([ocp for ocp in self.pdu.ocps if ocp.device_id in device_ids])
-
-                    await self.client.update_sensor_readings_for_devices(self.pdu, devices)
+                    await self.client.update_sensor_readings_for_devices(
+                        self.pdu, [self._devices[device_id] for device_id in device_ids]
+                    )
                 else:
                     await self.client.update_sensor_readings_for_pdu(self.pdu)
             except Exception as ex:
