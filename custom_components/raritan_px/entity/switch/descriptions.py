@@ -6,20 +6,18 @@ from typing import TypeVar
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntityDescription
 
 from custom_components.raritan_px.entity.descriptions import (
-    RaritanPduDeviceEntityDescription,
+    RaritanDeviceEntityDescription,
     RaritanPduOutletEntityDescription,
 )
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduDeviceSwitchEntityDescription(SwitchEntityDescription, RaritanPduDeviceEntityDescription):
+class RaritanDeviceSwitchEntityDescription(SwitchEntityDescription, RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU outlet switch entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletSwitchEntityDescription(
-    RaritanPduDeviceSwitchEntityDescription, RaritanPduOutletEntityDescription
-):
+class RaritanPduOutletSwitchEntityDescription(RaritanDeviceSwitchEntityDescription, RaritanPduOutletEntityDescription):
     """Base class for a Raritan PDU outlet switch entity description."""
 
 
@@ -31,10 +29,10 @@ DESCRIPTIONS: tuple[RaritanPduOutletSwitchEntityDescription, ...] = (
 )
 DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in DESCRIPTIONS}
 
-SwitchDesc_co = TypeVar("SwitchDesc_co", bound="RaritanPduDeviceSwitchEntityDescription", covariant=True)
+SwitchDesc_co = TypeVar("SwitchDesc_co", bound="RaritanDeviceSwitchEntityDescription", covariant=True)
 
 
-def get_entity_description[SwitchDesc_co: "RaritanPduDeviceSwitchEntityDescription"](
+def get_entity_description[SwitchDesc_co: "RaritanDeviceSwitchEntityDescription"](
     desc_type: type[SwitchDesc_co], switch_name: str
 ) -> SwitchDesc_co:
     """Get the entity description instance matching the switch type and name."""

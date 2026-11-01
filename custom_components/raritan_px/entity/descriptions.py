@@ -6,20 +6,20 @@ from homeassistant.helpers.entity import EntityDescription
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduDeviceEntityDescription(EntityDescription):
+class RaritanDeviceEntityDescription(EntityDescription):
     """Base class for a Raritan PDU entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduInletEntityDescription(RaritanPduDeviceEntityDescription):
+class RaritanPduInletEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletEntityDescription(RaritanPduDeviceEntityDescription):
+class RaritanPduOutletEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduEntityDescription(RaritanPduDeviceEntityDescription):
+class RaritanPduEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
