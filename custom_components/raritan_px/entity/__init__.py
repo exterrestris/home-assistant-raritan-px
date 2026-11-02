@@ -45,7 +45,6 @@ class CoordinatedRaritanPduDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCo
     def __init__(
         self,
         device: RaritanDevice,
-        pdu: RaritanPdu,
         hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanPduDeviceEntityDescription,
@@ -54,7 +53,7 @@ class CoordinatedRaritanPduDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCo
         super().__init__(coordinator)
         self.entity_description = description
         self._device = device
-        self._pdu = pdu
+        self._pdu = coordinator.pdu
         self._hub = hub
 
         self._attr_device_info = self._get_device_info()

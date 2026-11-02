@@ -36,7 +36,6 @@ async def async_setup_entry(
         async_add_entities(
             RaritanPduOutletSwitchEntity(
                 outlet,
-                pdu,
                 data.hub,
                 coordinator,
                 get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name),

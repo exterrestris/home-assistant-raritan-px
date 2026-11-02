@@ -41,14 +41,13 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
     def __init__(
         self,
         device: RaritanDevice,
-        pdu: RaritanPdu,
         hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanPduDeviceEntityDescription,
         sensor: RaritanSensor,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, pdu, hub, coordinator, description)
+        super().__init__(device, hub, coordinator, description)
 
         self._sensor = sensor
 
