@@ -13,6 +13,8 @@ from custom_components.raritan_px.entity import (
 )
 
 if TYPE_CHECKING:
+    from homeassistant.helpers.device_registry import DeviceEntry
+
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
@@ -37,12 +39,13 @@ class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEnti
         self,
         device: RaritanDevice,
         pdu: RaritanPdu,
+        hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanPduDeviceEntityDescription,
         switch: RaritanSwitch,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, pdu, coordinator, description)
+        super().__init__(device, pdu, hub, coordinator, description)
 
         self._switch = switch
 

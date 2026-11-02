@@ -42,6 +42,7 @@ async def async_setup_entry(
         RaritanPduSensorEntity(
             pdu,
             pdu,
+            data.hub,
             coordinator,
             get_entity_description(RaritanPduSensorEntityDescription, sensor_name),
             sensor,
@@ -53,6 +54,7 @@ async def async_setup_entry(
         RaritanPduInletSensorEntity(
             inlet,
             pdu,
+            data.hub,
             coordinator,
             get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name),
             sensor,
@@ -66,6 +68,7 @@ async def async_setup_entry(
             RaritanPduOutletSensorEntity(
                 outlet,
                 pdu,
+                data.hub,
                 coordinator,
                 get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name),
                 sensor,
