@@ -49,6 +49,9 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
 
         self._sensor = sensor
 
+    def _entity_type(self) -> str:
+        return "sensor"
+
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""

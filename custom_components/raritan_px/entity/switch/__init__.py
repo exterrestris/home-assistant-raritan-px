@@ -46,6 +46,9 @@ class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEnti
 
         self._switch = switch
 
+    def _entity_type(self) -> str:
+        return "switch"
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         raise NotImplementedError

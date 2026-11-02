@@ -57,6 +57,12 @@ class CoordinatedRaritanPduDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCo
         self._attr_device_info = self._get_device_info(coordinator)
         self._attr_unique_id = f"{device.device_id}_{description.key}"
 
+        _LOGGER.debug("Created %s %s for %s", description.key, self._entity_type(), device.device_id)
+
+    @abstractmethod
+    def _entity_type(self) -> str:
+        raise NotImplementedError
+
     def _get_pdu_name(self) -> str:
         """Get the pdu name to use for this entity."""
         if self._pdu.name:
