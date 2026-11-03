@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "sensor": {
+      "outlet_receptacle_type": {
+        "default": "mdi:power-socket"
+      }
+    }
+  }
+}

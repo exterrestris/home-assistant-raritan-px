@@ -349,6 +349,11 @@ OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityD
         convert_fn=lambda idx: idx + 1,
         name="Label",
     ),
+    RaritanPduOutletSensorEntityDescription(
+        key="receptacle_type",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_receptacle_type",
+    ),
 )
 
 INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduInletSensorEntityDescription, ...] = (

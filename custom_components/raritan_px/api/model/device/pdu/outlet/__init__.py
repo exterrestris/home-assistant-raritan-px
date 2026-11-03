@@ -11,6 +11,7 @@ class RaritanPduOutlet(RaritanEnergyDevice):
     """Representation of a Raritan PDU outlet."""
 
     is_switchable: bool
+    receptacle_type: str
     sensors: RaritanPduOutletSensors
 
     @property

@@ -472,6 +472,7 @@ class RaritanClient:
                     id=outlet_idx,
                     name=outlet_settings.name,
                     label=outlet_metadata.label,
+                    receptacle_type=outlet_metadata.receptacleType,
                     is_switchable=outlet_metadata.isSwitchable,
                     sensors=RaritanPduOutletSensors.from_sensor_sources(
                         {

@@ -79,5 +79,12 @@
     "unnamed_device": {
       "name": "Unnamed {model}"
     }
+  },
+  "entity": {
+    "sensor": {
+      "outlet_receptacle_type": {
+        "name": "Receptacle Type"
+      }
+    }
   }
 }
