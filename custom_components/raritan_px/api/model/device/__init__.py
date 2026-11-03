@@ -19,19 +19,21 @@ class RaritanDevice:
     sensors: RaritanDeviceSensors
 
     @property
-    def defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
+    def defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
         """Return a list of sensors defined on this device by sensor name."""
-        return [(sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)]
+        return [(self.device_id, sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)]
 
     @property
     def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
         """Return a list of sensors defined on this device by device ID and sensor name."""
-        return [(self.device_id, sensor_name, sensor) for (sensor_name, sensor) in self.defined_sensors]
+        return [(name, sensor_name, sensor) for (name, sensor_name, sensor) in self.defined_sensors]
 
     @property
-    def updatable_sensors(self) -> list[tuple[str, RaritanSensor]]:
+    def updatable_sensors(self) -> list[tuple[str, str, RaritanSensor]]:
         """Return a list of updatable sensors defined on this device by sensor name."""
-        return [(name, sensor) for (name, sensor) in self.defined_sensors if sensor is not None]
+        return [
+            (name, sensor_name, sensor) for (name, sensor_name, sensor) in self.defined_sensors if sensor is not None
+        ]
 
     @property
     def all_updatable_sensors(self) -> list[tuple[str, str, RaritanSensor]]:
@@ -46,15 +48,19 @@ class RaritanDevice:
     def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
         """Return a list of available sensors defined on this device by sensor name."""
         return [
-            (f"{name}:{idx}" if idx is not None else name, sensor)
-            for (name, _sensor) in self.updatable_sensors
+            (f"{sensor_name}:{idx}" if idx is not None else sensor_name, sensor)
+            for (_, sensor_name, _sensor) in self.updatable_sensors
             for (idx, sensor) in _sensor.sensors
         ]
 
     @property
     def available_switches(self) -> list[tuple[str, RaritanSwitch]]:
         """Return a list of available switches defined on this device by switch name."""
-        return [(name, sensor) for (name, sensor) in self.defined_sensors if isinstance(sensor, RaritanSwitch)]
+        return [
+            (sensor_name, sensor)
+            for (_, sensor_name, sensor) in self.defined_sensors
+            if isinstance(sensor, RaritanSwitch)
+        ]
 
 
 @dataclass(kw_only=True)

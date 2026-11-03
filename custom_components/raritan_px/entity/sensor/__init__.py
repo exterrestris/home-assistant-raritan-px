@@ -6,7 +6,7 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import callback
 
 from custom_components.raritan_px.entity import (
-    CoordinatedRaritanPduDeviceEntity,
+    CoordinatedRaritanDeviceEntity,
     CoordinatedRaritanPduEntity,
     CoordinatedRaritanPduInletEntity,
     CoordinatedRaritanPduOutletEntity,
@@ -22,28 +22,28 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
     from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
     from custom_components.raritan_px.entity.descriptions import (
-        RaritanPduDeviceEntityDescription,
+        RaritanDeviceEntityDescription,
     )
     from custom_components.raritan_px.entity.sensor.descriptions import (
-        RaritanPduDeviceSensorEntityDescription,
+        RaritanDeviceSensorEntityDescription,
         RaritanPduInletSensorEntityDescription,
         RaritanPduOutletSensorEntityDescription,
         RaritanPduSensorEntityDescription,
     )
 
 
-class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEntity):
+class RaritanDeviceSensorEntity(CoordinatedRaritanDeviceEntity, SensorEntity):
     """Representation of a Raritan PDU device sensor."""
 
     _sensor: RaritanSensor
-    entity_description: RaritanPduDeviceSensorEntityDescription
+    entity_description: RaritanDeviceSensorEntityDescription
 
     def __init__(
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduDeviceEntityDescription,
+        description: RaritanDeviceEntityDescription,
         sensor: RaritanSensor,
     ) -> None:
         """Initialise the entity."""
@@ -80,21 +80,21 @@ class RaritanPduDeviceSensorEntity(CoordinatedRaritanPduDeviceEntity, SensorEnti
         return True
 
 
-class RaritanPduInletSensorEntity(CoordinatedRaritanPduInletEntity, RaritanPduDeviceSensorEntity):
+class RaritanPduInletSensorEntity(CoordinatedRaritanPduInletEntity, RaritanDeviceSensorEntity):
     """Representation of a Raritan PDU Inlet sensor."""
 
     _device: RaritanPduInlet
     entity_description: RaritanPduInletSensorEntityDescription
 
 
-class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanPduDeviceSensorEntity):
+class RaritanPduOutletSensorEntity(CoordinatedRaritanPduOutletEntity, RaritanDeviceSensorEntity):
     """Representation of a Raritan PDU Outlet sensor."""
 
     _device: RaritanPduOutlet
     entity_description: RaritanPduOutletSensorEntityDescription
 
 
-class RaritanPduSensorEntity(CoordinatedRaritanPduEntity, RaritanPduDeviceSensorEntity):
+class RaritanPduSensorEntity(CoordinatedRaritanPduEntity, RaritanDeviceSensorEntity):
     """Representation of a Raritan PDU Outlet sensor."""
 
     _device: RaritanPdu

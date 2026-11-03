@@ -11,7 +11,7 @@ from homeassistant.helpers.typing import StateType
 
 from custom_components.raritan_px.api.model.sensor.state import NormalAlarmed, OkFaulted, ResidualCurrentStatus
 from custom_components.raritan_px.entity.descriptions import (
-    RaritanPduDeviceEntityDescription,
+    RaritanDeviceEntityDescription,
     RaritanPduEntityDescription,
     RaritanPduInletEntityDescription,
     RaritanPduOutletEntityDescription,
@@ -24,30 +24,28 @@ type SensorEntityValue = StateType | date | datetime | Decimal
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduDeviceSensorEntityDescription(SensorEntityDescription, RaritanPduDeviceEntityDescription):
+class RaritanDeviceSensorEntityDescription(SensorEntityDescription, RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU device sensor entity description."""
 
     convert_fn: Callable[[Any], SensorEntityValue | None] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduInletSensorEntityDescription(RaritanPduDeviceSensorEntityDescription, RaritanPduInletEntityDescription):
+class RaritanPduInletSensorEntityDescription(RaritanDeviceSensorEntityDescription, RaritanPduInletEntityDescription):
     """Base class for a Raritan PDU inlet sensor entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletSensorEntityDescription(
-    RaritanPduDeviceSensorEntityDescription, RaritanPduOutletEntityDescription
-):
+class RaritanPduOutletSensorEntityDescription(RaritanDeviceSensorEntityDescription, RaritanPduOutletEntityDescription):
     """Base class for a Raritan PDU outlet sensor entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduSensorEntityDescription(RaritanPduDeviceSensorEntityDescription, RaritanPduEntityDescription):
+class RaritanPduSensorEntityDescription(RaritanDeviceSensorEntityDescription, RaritanPduEntityDescription):
     """Base class for a Raritan PDU sensor entity description."""
 
 
-SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
+SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
     # region PDU Sensors
     RaritanPduSensorEntityDescription(
         key="power_supply_status",
@@ -321,10 +319,10 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
 )
 SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_DESCRIPTIONS}
 
-SensorDesc_co = TypeVar("SensorDesc_co", bound="RaritanPduDeviceSensorEntityDescription", covariant=True)
+SensorDesc_co = TypeVar("SensorDesc_co", bound="RaritanDeviceSensorEntityDescription", covariant=True)
 
 
-def get_entity_description[SensorDesc_co: "RaritanPduDeviceSensorEntityDescription"](
+def get_entity_description[SensorDesc_co: "RaritanDeviceSensorEntityDescription"](
     desc_type: type[SensorDesc_co], sensor_name: str
 ) -> SensorDesc_co:
     """Get the entity description instance matching the sensor type and name."""

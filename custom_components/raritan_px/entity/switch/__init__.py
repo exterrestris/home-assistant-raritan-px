@@ -8,7 +8,7 @@ from homeassistant.core import callback
 from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
 from custom_components.raritan_px.api.model.sensor.state import OnOff
 from custom_components.raritan_px.entity import (
-    CoordinatedRaritanPduDeviceEntity,
+    CoordinatedRaritanDeviceEntity,
     CoordinatedRaritanPduOutletEntity,
 )
 
@@ -20,26 +20,26 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.sensor import RaritanSwitch
     from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
     from custom_components.raritan_px.entity.descriptions import (
-        RaritanPduDeviceEntityDescription,
+        RaritanDeviceEntityDescription,
     )
     from custom_components.raritan_px.entity.switch.descriptions import (
-        RaritanPduDeviceSwitchEntityDescription,
+        RaritanDeviceSwitchEntityDescription,
         RaritanPduOutletSwitchEntityDescription,
     )
 
 
-class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEntity):
+class RaritanDeviceSwitchEntity(CoordinatedRaritanDeviceEntity, SwitchEntity):
     """Representation of a Raritan PDU Outlet switch."""
 
     _switch: RaritanSwitch
-    entity_description: RaritanPduDeviceSwitchEntityDescription
+    entity_description: RaritanDeviceSwitchEntityDescription
 
     def __init__(
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanPduDeviceEntityDescription,
+        description: RaritanDeviceEntityDescription,
         switch: RaritanSwitch,
     ) -> None:
         """Initialise the entity."""
@@ -66,7 +66,7 @@ class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEnti
         return True
 
 
-class RaritanPduOutletSwitchEntity(CoordinatedRaritanPduOutletEntity, RaritanPduDeviceSwitchEntity):
+class RaritanPduOutletSwitchEntity(CoordinatedRaritanPduOutletEntity, RaritanDeviceSwitchEntity):
     """Representation of a Raritan PDU Outlet switch."""
 
     _device: RaritanPduOutlet
