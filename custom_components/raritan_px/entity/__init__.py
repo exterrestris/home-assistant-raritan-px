@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, override
 
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntry, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.raritan_px.const import DOMAIN
@@ -38,13 +38,14 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoord
     _attr_has_entity_name = True
     _device: RaritanDevice
     _pdu: RaritanPdu
+    _hub: DeviceEntry
 
     entity_description: RaritanDeviceEntityDescription
 
     def __init__(
         self,
         device: RaritanDevice,
-        pdu: RaritanPdu,
+        hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
     ) -> None:
@@ -53,13 +54,20 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoord
 
         self.entity_description = description
         self._device = device
-        self._pdu = pdu
+        self._pdu = coordinator.pdu
+        self._hub = hub
 
-        self._attr_device_info = self._get_device_info(coordinator)
+        self._attr_device_info = self._get_device_info()
         self._attr_unique_id = self._get_unique_id()
+
+        _LOGGER.debug("Created %s %s for %s", description.key, self._entity_type(), device.device_id)
 
     def _get_unique_id(self) -> str:
         return f"{self._device.device_id}_{self.entity_description.key}"
+
+    @abstractmethod
+    def _entity_type(self) -> str:
+        raise NotImplementedError
 
     def _get_pdu_name(self) -> str:
         """Get the pdu name to use for this entity."""
@@ -72,7 +80,7 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoord
     def _merge_device_info(info: DeviceInfo, merge: DeviceInfo) -> DeviceInfo:
         return DeviceInfo(**{**info, **merge})  # pyright: ignore[reportArgumentType]
 
-    def _get_device_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
+    def _get_device_info(self) -> DeviceInfo:
         return self._merge_device_info(
             DeviceInfo(
                 identifiers={(DOMAIN, str(self._device.device_id))},
@@ -81,17 +89,11 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoord
                 name=self._get_device_name(),
                 configuration_url=self._device.url,
             ),
-            self._get_device_connection_info(coordinator),
+            self._get_device_connection_info(),
         )
 
-    def _get_device_connection_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
-        return DeviceInfo(
-            via_device_id=device_registry.async_get_device_id_by_identifier(
-                coordinator.hass,
-                (DOMAIN, self._pdu.device_id),
-                config_entry_id=coordinator.config_entry.entry_id,
-            )
-        )
+    def _get_device_connection_info(self) -> DeviceInfo:
+        return DeviceInfo(via_device_id=self._hub.id)
 
     @abstractmethod
     @callback
@@ -157,9 +159,9 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanDeviceEntity, ABC):
         return self._pdu.model
 
     @override
-    def _get_device_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
+    def _get_device_info(self) -> DeviceInfo:
         return self._merge_device_info(
-            super()._get_device_info(coordinator),
+            super()._get_device_info(),
             DeviceInfo(
                 sw_version=self._pdu.firmware_version,
                 hw_version=self._pdu.hardware_version,
@@ -167,7 +169,7 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanDeviceEntity, ABC):
         )
 
     @override
-    def _get_device_connection_info(self, coordinator: RaritanPduDataUpdateCoordinator) -> DeviceInfo:
+    def _get_device_connection_info(self) -> DeviceInfo:
         return DeviceInfo(
             connections={(device_registry.CONNECTION_NETWORK_MAC, self._pdu.mac_address)},
         )

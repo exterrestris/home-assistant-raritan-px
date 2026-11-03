@@ -18,6 +18,9 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
 )
+from homeassistant.helpers import (
+    device_registry as dr,
+)
 
 from custom_components.raritan_px.api.client import (
     AuthenticationDetails,
@@ -123,7 +126,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         hass, _LOGGER, entry, client, pdu, update_interval=DEFAULT_UPDATE_INTERVAL
     )
 
-    entry.runtime_data = RaritanPduData(client=client, coordinator=coordinator)
+    device_registry = dr.async_get(hass)
+
+    hub = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, str(pdu.device_id))},
+        manufacturer=pdu.manufacturer,
+        model=pdu.model,
+        name=pdu.name or f"{pdu.model} {pdu.serial_number}",
+        configuration_url=pdu.url,
+        sw_version=pdu.firmware_version,
+        hw_version=pdu.hardware_version,
+        connections={(dr.CONNECTION_NETWORK_MAC, dr.format_mac(pdu.mac_address))},
+    )
+
+    _LOGGER.debug("Registered device %s", pdu.device_id)
+
+    entry.runtime_data = RaritanPduData(client=client, coordinator=coordinator, hub=hub)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
