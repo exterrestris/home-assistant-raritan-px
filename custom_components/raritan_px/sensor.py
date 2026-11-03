@@ -43,10 +43,11 @@ async def async_setup_entry(
             pdu,
             data.hub,
             coordinator,
-            get_entity_description(RaritanPduSensorEntityDescription, sensor_name),
+            description,
             sensor,
         )
         for sensor_name, sensor in pdu.available_sensors
+        if (description := get_entity_description(RaritanPduSensorEntityDescription, sensor_name))
     )
 
     async_add_entities(
@@ -54,22 +55,23 @@ async def async_setup_entry(
             inlet,
             data.hub,
             coordinator,
-            get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name),
+            description,
             sensor,
         )
         for inlet in pdu.inlets
         for (sensor_name, sensor) in inlet.available_sensors
+        if (description := get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name))
     )
 
-    if pdu.has_metered_outlets:
-        async_add_entities(
-            RaritanPduOutletSensorEntity(
-                outlet,
-                data.hub,
-                coordinator,
-                get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name),
-                sensor,
-            )
-            for outlet in pdu.outlets
-            for (sensor_name, sensor) in outlet.available_sensors
+    async_add_entities(
+        RaritanPduOutletSensorEntity(
+            outlet,
+            data.hub,
+            coordinator,
+            description,
+            sensor,
         )
+        for outlet in pdu.outlets
+        for (sensor_name, sensor) in outlet.available_sensors
+        if (description := get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name))
+    )

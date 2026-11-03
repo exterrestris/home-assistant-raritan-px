@@ -86,6 +86,16 @@ class _SensorUpdate(Enum):
         )
 
 
+class PduDevices(Flag):
+    """Flag to specify what sensor information to update."""
+
+    NONE = 0
+    INLETS = auto()
+    OUTLETS = auto()
+    OCPS = auto()
+    ALL = INLETS | OUTLETS | OCPS
+
+
 class UpdateSensors(Flag):
     """Flag to specify what sensor information to update."""
 
@@ -352,7 +362,11 @@ class RaritanClient:
         return responses  # pyright: ignore[reportReturnType]
 
     async def get_pdu_info(
-        self, pdu_idx: int = 0, *, update_sensor_data: UpdateSensors = UpdateSensors.ALL
+        self,
+        pdu_idx: int = 0,
+        *,
+        populate: PduDevices = PduDevices.ALL,
+        update: UpdateSensors = UpdateSensors.ALL,
     ) -> RaritanPdu:
         """Get information for the Raritan PDU."""
         await self.authenticate()
@@ -387,7 +401,7 @@ class RaritanClient:
         else:
             device = RaritanPdu(
                 device_id=f"{pdu_metadata.nameplate.serialNumber}:/model/pdu/{pdu_idx}",
-                pdu_id=pdu_idx,
+                id=pdu_idx,
                 host=self._config.host,
                 url=f"{self._get_protocol()}://{self._config.host}/",
                 name=psu_settings.name,
@@ -400,8 +414,6 @@ class RaritanClient:
                 has_switchable_outlets=pdu_metadata.hasSwitchableOutlets,
                 has_metered_outlets=pdu_metadata.hasMeteredOutlets,
                 is_standalone=status.role == CascadeManager.Role.STANDALONE,  # pyright: ignore[reportAttributeAccessIssue]
-                outlets=await self._get_outlets_info(pdu_outlets, pdu_idx, pdu_metadata.nameplate.serialNumber),
-                inlets=await self._get_inlets_info(pdu_inlets, pdu_idx, pdu_metadata.nameplate.serialNumber),
                 sensors=RaritanPduSensors.from_sensor_sources(
                     {
                         "power_supply_status": pdu_sensors.powerSupplyStatus,
@@ -413,16 +425,22 @@ class RaritanClient:
                 ),
             )
 
-            if update_sensor_data | UpdateSensors.INFO:
+            if populate | PduDevices.OUTLETS:
+                await self._get_outlets_info(pdu_outlets, device, pdu_metadata.nameplate.serialNumber)
+
+            if populate | PduDevices.INLETS:
+                await self._get_inlets_info(pdu_inlets, device, pdu_metadata.nameplate.serialNumber)
+
+            if update | UpdateSensors.INFO:
                 return await self._update_all_sensor_info_for_device(device)
 
-            if update_sensor_data | UpdateSensors.READINGS:
+            if update | UpdateSensors.READINGS:
                 return await self.update_all_sensor_readings_for_device(device)
 
             return device
 
     async def _get_outlets_info(
-        self, pdu_outlets: list[Outlet], pdu_idx: int, pdu_serial: str
+        self, pdu_outlets: list[Outlet], pdu: RaritanPdu, pdu_serial: str
     ) -> list[RaritanPduOutlet]:
         try:
             responses = await self._execute_bulk_requests(
@@ -431,7 +449,7 @@ class RaritanClient:
                     [(outlet.getSettings, []) for outlet in pdu_outlets],
                     [(outlet.getSensors, []) for outlet in pdu_outlets],
                 ),
-                f"outlet data for PDU {pdu_idx}",
+                f"outlet data for PDU {pdu.id}",
             )
 
             outlets: list[RaritanPduOutlet] = []
@@ -445,38 +463,37 @@ class RaritanClient:
                 outlet_settings,
                 outlet_sensors,
             ) in enumerate(grouper(responses, 3)):  # pyright: ignore[reportAssignmentType]
-                outlets.append(
-                    RaritanPduOutlet(
-                        device_id=f"{pdu_serial}:/model/pdu/{pdu_idx}/outlet/{outlet_idx}",
-                        pdu_id=pdu_idx,
-                        outlet_id=outlet_idx,
-                        name=outlet_settings.name,
-                        label=outlet_metadata.label,
-                        is_switchable=outlet_metadata.isSwitchable,
-                        sensors=RaritanPduOutletSensors.from_sensor_sources(
-                            {
-                                "voltage": outlet_sensors.voltage,
-                                "current": outlet_sensors.current,
-                                "peak_current": outlet_sensors.peakCurrent,
-                                "maximum_current": outlet_sensors.maximumCurrent,
-                                "unbalanced_current": outlet_sensors.unbalancedCurrent,
-                                "active_power": outlet_sensors.activePower,
-                                "reactive_power": outlet_sensors.reactivePower,
-                                "apparent_power": outlet_sensors.apparentPower,
-                                "power_factor": outlet_sensors.powerFactor,
-                                "displacement_power_factor": outlet_sensors.displacementPowerFactor,
-                                "active_energy": outlet_sensors.activeEnergy,
-                                "phase_angle": outlet_sensors.phaseAngle,
-                                "line_frequency": outlet_sensors.lineFrequency,
-                                "crest_factor": outlet_sensors.crestFactor,
-                                "voltage_total_harmonic_distortion": outlet_sensors.voltageThd,
-                                "current_total_harmonic_distortion": outlet_sensors.currentThd,
-                                "inrush_current": outlet_sensors.inrushCurrent,
-                                "outlet_state": outlet_sensors.outletState,
-                            }
-                        ),
-                    )
+                outlet = RaritanPduOutlet(
+                    device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/outlet/{outlet_idx}",
+                    id=outlet_idx,
+                    name=outlet_settings.name,
+                    label=outlet_metadata.label,
+                    is_switchable=outlet_metadata.isSwitchable,
+                    sensors=RaritanPduOutletSensors.from_sensor_sources(
+                        {
+                            "voltage": outlet_sensors.voltage,
+                            "current": outlet_sensors.current,
+                            "peak_current": outlet_sensors.peakCurrent,
+                            "maximum_current": outlet_sensors.maximumCurrent,
+                            "unbalanced_current": outlet_sensors.unbalancedCurrent,
+                            "active_power": outlet_sensors.activePower,
+                            "reactive_power": outlet_sensors.reactivePower,
+                            "apparent_power": outlet_sensors.apparentPower,
+                            "power_factor": outlet_sensors.powerFactor,
+                            "displacement_power_factor": outlet_sensors.displacementPowerFactor,
+                            "active_energy": outlet_sensors.activeEnergy,
+                            "phase_angle": outlet_sensors.phaseAngle,
+                            "line_frequency": outlet_sensors.lineFrequency,
+                            "crest_factor": outlet_sensors.crestFactor,
+                            "voltage_total_harmonic_distortion": outlet_sensors.voltageThd,
+                            "current_total_harmonic_distortion": outlet_sensors.currentThd,
+                            "inrush_current": outlet_sensors.inrushCurrent,
+                            "outlet_state": outlet_sensors.outletState,
+                        }
+                    ),
                 )
+
+                outlets.append(pdu.add_outlet(outlet))
         except rpc.HttpException as e:
             self._logger.exception("Error fetching PDU outlets")
 
@@ -485,7 +502,9 @@ class RaritanClient:
         else:
             return outlets
 
-    async def _get_inlets_info(self, pdu_inlets: list[Inlet], pdu_idx: int, pdu_serial: str) -> list[RaritanPduInlet]:
+    async def _get_inlets_info(
+        self, pdu_inlets: list[Inlet], pdu: RaritanPdu, pdu_serial: str
+    ) -> list[RaritanPduInlet]:
         try:
             responses = await self._execute_bulk_requests(
                 interleave(
@@ -493,7 +512,7 @@ class RaritanClient:
                     [(inlet.getSettings, []) for inlet in pdu_inlets],
                     [(inlet.getSensors, []) for inlet in pdu_inlets],
                 ),
-                f"inlet data for PDU {pdu_idx}",
+                f"inlet data for PDU {pdu.id}",
             )
 
             inlets: list[RaritanPduInlet] = []
@@ -503,44 +522,43 @@ class RaritanClient:
             inlet_sensors: Inlet.Sensors
 
             for inlet_idx, (inlet_metadata, inlet_settings, inlet_sensors) in enumerate(grouper(responses, 3)):  # pyright: ignore[reportAssignmentType]
-                inlets.append(
-                    RaritanPduInlet(
-                        device_id=f"{pdu_serial}:/model/pdu/{pdu_idx}/inlet/{inlet_idx}",
-                        pdu_id=pdu_idx,
-                        inlet_id=inlet_idx,
-                        name=inlet_settings.name,
-                        label=inlet_metadata.label,
-                        sensors=RaritanPduInletSensors.from_sensor_sources(
-                            {
-                                "voltage": inlet_sensors.voltage,
-                                "current": inlet_sensors.current,
-                                "peak_current": inlet_sensors.peakCurrent,
-                                "residual_current": inlet_sensors.residualCurrent,
-                                "residual_ac_current": inlet_sensors.residualACCurrent,
-                                "residual_dc_current": inlet_sensors.residualDCCurrent,
-                                "active_power": inlet_sensors.activePower,
-                                "reactive_power": inlet_sensors.reactivePower,
-                                "apparent_power": inlet_sensors.apparentPower,
-                                "power_factor": inlet_sensors.powerFactor,
-                                "displacement_power_factor": inlet_sensors.displacementPowerFactor,
-                                "active_energy": inlet_sensors.activeEnergy,
-                                "apparent_energy": inlet_sensors.apparentEnergy,
-                                "unbalanced_current": inlet_sensors.unbalancedCurrent,
-                                "unbalanced_line_line_current": inlet_sensors.unbalancedLineLineCurrent,
-                                "unbalanced_voltage": inlet_sensors.unbalancedVoltage,
-                                "unbalanced_line_line_voltage": inlet_sensors.unbalancedLineLineVoltage,
-                                "line_frequency": inlet_sensors.lineFrequency,
-                                "phase_angle": inlet_sensors.phaseAngle,
-                                "crest_factor": inlet_sensors.crestFactor,
-                                "voltage_total_harmonic_distortion": inlet_sensors.voltageThd,
-                                "current_total_harmonic_distortion": inlet_sensors.currentThd,
-                                "power_quality": inlet_sensors.powerQuality,
-                                "surge_protector_status": inlet_sensors.surgeProtectorStatus,
-                                "residual_current_status": inlet_sensors.residualCurrentStatus,
-                            }
-                        ),
-                    )
+                inlet = RaritanPduInlet(
+                    device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/inlet/{inlet_idx}",
+                    id=inlet_idx,
+                    name=inlet_settings.name,
+                    label=inlet_metadata.label,
+                    sensors=RaritanPduInletSensors.from_sensor_sources(
+                        {
+                            "voltage": inlet_sensors.voltage,
+                            "current": inlet_sensors.current,
+                            "peak_current": inlet_sensors.peakCurrent,
+                            "residual_current": inlet_sensors.residualCurrent,
+                            "residual_ac_current": inlet_sensors.residualACCurrent,
+                            "residual_dc_current": inlet_sensors.residualDCCurrent,
+                            "active_power": inlet_sensors.activePower,
+                            "reactive_power": inlet_sensors.reactivePower,
+                            "apparent_power": inlet_sensors.apparentPower,
+                            "power_factor": inlet_sensors.powerFactor,
+                            "displacement_power_factor": inlet_sensors.displacementPowerFactor,
+                            "active_energy": inlet_sensors.activeEnergy,
+                            "apparent_energy": inlet_sensors.apparentEnergy,
+                            "unbalanced_current": inlet_sensors.unbalancedCurrent,
+                            "unbalanced_line_line_current": inlet_sensors.unbalancedLineLineCurrent,
+                            "unbalanced_voltage": inlet_sensors.unbalancedVoltage,
+                            "unbalanced_line_line_voltage": inlet_sensors.unbalancedLineLineVoltage,
+                            "line_frequency": inlet_sensors.lineFrequency,
+                            "phase_angle": inlet_sensors.phaseAngle,
+                            "crest_factor": inlet_sensors.crestFactor,
+                            "voltage_total_harmonic_distortion": inlet_sensors.voltageThd,
+                            "current_total_harmonic_distortion": inlet_sensors.currentThd,
+                            "power_quality": inlet_sensors.powerQuality,
+                            "surge_protector_status": inlet_sensors.surgeProtectorStatus,
+                            "residual_current_status": inlet_sensors.residualCurrentStatus,
+                        }
+                    ),
                 )
+
+                inlets.append(pdu.add_inlet(inlet))
         except rpc.HttpException as e:
             self._logger.exception("Error fetching PDU inlets")
 
@@ -658,7 +676,7 @@ class ConfigError(RaritanClientError):
     """Raised when configuration is invalid."""
 
 
-class CommunicationError(Exception):
+class CommunicationError(RaritanClientError):
     """Raised when a generic error occurs while communicating with the Raritan API."""
 
 

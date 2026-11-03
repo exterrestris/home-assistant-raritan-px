@@ -324,7 +324,7 @@ SensorDesc_co = TypeVar("SensorDesc_co", bound="RaritanDeviceSensorEntityDescrip
 
 def get_entity_description[SensorDesc_co: "RaritanDeviceSensorEntityDescription"](
     desc_type: type[SensorDesc_co], sensor_name: str
-) -> SensorDesc_co:
+) -> SensorDesc_co | None:
     """Get the entity description instance matching the sensor type and name."""
 
     def default_name(name: str = sensor_name) -> str:
@@ -355,7 +355,4 @@ def get_entity_description[SensorDesc_co: "RaritanDeviceSensorEntityDescription"
                 )  # pyright: ignore[reportReturnType, reportArgumentType]
             )
 
-    return desc_type(
-        key=sensor_name,
-        name=default_name(),
-    )
+    return None

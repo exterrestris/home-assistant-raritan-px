@@ -10,9 +10,13 @@ from custom_components.raritan_px.api.model.sensor import RaritanAccumulatingSen
 class RaritanPduOutlet(RaritanEnergyDevice):
     """Representation of a Raritan PDU outlet."""
 
-    outlet_id: int
     is_switchable: bool
     sensors: RaritanPduOutletSensors
+
+    @property
+    def device_type(self) -> str:
+        """Return the type of this device."""
+        return "Outlet"
 
 
 @dataclass(kw_only=True)

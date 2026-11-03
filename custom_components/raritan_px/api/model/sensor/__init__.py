@@ -190,9 +190,9 @@ class RaritanStateSensor(RaritanSensor):
     type: Any = None
 
     @property
-    def value(self) -> str | None:
+    def value(self) -> RaritanSensorState | None:
         """Return the current state of the sensor."""
-        return self.state.friendly_name() if self.state is not None else None
+        return self.state
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor information."""

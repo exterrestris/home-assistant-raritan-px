@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import callback
 
+from custom_components.raritan_px.api.model.sensor.state import RaritanSensorState
 from custom_components.raritan_px.entity import (
     CoordinatedRaritanDeviceEntity,
     CoordinatedRaritanPduEntity,
@@ -62,6 +63,8 @@ class RaritanDeviceSensorEntity(CoordinatedRaritanDeviceEntity, SensorEntity):
         if value is not None:
             if self.entity_description.convert_fn is not None:
                 value = self.entity_description.convert_fn(value)
+            elif isinstance(value, RaritanSensorState):
+                value = value.friendly_name()
 
             if self._sensor.precision is not None:
                 self._attr_suggested_display_precision = self._sensor.precision
