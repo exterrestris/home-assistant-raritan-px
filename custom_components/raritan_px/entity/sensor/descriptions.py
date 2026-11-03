@@ -9,7 +9,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescr
 from homeassistant.const import DEGREE
 from homeassistant.helpers.typing import StateType
 
-from custom_components.raritan_px.api.model.sensor.state import NormalAlarmed, OkFaulted, ResidualCurrentStatus
+from custom_components.raritan_px.api.model.sensor.state import ResidualCurrentStatus
 from custom_components.raritan_px.entity.descriptions import (
     RaritanDeviceEntityDescription,
     RaritanPduEntityDescription,
@@ -47,12 +47,6 @@ class RaritanPduSensorEntityDescription(RaritanDeviceSensorEntityDescription, Ra
 
 SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
     # region PDU Sensors
-    RaritanPduSensorEntityDescription(
-        key="power_supply_status",
-        device_class=SensorDeviceClass.ENUM,
-        options=NormalAlarmed.options(),
-        name="Power Supply {} Status",
-    ),
     RaritanPduSensorEntityDescription(
         key="active_power",
         device_class=SensorDeviceClass.POWER,
@@ -296,18 +290,6 @@ SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
         key="current_total_harmonic_distortion",
         state_class=SensorStateClass.MEASUREMENT,
         name="Voltage Total Harmonic Distortion",
-    ),
-    RaritanPduInletSensorEntityDescription(
-        key="power_quality",
-        device_class=SensorDeviceClass.ENUM,
-        options=NormalAlarmed.options(),
-        name="Power_Quality",
-    ),
-    RaritanPduInletSensorEntityDescription(
-        key="surge_protector_status",
-        device_class=SensorDeviceClass.ENUM,
-        options=OkFaulted.options(),
-        name="Surge Protector Status",
     ),
     RaritanPduInletSensorEntityDescription(
         key="residual current status",

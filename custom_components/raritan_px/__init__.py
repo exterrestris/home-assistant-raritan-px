@@ -21,14 +21,19 @@ from homeassistant.helpers import (
 from homeassistant.helpers import (
     device_registry as dr,
 )
+from homeassistant.helpers import (
+    entity_registry as er,
+)
 
 from custom_components.raritan_px.api.client import (
     AuthenticationDetails,
     AuthenticationError,
     CertificateVerificationError,
     ConnectionDetails,
+    PduDevices,
     RaritanClient,
     RaritanClientError,
+    UpdateSensors,
 )
 from custom_components.raritan_px.api.const import (
     DEFAULT_PASSWORD,
@@ -246,3 +251,58 @@ async def migrate_config_entry_to_version_1_2(hass: HomeAssistant, config_entry:
     }
 
     hass.config_entries.async_update_entry(config_entry, data=updates)
+
+
+async def migrate_config_entry_to_version_1_3(hass: HomeAssistant, config_entry: RaritanPduConfigEntry) -> None:
+    """Migrate config entry data to 1.3."""
+    entity_registry = er.async_get(hass)
+    device_registry = dr.async_get(hass)
+
+    config = await get_connection_details_from_entry(config_entry)
+
+    client = RaritanClient(hass, config)
+    pdu: RaritanPdu = await client.get_pdu_info(update=UpdateSensors.NONE, populate=PduDevices.NONE)
+
+    await client.close_session()
+
+    if not (
+        device := device_registry.async_get_device(
+            connections={(dr.CONNECTION_NETWORK_MAC, dr.format_mac(pdu.mac_address))}
+        )
+    ):
+        return
+
+    entities = er.async_entries_for_device(
+        entity_registry,
+        device_id=device.id,
+        include_disabled_entities=True,
+    )
+
+    migrate = [
+        "power_supply_status",
+        "outlet_state",
+        "power_quality",
+        "surge_protector_status",
+    ]
+
+    for entity in entities:
+        if not entity.entity_id.startswith("sensor"):
+            continue
+
+        for key in migrate:
+            if entity.unique_id.split(":")[1].endswith(key):
+                new_entity_id = entity.entity_id.replace("sensor.", "binary_sensor.")
+
+                try:
+                    entity_registry.async_update_entity(entity.entity_id, new_entity_id=new_entity_id)
+
+                    _LOGGER.info("Migrated %s to %s", entity.entity_id, new_entity_id)
+                except ValueError:
+                    _LOGGER.warning(
+                        "Cannot migrate %s to %s",
+                        entity.entity_id,
+                        new_entity_id,
+                        exc_info=True,
+                    )
+
+                entity_registry.async_remove(entity.entity_id)
