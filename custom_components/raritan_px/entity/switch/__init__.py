@@ -1,16 +1,31 @@
-from typing import Any
+"""Raritan PDU switch entities."""
+
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import callback
 
-from custom_components.raritan_px.api.model.device import RaritanPdu, RaritanPduDevice, RaritanPduOutlet
-from custom_components.raritan_px.api.model.device.states import OutletPowerState
-from custom_components.raritan_px.api.model.sensor import RaritanSwitch
-from custom_components.raritan_px.api.model.sensor.states import OnOff
-from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
-from custom_components.raritan_px.entity import CoordinatedRaritanPduDeviceEntity, CoordinatedRaritanPduOutletEntity
-from custom_components.raritan_px.entity.description import RaritanPduDeviceEntityDescription
-from custom_components.raritan_px.entity.switch.description import RaritanPduDeviceSwitchEntityDescription, RaritanPduOutletSwitchEntityDescription
+from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
+from custom_components.raritan_px.api.model.sensor.state import OnOff
+from custom_components.raritan_px.entity import (
+    CoordinatedRaritanPduDeviceEntity,
+    CoordinatedRaritanPduOutletEntity,
+)
+
+if TYPE_CHECKING:
+    from homeassistant.helpers.device_registry import DeviceEntry
+
+    from custom_components.raritan_px.api.model.device import RaritanDevice
+    from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
+    from custom_components.raritan_px.api.model.sensor import RaritanSwitch
+    from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+    from custom_components.raritan_px.entity.descriptions import (
+        RaritanPduDeviceEntityDescription,
+    )
+    from custom_components.raritan_px.entity.switch.descriptions import (
+        RaritanPduDeviceSwitchEntityDescription,
+        RaritanPduOutletSwitchEntityDescription,
+    )
 
 
 class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEntity):
@@ -20,16 +35,20 @@ class RaritanPduDeviceSwitchEntity(CoordinatedRaritanPduDeviceEntity, SwitchEnti
     entity_description: RaritanPduDeviceSwitchEntityDescription
 
     def __init__(
-            self,
-            device: RaritanPduDevice,
-            pdu: RaritanPdu,
-            coordinator: RaritanPduDataUpdateCoordinator,
-            description: RaritanPduDeviceEntityDescription,
-            switch: RaritanSwitch
-        ) -> None:
-        super().__init__(device, pdu, coordinator, description)
+        self,
+        device: RaritanDevice,
+        hub: DeviceEntry,
+        coordinator: RaritanPduDataUpdateCoordinator,
+        description: RaritanPduDeviceEntityDescription,
+        switch: RaritanSwitch,
+    ) -> None:
+        """Initialise the entity."""
+        super().__init__(device, hub, coordinator, description)
 
         self._switch = switch
+
+    def _entity_type(self) -> str:
+        return "switch"
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
@@ -53,12 +72,12 @@ class RaritanPduOutletSwitchEntity(CoordinatedRaritanPduOutletEntity, RaritanPdu
     _device: RaritanPduOutlet
     entity_description: RaritanPduOutletSwitchEntityDescription
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
+    async def async_turn_on(self) -> None:
         """Turn the switch on."""
         await self.coordinator.set_outlet_power_state(self._device, OutletPowerState.ON)
         await self.coordinator.async_request_refresh()
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
+    async def async_turn_off(self) -> None:
         """Turn the switch off."""
         await self.coordinator.set_outlet_power_state(self._device, OutletPowerState.OFF)
         await self.coordinator.async_request_refresh()

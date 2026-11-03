@@ -1,9 +1,9 @@
+"""Raritan PDU API sensor models."""
 
-from collections.abc import Iterable
-from datetime import datetime
 from dataclasses import dataclass
-from typing import Any, Self, get_type_hints, get_args
+from datetime import datetime
 from itertools import chain
+from typing import TYPE_CHECKING, Any, Self, get_args, get_type_hints
 
 from homeassistant.const import (
     DEGREE,
@@ -26,12 +26,29 @@ from homeassistant.const import (
     UnitOfVolume,
     UnitOfVolumeFlowRate,
 )
+from raritan.rpc.sensors import (
+    AccumulatingNumericSensor,
+    NumericSensor,
+    Sensor,
+    StateSensor,
+)
 
-from raritan.rpc import Time
-from raritan.rpc.sensors import AccumulatingNumericSensor, NumericSensor, Sensor, StateSensor
+from custom_components.raritan_px.api.model import (
+    RaritanUpdatable,
+    RaritanUpdatableRpcMethodsList,
+)
+from custom_components.raritan_px.api.model.sensor.state import (
+    NormalAlarmed,
+    OkFaulted,
+    OnOff,
+    OpenClosed,
+    RaritanSensorState,
+)
 
-from .. import RaritanUpdatable, RaritanUpdatableRpcMethodsList
-from .states import OnOff, OpenClosed, NormalAlarmed, OkFaulted, RaritanSensorState
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from raritan.rpc import Time
 
 SENSOR_UNITS_MAPPING: dict[int, str | None] = {
     Sensor.NONE: None,
@@ -46,7 +63,7 @@ SENSOR_UNITS_MAPPING: dict[int, str | None] = {
     Sensor.PERCENT: PERCENTAGE,
     Sensor.METER_PER_SEC: UnitOfSpeed.METERS_PER_SECOND,
     Sensor.PASCAL: UnitOfPressure.PA,
-    Sensor.G: 'G',
+    Sensor.G: "G",
     Sensor.RPM: REVOLUTIONS_PER_MINUTE,
     Sensor.METER: UnitOfLength.METERS,
     Sensor.HOUR: UnitOfTime.HOURS,
@@ -91,20 +108,20 @@ SENSOR_UNITS_MAPPING: dict[int, str | None] = {
 
 STATE_SENSOR_TYPE_VALUE_MAPPING: dict[type[RaritanSensorState], dict[int, RaritanSensorState]] = {
     OnOff: {
-        Sensor.OnOffState.ON.val: OnOff.ON, # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OnOffState.OFF.val: OnOff.OFF, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OnOffState.ON.val: OnOff.ON,  # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OnOffState.OFF.val: OnOff.OFF,  # pyright: ignore[reportAttributeAccessIssue]
     },
     OpenClosed: {
-        Sensor.OpenClosedState.OPEN.val: OpenClosed.OPEN, # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OpenClosedState.CLOSED.val: OpenClosed.CLOSED, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OpenClosedState.OPEN.val: OpenClosed.OPEN,  # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OpenClosedState.CLOSED.val: OpenClosed.CLOSED,  # pyright: ignore[reportAttributeAccessIssue]
     },
     NormalAlarmed: {
-        Sensor.NormalAlarmedState.NORMAL.val: NormalAlarmed.NORMAL, # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.NormalAlarmedState.ALARMED.val: NormalAlarmed.ALARMED, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.NormalAlarmedState.NORMAL.val: NormalAlarmed.NORMAL,  # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.NormalAlarmedState.ALARMED.val: NormalAlarmed.ALARMED,  # pyright: ignore[reportAttributeAccessIssue]
     },
     OkFaulted: {
-        Sensor.OkFaultState.OK.val: OkFaulted.OK, # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OkFaultState.FAULT.val: OkFaulted.FAULT, # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OkFaultState.OK.val: OkFaulted.OK,  # pyright: ignore[reportAttributeAccessIssue]
+        Sensor.OkFaultState.FAULT.val: OkFaulted.FAULT,  # pyright: ignore[reportAttributeAccessIssue]
     },
 }
 
@@ -113,13 +130,11 @@ STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
     StateSensor.ON_OFF_SENSOR: OnOff,
     StateSensor.DRY_CONTACT: OnOff,
     StateSensor.POWERED_DRY_CONTACT: OnOff,
-
     # Open/Closed State Sensors
     StateSensor.TRIP_SENSOR: OpenClosed,
     StateSensor.DOOR_STATE: OpenClosed,
     StateSensor.DOOR_LOCK_STATE: OpenClosed,
     StateSensor.DOOR_HANDLE_LOCK: OpenClosed,
-
     # Normal/Alarmed State Sensors
     StateSensor.CONTACT_CLOSURE: NormalAlarmed,
     StateSensor.VIBRATION: NormalAlarmed,
@@ -130,7 +145,6 @@ STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
     StateSensor.CONTACT_CLOSURE: NormalAlarmed,
     StateSensor.CONTACT_CLOSURE: NormalAlarmed,
     StateSensor.CONTACT_CLOSURE: NormalAlarmed,
-
     # Normal/Alarmed State Sensors if Discrete
     StateSensor.MAGNETIC_FIELD_STRENGTH: NormalAlarmed,
     StateSensor.FAULT_STATE: NormalAlarmed,
@@ -138,8 +152,8 @@ STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
 
 STATE_SENSOR_READING_TYPE = {
     StateSensor.NUMERIC: 0,
-    StateSensor.DISCRETE_ON_OFF: 1, #  Sensor has two discrete readings: 0 (off) and 1 (on), see OnOffState
-    StateSensor.DISCRETE_MULTI: 2, # Sensor has multiple discrete readings
+    StateSensor.DISCRETE_ON_OFF: 1,  # Sensor has two discrete readings: 0 (off) and 1 (on), see OnOffState
+    StateSensor.DISCRETE_MULTI: 2,  # Sensor has multiple discrete readings
 }
 
 
@@ -155,11 +169,14 @@ class RaritanSensor(RaritanUpdatable):
 
     @property
     def value(self) -> Any:
+        """Return the current state of the sensor."""
         raise NotImplementedError
 
     @property
     def sensors(self) -> Iterable[tuple[None, RaritanSensor]]:
+        """Return a list of the sensors comprising this sensor."""
         return [(None, self)]
+
 
 @dataclass(kw_only=True)
 class RaritanStateSensor(RaritanSensor):
@@ -174,26 +191,31 @@ class RaritanStateSensor(RaritanSensor):
 
     @property
     def value(self) -> str | None:
+        """Return the current state of the sensor."""
         return self.state.friendly_name() if self.state is not None else None
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
+        """Return the API methods to update the sensor information."""
         return [
             ((self.source.getTypeSpec, []), self.update_type),
         ]
 
     def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+        """Return the API methods to update the sensor readings."""
         return [
             ((self.source.getState, []), self.update_state),
         ]
 
     def update_state(self, state: StateSensor.State) -> None:
-        if (self.type):
+        """Update the current sensor state from API sensor state."""
+        if self.type:
             self.state = STATE_SENSOR_TYPE_VALUE_MAPPING[self.type][state.value]
             self.available = state.available
             self.last_sample = state.timestamp
 
     def update_type(self, spec: StateSensor.TypeSpec) -> None:
-        if (spec.type in STATE_SENSOR_TYPE_MAPPING):
+        """Update the current sensor type from API sensor type spec."""
+        if spec.type in STATE_SENSOR_TYPE_MAPPING:
             self.type = STATE_SENSOR_TYPE_MAPPING[spec.type]
 
 
@@ -215,23 +237,28 @@ class RaritanNumericSensor(RaritanSensor):
 
     @property
     def value(self) -> Any:
+        """Return the current reading of the sensor."""
         return self.reading
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
+        """Return the API methods to update the sensor information."""
         return [
             ((self.source.getMetaData, []), self.update_metadata),
         ]
 
     def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+        """Return the API methods to update the sensor readings."""
         return [
             ((self.source.getReading, []), self.update_reading),
         ]
 
     def update_reading(self, reading: NumericSensor.Reading) -> None:
+        """Update the current sensor reading from API sensor reading."""
         self.reading = round(reading.value, self.MAX_PRECISION)
 
     def update_metadata(self, reading: NumericSensor.MetaData) -> None:
-        if (reading.type.unit in SENSOR_UNITS_MAPPING):
+        """Update the current sensor metadata from API sensor metadata."""
+        if reading.type.unit in SENSOR_UNITS_MAPPING:
             self.unit = SENSOR_UNITS_MAPPING[reading.type.unit]
 
         self.precision = reading.decdigits
@@ -244,46 +271,49 @@ class RaritanAccumulatingSensor(RaritanNumericSensor):
     source: AccumulatingNumericSensor
 
     def update_readings(self) -> RaritanUpdatableRpcMethodsList:
-        return super().update_readings() + [
-            ((self.source.getLastResetTime, []), self.update_reset),
-        ]
+        """Return the API methods to update the sensor readings."""
+        return [*super().update_readings(), ((self.source.getLastResetTime, []), self.update_reset)]
 
     def update_reset(self, last_reset: Time) -> None:
+        """Update the last reset time from API time value."""
         self.last_reset = last_reset
 
 
 @dataclass(kw_only=True)
 class RaritanMultiSensor(RaritanSensor):
+    """Representation of device sensor comprising multiple child sensors."""
 
     children: list[RaritanSensor]
 
     @classmethod
     def from_sensor_sources(cls, sources: dict[str, Sensor | None]) -> Self:
+        """Build a multi sensor instance from a list of sensor sources."""
         types = get_type_hints(cls)
-        sensor_type = get_args(types['children'])[0]
+        sensor_type = get_args(types["children"])[0]
 
         return cls(children=[sensor_type(source=src) for src in sources])
 
     @property
     def value(self) -> Any:
+        """Return the current value of the first child sensor."""
         return self.children[0].value if len(self.children) else None
 
     @property
     def sensors(self) -> Iterable[tuple[int, RaritanSensor]]:
+        """Return a list of the sensors comprising this sensor."""
         return enumerate(self.children)
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
-        return list(chain.from_iterable([
-            sensor.update_info() for sensor in self.children
-        ]))
+        """Return the API methods to update all the child sensor information."""
+        return list(chain.from_iterable([sensor.update_info() for sensor in self.children]))
 
     def update_readings(self) -> RaritanUpdatableRpcMethodsList:
-        return list(chain.from_iterable([
-            sensor.update_readings() for sensor in self.children
-        ]))
+        """Return the API methods to update all the child sensor readings."""
+        return list(chain.from_iterable([sensor.update_readings() for sensor in self.children]))
 
 
 @dataclass(kw_only=True)
 class RaritanMultiStateSensor(RaritanMultiSensor):
+    """Representation of device state sensor comprising multiple child state sensors."""
 
     children: list[RaritanStateSensor]

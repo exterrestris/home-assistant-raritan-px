@@ -1,4 +1,7 @@
+"""Raritan PDU base entity descriptions."""
+
 from dataclasses import dataclass
+
 from homeassistant.helpers.entity import EntityDescription
 
 

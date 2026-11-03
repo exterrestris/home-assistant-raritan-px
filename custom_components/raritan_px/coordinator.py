@@ -4,19 +4,24 @@ from __future__ import annotations
 
 from asyncio import Lock
 from dataclasses import dataclass
-from datetime import timedelta
-import logging
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api.client import RaritanClient
-from .api.model.device import RaritanPdu, RaritanPduDevice, RaritanPduOutlet
-from .api.model.device.states import OutletPowerState
-from .const import DOMAIN
+from custom_components.raritan_px.const import DEFAULT_UPDATE_INTERVAL, DOMAIN
 
-_LOGGER = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from datetime import timedelta
+    from logging import Logger
+
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.device_registry import DeviceEntry
+
+    from custom_components.raritan_px.api.client import RaritanClient
+    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+    from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
+    from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
 
 
 @dataclass(slots=True)
@@ -25,11 +30,10 @@ class RaritanPduData:
 
     client: RaritanClient
     coordinator: RaritanPduDataUpdateCoordinator
+    hub: DeviceEntry
 
 
 type RaritanPduConfigEntry = ConfigEntry[RaritanPduData]
-
-REQUEST_REFRESH_DELAY = 0.35
 
 
 class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
@@ -38,14 +42,15 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
     config_entry: RaritanPduConfigEntry
     client_lock: Lock
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         hass: HomeAssistant,
-        logger: logging.Logger,
+        logger: Logger,
         config_entry: RaritanPduConfigEntry,
-        update_interval: timedelta,
         client: RaritanClient,
         pdu: RaritanPdu,
+        *,
+        update_interval: timedelta = DEFAULT_UPDATE_INTERVAL,
     ) -> None:
         """Initialize the RaritanPdu coordinator."""
         super().__init__(
@@ -59,7 +64,6 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
         self.client = client
         self.config_entry = config_entry
         self.client_lock = Lock()
-
 
     async def _async_update_data(self) -> None:
         """Fetch all device and sensor data from api."""
@@ -76,9 +80,7 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
                     },
                 ) from ex
 
-    async def set_outlet_power_state(
-        self, outlet: RaritanPduOutlet, state: OutletPowerState
-    ) -> bool:
+    async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> bool:
         """Set the state of an outlet."""
         async with self.client_lock:
             try:

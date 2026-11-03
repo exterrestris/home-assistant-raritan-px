@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Final
-import datetime
 
 from homeassistant.const import Platform
 
@@ -19,4 +19,5 @@ PLATFORMS: Final = [
     Platform.SWITCH,
 ]
 
-UPDATE_INTERVAL = datetime.timedelta(seconds=5)
+DEFAULT_UPDATE_INTERVAL = dt.timedelta(seconds=5)
+DISCOVERY_INTERVAL = dt.timedelta(minutes=15)
