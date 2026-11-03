@@ -67,6 +67,7 @@ class RaritanPdu(RaritanDevice):
                 [super().all_defined_sensors]
                 + [outlet.all_defined_sensors for outlet in self.outlets]
                 + [inlet.all_defined_sensors for inlet in self.inlets]
+                + [ocp.all_defined_sensors for ocp in self.ocps]
             )
         )
 
