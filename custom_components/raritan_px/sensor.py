@@ -5,11 +5,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from custom_components.raritan_px.entity.sensor import (
-    RaritanPduInletSensorEntity,
-    RaritanPduOutletSensorEntity,
-    RaritanPduSensorEntity,
+    RaritanPduInletAttributeBackedSensorEntity,
+    RaritanPduInletSensorBackedSensorEntity,
+    RaritanPduOutletAttributeBackedSensorEntity,
+    RaritanPduOutletSensorBackedSensorEntity,
+    RaritanPduSensorBackedSensorEntity,
 )
 from custom_components.raritan_px.entity.sensor.descriptions import (
+    INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
+    OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     RaritanPduInletSensorEntityDescription,
     RaritanPduOutletSensorEntityDescription,
     RaritanPduSensorEntityDescription,
@@ -39,7 +43,7 @@ async def async_setup_entry(
     pdu: RaritanPdu = coordinator.pdu
 
     async_add_entities(
-        RaritanPduSensorEntity(
+        RaritanPduSensorBackedSensorEntity(
             pdu,
             data.hub,
             coordinator,
@@ -51,7 +55,7 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        RaritanPduInletSensorEntity(
+        RaritanPduInletSensorBackedSensorEntity(
             inlet,
             data.hub,
             coordinator,
@@ -64,7 +68,13 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        RaritanPduOutletSensorEntity(
+        RaritanPduInletAttributeBackedSensorEntity(inlet, data.hub, coordinator, desc, desc.key)
+        for inlet in pdu.inlets
+        for desc in INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
+    )
+
+    async_add_entities(
+        RaritanPduOutletSensorBackedSensorEntity(
             outlet,
             data.hub,
             coordinator,
@@ -74,4 +84,10 @@ async def async_setup_entry(
         for outlet in pdu.outlets
         for (sensor_name, sensor) in outlet.available_sensors
         if (description := get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name))
+    )
+
+    async_add_entities(
+        RaritanPduOutletAttributeBackedSensorEntity(outlet, data.hub, coordinator, desc, desc.key)
+        for outlet in pdu.outlets
+        for desc in OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
     )
