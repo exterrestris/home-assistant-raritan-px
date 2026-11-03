@@ -33,6 +33,10 @@ class RaritanPdu(RaritanDevice):
     has_switchable_outlets: bool
     has_metered_outlets: bool
     is_standalone: bool
+    voltage_rating: str
+    current_rating: str
+    frequency_rating: str
+    power_rating: str
     sensors: RaritanPduSensors
     outlets: list[RaritanPduOutlet] = field(default_factory=list[RaritanPduOutlet])
     inlets: list[RaritanPduInlet] = field(default_factory=list[RaritanPduInlet])

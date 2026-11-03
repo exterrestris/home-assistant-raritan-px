@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from custom_components.raritan_px.entity.sensor import (
+    RaritanPduAttributeBackedSensorEntity,
     RaritanPduInletAttributeBackedSensorEntity,
     RaritanPduInletSensorBackedSensorEntity,
     RaritanPduOutletAttributeBackedSensorEntity,
@@ -14,6 +15,7 @@ from custom_components.raritan_px.entity.sensor import (
 from custom_components.raritan_px.entity.sensor.descriptions import (
     INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
+    PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     RaritanPduInletSensorEntityDescription,
     RaritanPduOutletSensorEntityDescription,
     RaritanPduSensorEntityDescription,
@@ -52,6 +54,11 @@ async def async_setup_entry(
         )
         for sensor_name, sensor in pdu.available_sensors
         if (description := get_entity_description(RaritanPduSensorEntityDescription, sensor_name))
+    )
+
+    async_add_entities(
+        RaritanPduAttributeBackedSensorEntity(pdu, data.hub, coordinator, desc, desc.key)
+        for desc in PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
     )
 
     async_add_entities(

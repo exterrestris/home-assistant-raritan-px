@@ -414,6 +414,10 @@ class RaritanClient:
                 has_switchable_outlets=pdu_metadata.hasSwitchableOutlets,
                 has_metered_outlets=pdu_metadata.hasMeteredOutlets,
                 is_standalone=status.role == CascadeManager.Role.STANDALONE,  # pyright: ignore[reportAttributeAccessIssue]
+                voltage_rating=pdu_metadata.nameplate.rating.voltage,
+                current_rating=pdu_metadata.nameplate.rating.current,
+                frequency_rating=pdu_metadata.nameplate.rating.frequency,
+                power_rating=pdu_metadata.nameplate.rating.power,
                 sensors=RaritanPduSensors.from_sensor_sources(
                     {
                         "power_supply_status": pdu_sensors.powerSupplyStatus,

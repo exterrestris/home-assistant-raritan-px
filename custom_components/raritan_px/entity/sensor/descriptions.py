@@ -319,6 +319,29 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
 )
 SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_BACKED_SENSOR_DESCRIPTIONS}
 
+PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescription, ...] = (
+    RaritanPduSensorEntityDescription(
+        key="voltage_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        name="Voltage Rating",
+    ),
+    RaritanPduSensorEntityDescription(
+        key="current_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        name="Current Rating",
+    ),
+    RaritanPduSensorEntityDescription(
+        key="frequency_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        name="Frequency Rating",
+    ),
+    RaritanPduSensorEntityDescription(
+        key="power_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        name="Power Rating",
+    ),
+)
+
 OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityDescription, ...] = (
     RaritanPduOutletSensorEntityDescription(
         key="id",
