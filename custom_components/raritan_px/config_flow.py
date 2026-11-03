@@ -289,7 +289,7 @@ class RaritanPduConfigFlow(ConfigFlow, domain=DOMAIN):
         """Try to connect to the device speculatively."""
         client = RaritanClient(self.hass, config)
 
-        pdu = await client.get_pdu_info(update_sensor_data=UpdateSensors.NONE)
+        pdu = await client.get_pdu_info(update=UpdateSensors.NONE)
 
         if pdu:
             await self.async_set_unique_id(

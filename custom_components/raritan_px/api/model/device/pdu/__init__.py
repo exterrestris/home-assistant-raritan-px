@@ -38,17 +38,26 @@ class RaritanPdu(RaritanDevice):
     inlets: list[RaritanPduInlet] = field(default_factory=list[RaritanPduInlet])
     ocps: list[RaritanPduOverCurrentProtector] = field(default_factory=list[RaritanPduOverCurrentProtector])
 
-    def add_outlet(self, outlet: RaritanPduOutlet) -> None:
+    def add_outlet(self, outlet: RaritanPduOutlet) -> RaritanPduOutlet:
         """Add an outlet to the PDU."""
+        outlet.pdu = self
         self.outlets.append(outlet)
 
-    def add_inlet(self, inlet: RaritanPduInlet) -> None:
+        return outlet
+
+    def add_inlet(self, inlet: RaritanPduInlet) -> RaritanPduInlet:
         """Add an inlet to the PDU."""
+        inlet.pdu = self
         self.inlets.append(inlet)
 
-    def add_ocp(self, ocp: RaritanPduOverCurrentProtector) -> None:
+        return inlet
+
+    def add_ocp(self, ocp: RaritanPduOverCurrentProtector) -> RaritanPduOverCurrentProtector:
         """Add an overcurrent protector to the PDU."""
+        ocp.pdu = self
         self.ocps.append(ocp)
+
+        return ocp
 
     @property
     def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
@@ -60,6 +69,29 @@ class RaritanPdu(RaritanDevice):
                 + [inlet.all_defined_sensors for inlet in self.inlets]
             )
         )
+
+    @property
+    def pdu(self) -> RaritanPdu:
+        """Return this pdu."""
+        return self
+
+    @property
+    def device_name(self) -> str:
+        """Get the device name to use for this entity."""
+        if self.name:
+            return self.name
+
+        return f"{self.model} {self.serial_number}"
+
+    @property
+    def device_model(self) -> str:
+        """Get the device model to use for this entity."""
+        return self.model
+
+    @property
+    def device_type(self) -> str:
+        """Get the device type to use for this entity."""
+        return "PDU"
 
 
 @dataclass(kw_only=True)

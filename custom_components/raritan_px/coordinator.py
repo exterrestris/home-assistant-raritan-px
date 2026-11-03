@@ -104,8 +104,8 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
         async with self.client_lock:
             try:
                 updated = await self.client.set_outlet_power_state(
-                    outlet.pdu_id,
-                    outlet.outlet_id,
+                    outlet.pdu.id,
+                    outlet.id,
                     state,
                 )
             except Exception as ex:

@@ -9,4 +9,7 @@ from custom_components.raritan_px.api.model.device import RaritanEnergyDevice
 class RaritanPduOverCurrentProtector(RaritanEnergyDevice):
     """Representation of a Raritan PDU OCP."""
 
-    ocp_id: int
+    @property
+    def device_type(self) -> str:
+        """Return the type of this device."""
+        return "Overcurrent Protector"
