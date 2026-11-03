@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING
 from custom_components.raritan_px.entity.sensor import (
     RaritanPduInletSensorEntity,
     RaritanPduOutletSensorEntity,
+    RaritanPduOverCurrentProtectorSensorEntity,
     RaritanPduSensorEntity,
 )
 from custom_components.raritan_px.entity.sensor.descriptions import (
     RaritanPduInletSensorEntityDescription,
     RaritanPduOutletSensorEntityDescription,
+    RaritanPduOverCurrentProtectorSensorEntityDescription,
     RaritanPduSensorEntityDescription,
     get_entity_description,
 )
@@ -74,4 +76,17 @@ async def async_setup_entry(
         for outlet in pdu.outlets
         for (sensor_name, sensor) in outlet.available_sensors
         if (description := get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name))
+    )
+
+    async_add_entities(
+        RaritanPduOverCurrentProtectorSensorEntity(
+            ocp,
+            data.hub,
+            coordinator,
+            description,
+            sensor,
+        )
+        for ocp in pdu.ocps
+        for (sensor_name, sensor) in ocp.available_sensors
+        if (description := get_entity_description(RaritanPduOverCurrentProtectorSensorEntityDescription, sensor_name))
     )
