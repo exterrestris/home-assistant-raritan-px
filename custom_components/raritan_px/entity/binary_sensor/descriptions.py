@@ -28,6 +28,7 @@ type BinarySensorEntityValue = StateType | date | datetime | Decimal
 class RaritanDeviceBinarySensorEntityDescription(BinarySensorEntityDescription, RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU device sensor entity description."""
 
+    has_entity_name: bool = True
     on_value: RaritanSensorState
 
 
@@ -55,25 +56,25 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceBinarySensorEntityDescript
         key="power_supply_status",
         device_class=BinarySensorDeviceClass.PROBLEM,
         on_value=NormalAlarmed.ALARMED,
-        name="Power Supply {} Status",
+        translation_key="pdu_power_supply_status",
     ),
     RaritanPduOutletBinarySensorEntityDescription(
         key="outlet_state",
         device_class=BinarySensorDeviceClass.POWER,
         on_value=OnOff.ON,
-        name="Outlet State",
+        translation_key="outlet_outlet_state",
     ),
     RaritanPduInletBinarySensorEntityDescription(
         key="power_quality",
         device_class=BinarySensorDeviceClass.PROBLEM,
         on_value=NormalAlarmed.ALARMED,
-        name="Power Quality",
+        translation_key="inlet_power_quality",
     ),
     RaritanPduInletBinarySensorEntityDescription(
         key="surge_protector_status",
         device_class=BinarySensorDeviceClass.PROBLEM,
         on_value=OkFaulted.FAULT,
-        name="Surge Protector Status",
+        translation_key="inlet_surge_protector_status",
     ),
 )
 SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_BACKED_SENSOR_DESCRIPTIONS}
@@ -104,14 +105,13 @@ def get_entity_description[SensorDesc_co: "RaritanDeviceBinarySensorEntityDescri
 
                 return f"{default_name(generic_name)} {int(idx) + 1}"
 
+            if type(desc.translation_key) is str:
+                merge = {"translation_placeholders": {"idx": str(int(idx) + 1)}}
+            else:
+                merge = {"name": formatted_name()}
+
             return desc_type(
-                **(
-                    asdict(desc)
-                    | {
-                        "key": sensor_name,
-                        "name": formatted_name(),
-                    }
-                )  # pyright: ignore[reportReturnType, reportArgumentType]
+                **(asdict(desc) | {"key": sensor_name} | merge)  # pyright: ignore[reportReturnType, reportArgumentType]
             )
 
     return None

@@ -79,5 +79,26 @@
     "unnamed_device": {
       "name": "Unnamed {model}"
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "pdu_power_supply_status": {
+        "name": "Power Supply {idx} Status"
+      },
+      "outlet_outlet_state": {
+        "name": "Outlet State"
+      },
+      "inlet_power_quality": {
+        "name": "Power_Quality"
+      },
+      "inlet_surge_protector_status": {
+        "name": "Surge Protector Status"
+      }
+    },
+    "sensor": {
+      "outlet_receptacle_type": {
+        "name": "Receptacle Type"
+      }
+    }
   }
 }
