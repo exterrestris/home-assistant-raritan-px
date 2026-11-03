@@ -13,6 +13,8 @@ from custom_components.raritan_px.entity import (
 )
 
 if TYPE_CHECKING:
+    from homeassistant.helpers.device_registry import DeviceEntry
+
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
@@ -39,15 +41,18 @@ class RaritanDeviceSensorEntity(CoordinatedRaritanDeviceEntity, SensorEntity):
     def __init__(
         self,
         device: RaritanDevice,
-        pdu: RaritanPdu,
+        hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
         sensor: RaritanSensor,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, pdu, coordinator, description)
+        super().__init__(device, hub, coordinator, description)
 
         self._sensor = sensor
+
+    def _entity_type(self) -> str:
+        return "sensor"
 
     @callback
     def _async_update_attrs(self) -> bool:

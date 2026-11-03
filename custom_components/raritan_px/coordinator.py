@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from logging import Logger
 
     from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.device_registry import DeviceEntry
 
     from custom_components.raritan_px.api.client import RaritanClient
     from custom_components.raritan_px.api.model.device import RaritanDevice
@@ -30,6 +31,7 @@ class RaritanPduData:
 
     client: RaritanClient
     coordinator: RaritanPduDataUpdateCoordinator
+    hub: DeviceEntry
 
 
 type RaritanPduConfigEntry = ConfigEntry[RaritanPduData]
