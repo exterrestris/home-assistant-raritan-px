@@ -15,6 +15,7 @@ CONNECT_TIMEOUT = 5
 CONF_CONFIG_ENTRY_MINOR_VERSION: Final = 2
 
 PLATFORMS: Final = [
+    Platform.BINARY_SENSOR,
     Platform.SENSOR,
     Platform.SWITCH,
 ]

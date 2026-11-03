@@ -1,5 +1,13 @@
 {
   "entity": {
+    "binary_sensor": {
+      "pdu_has_metered_outlets": {
+        "default": "mdi:meter-electric-outline"
+      },
+      "pdu_has_switchable_outlets": {
+        "default": "mdi:electric-switch"
+      }
+    },
     "sensor": {
       "inlet_label": {
         "default": "mdi:label-outline"
@@ -28,11 +36,11 @@
       "pdu_frequency_rating": {
         "default": "mdi:sine-wave"
       },
-      "pdu_power_rating": {
-        "default": "mdi:flash"
-      },
-      "pdu_voltage_rating": {
-        "default": "mdi:sine-wave"
+      "pdu_network_bridge_state": {
+        "default": "mdi:lan-connect",
+        "state": {
+          "Not Present": "mdi:lan-disconnect"
+        }
       },
       "pdu_network_ethernet_state": {
         "default": "mdi:lan"
@@ -43,11 +51,11 @@
           "Not Present": "mdi:wifi-off"
         }
       },
-      "pdu_network_bridge_state": {
-        "default": "mdi:lan-connect",
-        "state": {
-          "Not Present": "mdi:lan-disconnect"
-        }
+      "pdu_power_rating": {
+        "default": "mdi:flash"
+      },
+      "pdu_voltage_rating": {
+        "default": "mdi:sine-wave"
       }
     }
   }

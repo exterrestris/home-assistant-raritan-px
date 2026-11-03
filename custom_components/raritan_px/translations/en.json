@@ -81,6 +81,22 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "pdu_has_metered_outlets": {
+        "name": "Metered Outlets",
+        "state": {
+          "off": "No",
+          "on": "Yes"
+        }
+      },
+      "pdu_has_switchable_outlets": {
+        "name": "Switchable Outlets",
+        "state": {
+          "off": "No",
+          "on": "Yes"
+        }
+      }
+    },
     "sensor": {
       "inlet_label": {
         "name": "Label"
@@ -109,11 +125,8 @@
       "pdu_frequency_rating": {
         "name": "Frequency Rating"
       },
-      "pdu_power_rating": {
-        "name": "Power Rating"
-      },
-      "pdu_voltage_rating": {
-        "name": "Voltage Rating"
+      "pdu_network_bridge_state": {
+        "name": "Network - {if_name}"
       },
       "pdu_network_ethernet_state": {
         "name": "Network - {if_name}"
@@ -121,8 +134,11 @@
       "pdu_network_wlan_state": {
         "name": "Network - {if_name}"
       },
-      "pdu_network_bridge_state": {
-        "name": "Network - {if_name}"
+      "pdu_power_rating": {
+        "name": "Power Rating"
+      },
+      "pdu_voltage_rating": {
+        "name": "Voltage Rating"
       }
     }
   }

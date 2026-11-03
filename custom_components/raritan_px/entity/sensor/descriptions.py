@@ -1,13 +1,10 @@
 """Raritan PDU sensor entity descriptions."""
 
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
-from decimal import Decimal
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription, SensorStateClass
 from homeassistant.const import DEGREE, EntityCategory
-from homeassistant.helpers.typing import StateType
 
 from custom_components.raritan_px.api.model.network import NetworkInterface, NetworkInterfaceState, NetworkInterfaceType
 from custom_components.raritan_px.api.model.sensor.state import (
@@ -27,14 +24,10 @@ from custom_components.raritan_px.entity.descriptions import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-type SensorEntityValue = StateType | date | datetime | Decimal
-
 
 @dataclass(frozen=True, kw_only=True)
 class RaritanDeviceSensorEntityDescription(SensorEntityDescription, RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU device sensor entity description."""
-
-    convert_fn: Callable[[Any], SensorEntityValue | None] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
