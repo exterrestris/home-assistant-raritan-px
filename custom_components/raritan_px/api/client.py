@@ -591,7 +591,7 @@ class RaritanClient:
                     [(ocp.getSettings, []) for ocp in pdu_ocps],
                     [(ocp.getSensors, []) for ocp in pdu_ocps],
                 ),
-                f"inlet data for PDU {pdu.id}",
+                f"ocp data for PDU {pdu.id}",
             )
 
             ocps: list[RaritanPduOverCurrentProtector] = []
