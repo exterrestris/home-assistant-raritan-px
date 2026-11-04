@@ -10,14 +10,18 @@ from custom_components.raritan_px.entity.sensor import (
     RaritanPduInletSensorBackedSensorEntity,
     RaritanPduOutletAttributeBackedSensorEntity,
     RaritanPduOutletSensorBackedSensorEntity,
+    RaritanPduOverCurrentProtectorAttributeBackedSensorEntity,
+    RaritanPduOverCurrentProtectorSensorBackedSensorEntity,
     RaritanPduSensorBackedSensorEntity,
 )
 from custom_components.raritan_px.entity.sensor.descriptions import (
     INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
+    OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     RaritanPduInletSensorEntityDescription,
     RaritanPduOutletSensorEntityDescription,
+    RaritanPduOverCurrentProtectorSensorEntityDescription,
     RaritanPduSensorEntityDescription,
     get_entity_description,
 )
@@ -97,4 +101,23 @@ async def async_setup_entry(
         RaritanPduOutletAttributeBackedSensorEntity(outlet, data.hub, coordinator, desc, desc.key)
         for outlet in pdu.outlets
         for desc in OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
+    )
+
+    async_add_entities(
+        RaritanPduOverCurrentProtectorSensorBackedSensorEntity(
+            ocp,
+            data.hub,
+            coordinator,
+            description,
+            sensor,
+        )
+        for ocp in pdu.ocps
+        for (sensor_name, sensor) in ocp.available_sensors
+        if (description := get_entity_description(RaritanPduOverCurrentProtectorSensorEntityDescription, sensor_name))
+    )
+
+    async_add_entities(
+        RaritanPduOverCurrentProtectorAttributeBackedSensorEntity(ocp, data.hub, coordinator, desc, desc.key)
+        for ocp in pdu.ocps
+        for desc in OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
     )

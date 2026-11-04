@@ -11,6 +11,7 @@ from custom_components.raritan_px.entity import (
     CoordinatedRaritanPduEntity,
     CoordinatedRaritanPduInletEntity,
     CoordinatedRaritanPduOutletEntity,
+    CoordinatedRaritanPduOverCurrentProtectorEntity,
 )
 
 if TYPE_CHECKING:
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
+    from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
     from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
@@ -29,6 +31,7 @@ if TYPE_CHECKING:
         RaritanDeviceSensorEntityDescription,
         RaritanPduInletSensorEntityDescription,
         RaritanPduOutletSensorEntityDescription,
+        RaritanPduOverCurrentProtectorSensorEntityDescription,
         RaritanPduSensorEntityDescription,
         SensorEntityValue,
     )
@@ -119,6 +122,14 @@ class RaritanPduInletAttributeBackedSensorEntity(
     entity_description: RaritanPduInletSensorEntityDescription
 
 
+class RaritanPduOverCurrentProtectorAttributeBackedSensorEntity(
+    CoordinatedRaritanPduOverCurrentProtectorEntity, RaritanDeviceAttributeBackedSensorEntity
+):
+    """Representation of a Raritan PDU Inlet attribute backed sensor."""
+
+    entity_description: RaritanPduOverCurrentProtectorSensorEntityDescription
+
+
 class RaritanDeviceSensorBackedSensorEntity(RaritanDeviceSensorEntity):
     """Representation of a Raritan device sensor backed sensor."""
 
@@ -181,3 +192,12 @@ class RaritanPduSensorBackedSensorEntity(CoordinatedRaritanPduEntity, RaritanDev
 
     _device: RaritanPdu
     entity_description: RaritanPduSensorEntityDescription
+
+
+class RaritanPduOverCurrentProtectorSensorBackedSensorEntity(
+    CoordinatedRaritanPduOverCurrentProtectorEntity, RaritanDeviceSensorBackedSensorEntity
+):
+    """Representation of a Raritan PDU Outlet sensor."""
+
+    _device: RaritanPduOverCurrentProtector
+    entity_description: RaritanPduOverCurrentProtectorSensorEntityDescription
