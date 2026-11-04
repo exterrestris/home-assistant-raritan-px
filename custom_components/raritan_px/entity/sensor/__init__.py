@@ -11,6 +11,7 @@ from custom_components.raritan_px.entity import (
     CoordinatedRaritanPduEntity,
     CoordinatedRaritanPduInletEntity,
     CoordinatedRaritanPduOutletEntity,
+    CoordinatedRaritanPduOverCurrentProtectorEntity,
 )
 
 if TYPE_CHECKING:
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
+    from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
     from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
@@ -29,6 +31,7 @@ if TYPE_CHECKING:
         RaritanDeviceSensorEntityDescription,
         RaritanPduInletSensorEntityDescription,
         RaritanPduOutletSensorEntityDescription,
+        RaritanPduOverCurrentProtectorSensorEntityDescription,
         RaritanPduSensorEntityDescription,
     )
 
@@ -102,3 +105,12 @@ class RaritanPduSensorEntity(CoordinatedRaritanPduEntity, RaritanDeviceSensorEnt
 
     _device: RaritanPdu
     entity_description: RaritanPduSensorEntityDescription
+
+
+class RaritanPduOverCurrentProtectorSensorEntity(
+    CoordinatedRaritanPduOverCurrentProtectorEntity, RaritanDeviceSensorEntity
+):
+    """Representation of a Raritan PDU Outlet sensor."""
+
+    _device: RaritanPduOverCurrentProtector
+    entity_description: RaritanPduOverCurrentProtectorSensorEntityDescription

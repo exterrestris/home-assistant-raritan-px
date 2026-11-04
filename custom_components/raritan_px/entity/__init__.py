@@ -21,12 +21,14 @@ if TYPE_CHECKING:
     )
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
+    from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.entity.descriptions import (
         RaritanDeviceEntityDescription,
         RaritanPduEntityDescription,
         RaritanPduInletEntityDescription,
         RaritanPduOutletEntityDescription,
+        RaritanPduOverCurrentProtectorEntityDescription,
     )
 
 _LOGGER = logging.getLogger(__name__)
@@ -157,3 +159,10 @@ class CoordinatedRaritanPduInletEntity(CoordinatedRaritanPduEnergyDeviceEntity, 
 
     _device: RaritanPduInlet
     entity_description: RaritanPduInletEntityDescription
+
+
+class CoordinatedRaritanPduOverCurrentProtectorEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
+    """Common base class for all coordinated raritan pdu overcurrent protector based entities."""
+
+    _device: RaritanPduOverCurrentProtector
+    entity_description: RaritanPduOverCurrentProtectorEntityDescription

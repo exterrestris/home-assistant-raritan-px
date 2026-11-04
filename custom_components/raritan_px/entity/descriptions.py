@@ -21,5 +21,10 @@ class RaritanPduOutletEntityDescription(RaritanDeviceEntityDescription):
 
 
 @dataclass(frozen=True, kw_only=True)
+class RaritanPduOverCurrentProtectorEntityDescription(RaritanDeviceEntityDescription):
+    """Base class for a Raritan PDU entity description."""
+
+
+@dataclass(frozen=True, kw_only=True)
 class RaritanPduEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
