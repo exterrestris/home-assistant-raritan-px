@@ -4,17 +4,23 @@
       "inlet_label": {
         "default": "mdi:label-outline"
       },
+      "ocp_inlet": {
+        "default": "mdi:power-plug"
+      },
       "ocp_label": {
         "default": "mdi:label-outline"
+      },
+      "outlet_inlet": {
+        "default": "mdi:power-plug"
       },
       "outlet_label": {
         "default": "mdi:label-outline"
       },
+      "outlet_ocp": {
+        "default": "mdi:connection"
+      },
       "outlet_receptacle_type": {
         "default": "mdi:power-socket"
-      },
-      "pdu_voltage_rating": {
-        "default": "mdi:sine-wave"
       },
       "pdu_current_rating": {
         "default": "mdi:current-ac"
@@ -24,6 +30,9 @@
       },
       "pdu_power_rating": {
         "default": "mdi:flash"
+      },
+      "pdu_voltage_rating": {
+        "default": "mdi:sine-wave"
       }
     }
   }

@@ -407,6 +407,7 @@ class RaritanClient:
         else:
             device = RaritanPdu(
                 device_id=f"{pdu_metadata.nameplate.serialNumber}:/model/pdu/{pdu_idx}",
+                rid=pdu.target,
                 id=pdu_idx,
                 host=self._config.host,
                 url=f"{self._get_protocol()}://{self._config.host}/",
@@ -461,6 +462,7 @@ class RaritanClient:
                     [(outlet.getMetaData, []) for outlet in pdu_outlets],
                     [(outlet.getSettings, []) for outlet in pdu_outlets],
                     [(outlet.getSensors, []) for outlet in pdu_outlets],
+                    [(outlet.getIOP, []) for outlet in pdu_outlets],
                 ),
                 f"outlet data for PDU {pdu.id}",
             )
@@ -470,14 +472,20 @@ class RaritanClient:
             outlet_metadata: Outlet.MetaData
             outlet_settings: Outlet.Settings
             outlet_sensors: Outlet.Sensors
+            inlet: Inlet
+            ocp: OverCurrentProtector
 
             for outlet_idx, (
                 outlet_metadata,
                 outlet_settings,
                 outlet_sensors,
-            ) in enumerate(grouper(responses, 3)):  # pyright: ignore[reportAssignmentType]
+                (inlet, ocp, _),
+            ) in enumerate(grouper(responses, 4)):  # pyright: ignore[reportGeneralTypeIssues, reportAssignmentType]
                 outlet = RaritanPduOutlet(
                     device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/outlet/{outlet_idx}",
+                    rid=pdu_outlets[outlet_idx].target,
+                    inlet_rid=inlet.target,
+                    ocp_rid=ocp.target,
                     id=outlet_idx,
                     name=outlet_settings.name,
                     label=outlet_metadata.label,
@@ -538,6 +546,7 @@ class RaritanClient:
             for inlet_idx, (inlet_metadata, inlet_settings, inlet_sensors) in enumerate(grouper(responses, 3)):  # pyright: ignore[reportAssignmentType]
                 inlet = RaritanPduInlet(
                     device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/inlet/{inlet_idx}",
+                    rid=pdu_inlets[inlet_idx].target,
                     id=inlet_idx,
                     name=inlet_settings.name,
                     label=inlet_metadata.label,
@@ -590,6 +599,7 @@ class RaritanClient:
                     [(ocp.getMetaData, []) for ocp in pdu_ocps],
                     [(ocp.getSettings, []) for ocp in pdu_ocps],
                     [(ocp.getSensors, []) for ocp in pdu_ocps],
+                    [(ocp.getInlet, []) for ocp in pdu_ocps],
                 ),
                 f"ocp data for PDU {pdu.id}",
             )
@@ -599,11 +609,14 @@ class RaritanClient:
             ocp_metadata: OverCurrentProtector.MetaData
             ocp_settings: OverCurrentProtector.Settings
             ocp_sensors: OverCurrentProtector.Sensors
+            inlet: Inlet
 
-            for ocp_idx, (ocp_metadata, ocp_settings, ocp_sensors) in enumerate(grouper(responses, 3)):  # pyright: ignore[reportAssignmentType]
+            for ocp_idx, (ocp_metadata, ocp_settings, ocp_sensors, inlet) in enumerate(grouper(responses, 4)):  # pyright: ignore[reportAssignmentType]
                 ocp = RaritanPduOverCurrentProtector(
                     device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/ocp/{ocp_idx}",
                     id=ocp_idx,
+                    rid=pdu_ocps[ocp_idx].target,
+                    inlet_rid=inlet.target,
                     name=ocp_settings.name,
                     label=ocp_metadata.label,
                     sensors=RaritanPduOverCurrentProtectorSensors.from_sensor_sources(

@@ -38,28 +38,28 @@ class RaritanPdu(RaritanDevice):
     frequency_rating: str
     power_rating: str
     sensors: RaritanPduSensors
-    outlets: list[RaritanPduOutlet] = field(default_factory=list[RaritanPduOutlet])
-    inlets: list[RaritanPduInlet] = field(default_factory=list[RaritanPduInlet])
-    ocps: list[RaritanPduOverCurrentProtector] = field(default_factory=list[RaritanPduOverCurrentProtector])
+    outlets: dict[str, RaritanPduOutlet] = field(default_factory=dict[str, RaritanPduOutlet])
+    inlets: dict[str, RaritanPduInlet] = field(default_factory=dict[str, RaritanPduInlet])
+    ocps: dict[str, RaritanPduOverCurrentProtector] = field(default_factory=dict[str, RaritanPduOverCurrentProtector])
 
     def add_outlet(self, outlet: RaritanPduOutlet) -> RaritanPduOutlet:
         """Add an outlet to the PDU."""
         outlet.pdu = self
-        self.outlets.append(outlet)
+        self.outlets[outlet.rid] = outlet
 
         return outlet
 
     def add_inlet(self, inlet: RaritanPduInlet) -> RaritanPduInlet:
         """Add an inlet to the PDU."""
         inlet.pdu = self
-        self.inlets.append(inlet)
+        self.inlets[inlet.rid] = inlet
 
         return inlet
 
     def add_ocp(self, ocp: RaritanPduOverCurrentProtector) -> RaritanPduOverCurrentProtector:
         """Add an overcurrent protector to the PDU."""
         ocp.pdu = self
-        self.ocps.append(ocp)
+        self.ocps[ocp.rid] = ocp
 
         return ocp
 
@@ -69,9 +69,9 @@ class RaritanPdu(RaritanDevice):
         return list(
             flatten(
                 [super().all_defined_sensors]
-                + [outlet.all_defined_sensors for outlet in self.outlets]
-                + [inlet.all_defined_sensors for inlet in self.inlets]
-                + [ocp.all_defined_sensors for ocp in self.ocps]
+                + [outlet.all_defined_sensors for _, outlet in self.outlets.items()]
+                + [inlet.all_defined_sensors for _, inlet in self.inlets.items()]
+                + [ocp.all_defined_sensors for _, ocp in self.ocps.items()]
             )
         )
 

@@ -16,6 +16,7 @@ class RaritanDevice:
     """Representation of a generic Raritan device."""
 
     id: int
+    rid: str
     device_id: str
     name: str
     url: str | None = None
@@ -108,7 +109,7 @@ class RaritanEnergyDevice(RaritanDevice):
         if self.name:
             return self.name
 
-        return f"{self.pdu.device_name} {self.device_type} {self.label}"
+        return f"{self.device_type} {self.label}"
 
     @property
     def device_model(self) -> str:

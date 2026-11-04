@@ -85,17 +85,23 @@
       "inlet_label": {
         "name": "Label"
       },
+      "ocp_inlet": {
+        "name": "Inlet"
+      },
       "ocp_label": {
         "name": "Label"
+      },
+      "outlet_inlet": {
+        "name": "Inlet"
       },
       "outlet_label": {
         "name": "Label"
       },
+      "outlet_ocp": {
+        "name": "Overcurrent Protector"
+      },
       "outlet_receptacle_type": {
         "name": "Receptacle Type"
-      },
-      "pdu_voltage_rating": {
-        "name": "Voltage Rating"
       },
       "pdu_current_rating": {
         "name": "Current Rating"
@@ -105,6 +111,9 @@
       },
       "pdu_power_rating": {
         "name": "Power Rating"
+      },
+      "pdu_voltage_rating": {
+        "name": "Voltage Rating"
       }
     }
   }

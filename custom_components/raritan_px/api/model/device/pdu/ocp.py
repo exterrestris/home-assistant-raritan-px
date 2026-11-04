@@ -1,6 +1,7 @@
 """Raritan PDU API PDU OCP models."""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from custom_components.raritan_px.api.model.device import RaritanDeviceSensors, RaritanEnergyDevice
 from custom_components.raritan_px.api.model.sensor import (
@@ -9,17 +10,26 @@ from custom_components.raritan_px.api.model.sensor import (
     RaritanStateSensor,
 )
 
+if TYPE_CHECKING:
+    from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
+
 
 @dataclass(kw_only=True)
 class RaritanPduOverCurrentProtector(RaritanEnergyDevice):
     """Representation of a Raritan PDU OCP."""
 
     sensors: RaritanPduOverCurrentProtectorSensors
+    inlet_rid: str
 
     @property
     def device_type(self) -> str:
         """Return the type of this device."""
         return "Overcurrent Protector"
+
+    @property
+    def inlet(self) -> RaritanPduInlet | None:
+        """Return the inlet supplying power to this device."""
+        return self.pdu.inlets[self.inlet_rid] if self.pdu else None
 
 
 @dataclass(kw_only=True)
