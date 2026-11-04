@@ -1,8 +1,29 @@
 {
   "entity": {
     "sensor": {
+      "inlet_label": {
+        "default": "mdi:label-outline"
+      },
+      "ocp_label": {
+        "default": "mdi:label-outline"
+      },
+      "outlet_label": {
+        "default": "mdi:label-outline"
+      },
       "outlet_receptacle_type": {
         "default": "mdi:power-socket"
+      },
+      "pdu_voltage_rating": {
+        "default": "mdi:sine-wave"
+      },
+      "pdu_current_rating": {
+        "default": "mdi:current-ac"
+      },
+      "pdu_frequency_rating": {
+        "default": "mdi:sine-wave"
+      },
+      "pdu_power_rating": {
+        "default": "mdi:flash"
       }
     }
   }

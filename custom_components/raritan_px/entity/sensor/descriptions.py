@@ -443,45 +443,50 @@ PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescriptio
     RaritanPduSensorEntityDescription(
         key="voltage_rating",
         entity_category=EntityCategory.DIAGNOSTIC,
-        name="Voltage Rating",
+        translation_key="pdu_voltage_rating",
+        entity_registry_enabled_default=False,
     ),
     RaritanPduSensorEntityDescription(
         key="current_rating",
         entity_category=EntityCategory.DIAGNOSTIC,
-        name="Current Rating",
+        translation_key="pdu_current_rating",
+        entity_registry_enabled_default=False,
     ),
     RaritanPduSensorEntityDescription(
         key="frequency_rating",
         entity_category=EntityCategory.DIAGNOSTIC,
-        name="Frequency Rating",
+        translation_key="pdu_frequency_rating",
+        entity_registry_enabled_default=False,
     ),
     RaritanPduSensorEntityDescription(
         key="power_rating",
         entity_category=EntityCategory.DIAGNOSTIC,
-        name="Power Rating",
+        translation_key="pdu_power_rating",
+        entity_registry_enabled_default=False,
     ),
 )
 
 OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityDescription, ...] = (
     RaritanPduOutletSensorEntityDescription(
-        key="id",
+        key="label",
         entity_category=EntityCategory.DIAGNOSTIC,
-        convert_fn=lambda idx: idx + 1,
-        name="Label",
+        translation_key="outlet_label",
+        entity_registry_visible_default=False,
     ),
     RaritanPduOutletSensorEntityDescription(
         key="receptacle_type",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="outlet_receptacle_type",
+        entity_registry_enabled_default=False,
     ),
 )
 
 INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduInletSensorEntityDescription, ...] = (
     RaritanPduInletSensorEntityDescription(
-        key="id",
+        key="label",
         entity_category=EntityCategory.DIAGNOSTIC,
-        convert_fn=lambda idx: idx + 1,
-        name="Label",
+        translation_key="inlet_label",
+        entity_registry_visible_default=False,
     ),
 )
 
@@ -489,10 +494,10 @@ OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
     RaritanPduOverCurrentProtectorSensorEntityDescription, ...
 ] = (
     RaritanPduOverCurrentProtectorSensorEntityDescription(
-        key="id",
+        key="label",
         entity_category=EntityCategory.DIAGNOSTIC,
-        convert_fn=lambda idx: idx + 1,
-        name="Label",
+        translation_key="ocp_label",
+        entity_registry_visible_default=False,
     ),
 )
 
