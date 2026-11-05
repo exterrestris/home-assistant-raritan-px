@@ -11,7 +11,7 @@ from custom_components.raritan_px.api.model.device import (
 from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
 from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
 from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
-from custom_components.raritan_px.api.model.network import NetworkInterface
+from custom_components.raritan_px.api.model.network import NetworkInterface, NetworkInterfaceState
 from custom_components.raritan_px.api.model.sensor import (
     RaritanAccumulatingSensor,
     RaritanMultiStateSensor,
@@ -104,7 +104,7 @@ class RaritanPdu(RaritanDevice):
     def active_network_interface(self) -> NetworkInterface | None:
         """Get the active network interface."""
         for key in self.network_interfaces:
-            if self.network_interfaces[key].mac_address == self.mac_address:
+            if self.network_interfaces[key].state == NetworkInterfaceState.UP:
                 return self.network_interfaces[key]
 
         return None
