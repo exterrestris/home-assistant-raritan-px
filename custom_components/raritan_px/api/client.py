@@ -424,8 +424,6 @@ class RaritanClient:
                     enabled=interface.enabled,
                     state=NETWORK_ENUM_TYPE_VALUE_MAPPING[NetworkInterfaceState][interface.state],  # pyright: ignore[reportArgumentType],
                     mac_address=interface.macAddr,
-                    # ipv4_addres=interface.,
-                    # ipv6_address=interface.,
                 )
                 for key, interface in interfaces.items()
             }
