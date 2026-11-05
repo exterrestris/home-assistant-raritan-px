@@ -138,7 +138,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         configuration_url=pdu.url,
         sw_version=pdu.firmware_version,
         hw_version=pdu.hardware_version,
-        connections={(dr.CONNECTION_NETWORK_MAC, dr.format_mac(pdu.mac_address))},
+        connections={
+            (dr.CONNECTION_NETWORK_MAC, dr.format_mac(interface.mac_address))
+            for _, interface in pdu.network_interfaces.items()
+            if interface.mac_address
+        },
     )
 
     _LOGGER.debug("Registered device %s", pdu.device_id)
