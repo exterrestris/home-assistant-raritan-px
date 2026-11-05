@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import callback
 
-from custom_components.raritan_px.api.model.device import RaritanDevice
+from custom_components.raritan_px.api.model import RaritanModel
 from custom_components.raritan_px.api.model.sensor.state import RaritanSensorState
 from custom_components.raritan_px.entity import (
     CoordinatedRaritanDeviceEntity,
@@ -18,6 +18,7 @@ from custom_components.raritan_px.entity import (
 if TYPE_CHECKING:
     from homeassistant.helpers.device_registry import DeviceEntry
 
+    from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
     from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
@@ -102,7 +103,7 @@ class RaritanDeviceAttributeBackedSensorEntity(RaritanDeviceSensorEntity):
         attr = path.pop()
 
         for elm in path:
-            if not isinstance(device := getattr(device, elm), RaritanDevice):
+            if not isinstance(device := getattr(device, elm), RaritanModel):
                 return None
 
         return getattr(device, attr)

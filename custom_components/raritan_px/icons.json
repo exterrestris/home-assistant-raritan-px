@@ -33,6 +33,9 @@
       },
       "pdu_voltage_rating": {
         "default": "mdi:sine-wave"
+      },
+      "pdu_active_network_interface": {
+        "default": "mdi:lan"
       }
     }
   }

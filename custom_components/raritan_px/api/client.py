@@ -14,6 +14,7 @@ from more_itertools import flatten, grouper, interleave
 from raritan import rpc
 from raritan.rpc import Structure, Time, perform_bulk
 from raritan.rpc.cascading import CascadeManager
+from raritan.rpc.net import Info, InterfaceInfo, Net
 from raritan.rpc.pdumodel import Inlet, Outlet, OverCurrentProtector, Pdu
 from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
@@ -34,6 +35,12 @@ from custom_components.raritan_px.api.model.device.pdu.outlet import (
     RaritanPduOutletSensors,
 )
 from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
+from custom_components.raritan_px.api.model.network import (
+    NETWORK_ENUM_TYPE_VALUE_MAPPING,
+    NetworkInterface,
+    NetworkInterfaceState,
+    NetworkInterfaceType,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -378,6 +385,7 @@ class RaritanClient:
         try:
             pdu: Pdu = Pdu(f"/model/pdu/{pdu_idx}", self._agent)
             cascade = CascadeManager("/cascade", self._agent)
+            net = Net("/net", self._agent)
 
             responses = await self._execute_bulk_requests(
                 [
@@ -388,6 +396,7 @@ class RaritanClient:
                     (pdu.getOverCurrentProtectors, []),
                     (pdu.getSensors, []),
                     (cascade.getStatus, []),
+                    (net.getInfo, []),
                 ],
                 f"PDU {pdu_idx} information",
             )
@@ -399,12 +408,28 @@ class RaritanClient:
             pdu_ocps: list[OverCurrentProtector] = responses[4]  # pyright: ignore[reportAssignmentType]
             pdu_sensors: Pdu.Sensors = responses[5]  # pyright: ignore[reportAssignmentType]
             status: CascadeManager.Status = responses[6]  # pyright: ignore[reportAssignmentType]
+            net_info: Info = responses[7]  # pyright: ignore[reportAssignmentType]
         except rpc.HttpException as e:
             self._logger.exception("Error fetching PDU %s information", pdu_idx)
 
             message: str = f"Failed to fetch PDU {pdu_idx} information for {self._config.host}"
             raise RaritanClientError(message) from e
         else:
+            interfaces: dict[str, InterfaceInfo] = net_info.ifMap
+            network_interfaces: dict[str, NetworkInterface] = {
+                key: NetworkInterface(
+                    name=interface.name,
+                    label=interface.label,
+                    type=NETWORK_ENUM_TYPE_VALUE_MAPPING[NetworkInterfaceType][interface.type],  # pyright: ignore[reportArgumentType]
+                    enabled=interface.enabled,
+                    state=NETWORK_ENUM_TYPE_VALUE_MAPPING[NetworkInterfaceState][interface.state],  # pyright: ignore[reportArgumentType],
+                    mac_address=interface.macAddr,
+                    # ipv4_addres=interface.,
+                    # ipv6_address=interface.,
+                )
+                for key, interface in interfaces.items()
+            }
+
             device = RaritanPdu(
                 device_id=f"{pdu_metadata.nameplate.serialNumber}:/model/pdu/{pdu_idx}",
                 rid=pdu.target,
@@ -434,6 +459,7 @@ class RaritanClient:
                         "apparent_energy": pdu_sensors.apparentEnergy,
                     }
                 ),
+                network_interfaces=network_interfaces,
             )
 
             if populate | PduDevices.OUTLETS:

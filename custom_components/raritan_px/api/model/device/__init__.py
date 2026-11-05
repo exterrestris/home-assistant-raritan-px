@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Self, get_args, get_type_hints
 
 from raritan.rpc.sensors import Sensor
 
+from custom_components.raritan_px.api.model import RaritanModel
 from custom_components.raritan_px.api.model.sensor import RaritanSensor, RaritanSwitch
 
 if TYPE_CHECKING:
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(kw_only=True)
-class RaritanDevice:
+class RaritanDevice(RaritanModel):
     """Representation of a generic Raritan device."""
 
     id: int

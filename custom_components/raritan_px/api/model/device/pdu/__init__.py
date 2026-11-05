@@ -11,6 +11,7 @@ from custom_components.raritan_px.api.model.device import (
 from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
 from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
 from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
+from custom_components.raritan_px.api.model.network import NetworkInterface
 from custom_components.raritan_px.api.model.sensor import (
     RaritanAccumulatingSensor,
     RaritanMultiStateSensor,
@@ -41,6 +42,7 @@ class RaritanPdu(RaritanDevice):
     outlets: dict[str, RaritanPduOutlet] = field(default_factory=dict[str, RaritanPduOutlet])
     inlets: dict[str, RaritanPduInlet] = field(default_factory=dict[str, RaritanPduInlet])
     ocps: dict[str, RaritanPduOverCurrentProtector] = field(default_factory=dict[str, RaritanPduOverCurrentProtector])
+    network_interfaces: dict[str, NetworkInterface] = field(default_factory=dict[str, NetworkInterface])
 
     def add_outlet(self, outlet: RaritanPduOutlet) -> RaritanPduOutlet:
         """Add an outlet to the PDU."""
@@ -97,6 +99,15 @@ class RaritanPdu(RaritanDevice):
     def device_type(self) -> str:
         """Get the device type to use for this entity."""
         return "PDU"
+
+    @property
+    def active_network_interface(self) -> NetworkInterface | None:
+        """Get the active network interface."""
+        for key in self.network_interfaces:
+            if self.network_interfaces[key].mac_address == self.mac_address:
+                return self.network_interfaces[key]
+
+        return None
 
 
 @dataclass(kw_only=True)

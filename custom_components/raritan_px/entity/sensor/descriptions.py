@@ -460,6 +460,11 @@ PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescriptio
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_power_rating",
     ),
+    RaritanPduSensorEntityDescription(
+        key="active_network_interface.label",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_active_network_interface",
+    ),
 )
 
 OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityDescription, ...] = (

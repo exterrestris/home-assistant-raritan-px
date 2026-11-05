@@ -114,6 +114,9 @@
       },
       "pdu_voltage_rating": {
         "name": "Voltage Rating"
+      },
+      "pdu_active_network_interface": {
+        "name": "Network Interface"
       }
     }
   }
