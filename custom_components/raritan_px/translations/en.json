@@ -140,6 +140,9 @@
       "pdu_power_rating": {
         "name": "Power Rating"
       },
+      "pdu_power_supply_status": {
+        "name": "Power Supply {idx} Status"
+      },
       "pdu_voltage_rating": {
         "name": "Voltage Rating"
       }

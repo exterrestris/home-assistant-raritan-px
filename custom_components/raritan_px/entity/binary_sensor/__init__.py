@@ -51,7 +51,8 @@ class RaritanDeviceBinarySensorEntity(CoordinatedRaritanDeviceEntity, BinarySens
     def _get_value(self) -> EntityValue:
         raise NotImplementedError
 
-    def _entity_type(self) -> str:
+    @classmethod
+    def _entity_type(cls) -> str:
         return "binary sensor"
 
     @callback

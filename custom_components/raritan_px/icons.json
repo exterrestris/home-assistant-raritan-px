@@ -57,6 +57,9 @@
       "pdu_power_rating": {
         "default": "mdi:flash"
       },
+      "pdu_power_supply_status": {
+        "default": "mdi:transmission-tower"
+      },
       "pdu_voltage_rating": {
         "default": "mdi:sine-wave"
       }

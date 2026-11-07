@@ -1,6 +1,7 @@
 """Raritan PX2/PX3 PDU Integration."""
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.const import (
@@ -13,6 +14,7 @@ from homeassistant.const import (
     CONF_SSL,
     CONF_USERNAME,
     CONF_VERIFY_SSL,
+    Platform,
 )
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import (
@@ -20,6 +22,9 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers import (
     device_registry as dr,
+)
+from homeassistant.helpers import (
+    entity_registry as er,
 )
 
 from custom_components.raritan_px.api.client import (
@@ -251,3 +256,56 @@ async def migrate_config_entry_to_version_1_2(hass: HomeAssistant, config_entry:
     }
 
     hass.config_entries.async_update_entry(config_entry, data=updates)
+
+
+async def migrate_config_entry_to_version_1_3(hass: HomeAssistant, config_entry: RaritanPduConfigEntry) -> None:
+    """Migrate config entry data to 1.3."""
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(entity_registry, config_entry.entry_id)
+    migrated = 0
+
+    for entity in entities:
+        new_unique_id = entity.unique_id
+
+        if entity.domain == Platform.SWITCH:
+            new_unique_id = re.sub(
+                r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+)$",
+                r"\g<device_id>::switch::\g<entity_key>",
+                new_unique_id,
+            )
+        else:
+            # Migrate attribute backed entities
+            new_unique_id = re.sub(
+                r"^(?P<device_id>[^:]+:[^_:]+)_prop_(?P<entity_key>.+)$",
+                r"\g<device_id>::attribute::\g<entity_key>",
+                new_unique_id,
+            )
+
+            # Replace colon in multi-statesensor entities
+            new_unique_id = re.sub(
+                r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+):(?P<index>[0-9]+)$",
+                r"\g<device_id>::sensor::\g<entity_key>_\g<index>",
+                new_unique_id,
+            )
+
+            # Migrate remaining sensor backed entities
+            new_unique_id = re.sub(
+                r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+)$",
+                r"\g<device_id>::sensor::\g<entity_key>",
+                new_unique_id,
+            )
+
+        if new_unique_id != entity.unique_id:
+            try:
+                entity_registry.async_update_entity(entity.entity_id, new_unique_id=new_unique_id)
+
+                migrated += 1
+            except ValueError:
+                _LOGGER.warning(
+                    "Cannot migrate %s unique id to %s",
+                    entity.entity_id,
+                    new_unique_id,
+                    exc_info=True,
+                )
+
+    _LOGGER.info("Migrated unique IDs of %s of %s entities", migrated, len(entities))

@@ -71,13 +71,25 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoord
         self._attr_device_info = self._get_device_info()
         self._attr_unique_id = self._get_unique_id()
 
-        _LOGGER.debug("Created %s %s for %s", description.key, self._entity_type(), device.device_id)
+        _LOGGER.debug("Created %s %s", self._entity_type(), self._attr_unique_id)
 
     def _get_unique_id(self) -> str:
-        return f"{self._device.device_id}_{self.entity_description.key}"
+        return self._build_unique_id(self._device.device_id, self.entity_description.key)
 
+    @classmethod
+    def _build_unique_id(cls, device_id: str, entity_id: str) -> str:
+        entity_id = re.sub(r"__+", "_", re.sub(r"[\.\[\]:]", "_", entity_id))
+
+        return f"{device_id}::{cls._entity_source()}::{entity_id}"
+
+    @classmethod
     @abstractmethod
-    def _entity_type(self) -> str:
+    def _entity_type(cls) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def _entity_source(cls) -> str:
         raise NotImplementedError
 
     @abstractmethod
@@ -141,6 +153,10 @@ class CoordinatedRaritanDeviceSensorBackedEntity(CoordinatedRaritanDeviceEntity,
 
         self._sensor = sensor
 
+    @classmethod
+    def _entity_source(cls) -> str:
+        return "sensor"
+
     def _get_raw_sensor_value(self) -> Any:
         return self._sensor.value
 
@@ -177,8 +193,9 @@ class CoordinatedRaritanDeviceAttributeBackedEntity(CoordinatedRaritanDeviceEnti
 
         super().__init__(device, hub, coordinator, description)
 
-    def _get_unique_id(self) -> str:
-        return re.sub(r"__+", "_", re.sub(r"[\.\[\]]", "_", f"{self._device.device_id}_prop_{self._device_attr}"))
+    @classmethod
+    def _entity_source(cls) -> str:
+        return "attribute"
 
     def _get_raw_device_attr_value(self) -> Any:
         source = self._model or self._device
