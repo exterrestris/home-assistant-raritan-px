@@ -10,6 +10,11 @@ type RaritanUpdatableRpcMethodsList = list[tuple[tuple[RpcInterface.Method, list
 
 
 @dataclass(kw_only=True)
+class RaritanModel:
+    """Representation of a generic model."""
+
+
+@dataclass(kw_only=True)
 class RaritanUpdatable:
     """Representation of a generic updatable value."""
 

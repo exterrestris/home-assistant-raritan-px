@@ -1,37 +1,44 @@
 """Raritan PDU API base device models."""
 
-from dataclasses import dataclass, fields
-from typing import Self, get_args, get_type_hints
+from dataclasses import dataclass, field, fields
+from typing import TYPE_CHECKING, Self, get_args, get_type_hints
 
 from raritan.rpc.sensors import Sensor
 
+from custom_components.raritan_px.api.model import RaritanModel
 from custom_components.raritan_px.api.model.sensor import RaritanSensor, RaritanSwitch
+
+if TYPE_CHECKING:
+    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
 
 
 @dataclass(kw_only=True)
-class RaritanDevice:
+class RaritanDevice(RaritanModel):
     """Representation of a generic Raritan device."""
 
+    id: int
+    rid: str
     device_id: str
-    pdu_id: int
     name: str
     url: str | None = None
     sensors: RaritanDeviceSensors
 
     @property
-    def defined_sensors(self) -> list[tuple[str, RaritanSensor | None]]:
+    def defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
         """Return a list of sensors defined on this device by sensor name."""
-        return [(sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)]
+        return [(self.device_id, sensor.name, getattr(self.sensors, sensor.name)) for sensor in fields(self.sensors)]
 
     @property
     def all_defined_sensors(self) -> list[tuple[str, str, RaritanSensor | None]]:
         """Return a list of sensors defined on this device by device ID and sensor name."""
-        return [(self.device_id, sensor_name, sensor) for (sensor_name, sensor) in self.defined_sensors]
+        return [(name, sensor_name, sensor) for (name, sensor_name, sensor) in self.defined_sensors]
 
     @property
-    def updatable_sensors(self) -> list[tuple[str, RaritanSensor]]:
+    def updatable_sensors(self) -> list[tuple[str, str, RaritanSensor]]:
         """Return a list of updatable sensors defined on this device by sensor name."""
-        return [(name, sensor) for (name, sensor) in self.defined_sensors if sensor is not None]
+        return [
+            (name, sensor_name, sensor) for (name, sensor_name, sensor) in self.defined_sensors if sensor is not None
+        ]
 
     @property
     def all_updatable_sensors(self) -> list[tuple[str, str, RaritanSensor]]:
@@ -46,15 +53,39 @@ class RaritanDevice:
     def available_sensors(self) -> list[tuple[str, RaritanSensor]]:
         """Return a list of available sensors defined on this device by sensor name."""
         return [
-            (f"{name}:{idx}" if idx is not None else name, sensor)
-            for (name, _sensor) in self.updatable_sensors
+            (f"{sensor_name}:{idx}" if idx is not None else sensor_name, sensor)
+            for (_, sensor_name, _sensor) in self.updatable_sensors
             for (idx, sensor) in _sensor.sensors
         ]
 
     @property
     def available_switches(self) -> list[tuple[str, RaritanSwitch]]:
         """Return a list of available switches defined on this device by switch name."""
-        return [(name, sensor) for (name, sensor) in self.defined_sensors if isinstance(sensor, RaritanSwitch)]
+        return [
+            (sensor_name, sensor)
+            for (_, sensor_name, sensor) in self.defined_sensors
+            if isinstance(sensor, RaritanSwitch)
+        ]
+
+    @property
+    def device_name(self) -> str:
+        """Return the name for this device if defined, or a default name."""
+        return self.name
+
+    @property
+    def device_type(self) -> str:
+        """Return the type of this device."""
+        raise NotImplementedError
+
+    @property
+    def device_model(self) -> str:
+        """Return the model of this device."""
+        raise NotImplementedError
+
+    @property
+    def pdu(self) -> RaritanPdu:
+        """Return the pdu for this device."""
+        raise NotImplementedError
 
 
 @dataclass(kw_only=True)
@@ -62,6 +93,37 @@ class RaritanEnergyDevice(RaritanDevice):
     """Representation of a generic Raritan energy device."""
 
     label: str
+    _pdu: RaritanPdu = field(init=False, repr=False)
+
+    @property
+    def pdu(self) -> RaritanPdu:
+        """Get the pdu for this entity."""
+        return self._pdu
+
+    @pdu.setter
+    def pdu(self, pdu: RaritanPdu) -> None:
+        self._pdu = pdu
+
+    @property
+    def short_device_name(self) -> str:
+        """Get the device name (excluding PDU name) to use for this entity."""
+        if self.name:
+            return self.name
+
+        return f"{self.device_type} {self.label}"
+
+    @property
+    def device_name(self) -> str:
+        """Get the device name to use for this entity."""
+        if self.name:
+            return self.name
+
+        return f"{self.pdu.device_name} {self.device_type} {self.label}"
+
+    @property
+    def device_model(self) -> str:
+        """Get the model to use for this entity."""
+        return f"{self.pdu.model} {self.device_type}"
 
 
 @dataclass(kw_only=True)

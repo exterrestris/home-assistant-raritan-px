@@ -1,54 +1,59 @@
 """Raritan PDU sensor entity descriptions."""
 
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
-from decimal import Decimal
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription, SensorStateClass
-from homeassistant.const import DEGREE
-from homeassistant.helpers.typing import StateType
+from homeassistant.const import DEGREE, EntityCategory
 
-from custom_components.raritan_px.api.model.sensor.state import NormalAlarmed, OkFaulted, ResidualCurrentStatus
+from custom_components.raritan_px.api.model.network import NetworkInterface, NetworkInterfaceState, NetworkInterfaceType
+from custom_components.raritan_px.api.model.sensor.state import (
+    NormalAlarmed,
+    OkFaulted,
+    OpenClosed,
+    ResidualCurrentStatus,
+)
 from custom_components.raritan_px.entity.descriptions import (
-    RaritanPduDeviceEntityDescription,
+    RaritanDeviceEntityDescription,
     RaritanPduEntityDescription,
     RaritanPduInletEntityDescription,
     RaritanPduOutletEntityDescription,
+    RaritanPduOverCurrentProtectorEntityDescription,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-type SensorEntityValue = StateType | date | datetime | Decimal
-
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduDeviceSensorEntityDescription(SensorEntityDescription, RaritanPduDeviceEntityDescription):
+class RaritanDeviceSensorEntityDescription(SensorEntityDescription, RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU device sensor entity description."""
 
-    convert_fn: Callable[[Any], SensorEntityValue | None] | None = None
-
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduInletSensorEntityDescription(RaritanPduDeviceSensorEntityDescription, RaritanPduInletEntityDescription):
+class RaritanPduInletSensorEntityDescription(RaritanDeviceSensorEntityDescription, RaritanPduInletEntityDescription):
     """Base class for a Raritan PDU inlet sensor entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletSensorEntityDescription(
-    RaritanPduDeviceSensorEntityDescription, RaritanPduOutletEntityDescription
-):
+class RaritanPduOutletSensorEntityDescription(RaritanDeviceSensorEntityDescription, RaritanPduOutletEntityDescription):
     """Base class for a Raritan PDU outlet sensor entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduSensorEntityDescription(RaritanPduDeviceSensorEntityDescription, RaritanPduEntityDescription):
+class RaritanPduSensorEntityDescription(RaritanDeviceSensorEntityDescription, RaritanPduEntityDescription):
     """Base class for a Raritan PDU sensor entity description."""
 
 
-SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
-    # region PDU Sensors
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduOverCurrentProtectorSensorEntityDescription(
+    RaritanDeviceSensorEntityDescription, RaritanPduOverCurrentProtectorEntityDescription
+):
+    """Base class for a Raritan PDU outlet sensor entity description."""
+
+
+SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
+    # region PDU sensor-backed sensors
     RaritanPduSensorEntityDescription(
         key="power_supply_status",
         device_class=SensorDeviceClass.ENUM,
@@ -77,7 +82,7 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         name="Apparent Energy",
     ),
     # endregion
-    # region Outlet Sensors
+    # region Outlet sensor-backed sensors
     RaritanPduOutletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -177,7 +182,7 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         name="Inrush Current",
     ),
     # endregion
-    # region Inlet Sensors
+    # region Inlet sensor-backed sensors
     RaritanPduInletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -318,28 +323,225 @@ SENSOR_DESCRIPTIONS: tuple[RaritanPduDeviceSensorEntityDescription, ...] = (
         name="Residual Current Status",
     ),
     # endregion
+    # region Overcurrent Protector Sensors
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="trip",
+        device_class=SensorDeviceClass.ENUM,
+        options=OpenClosed.options(),
+        name="Trip Status",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="peak_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Peak Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="maximum_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Maximum Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="active_power",
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="reactive_power",
+        device_class=SensorDeviceClass.REACTIVE_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="apparent_power",
+        device_class=SensorDeviceClass.APPARENT_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="displacement_power_factor",
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Displacement Power Factor",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="crest_factor",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Crest Factor",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="active_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="apparent_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        name="Apparent Energy",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="phase_angle",
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Phase Angle",
+        native_unit_of_measurement=DEGREE,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="line_frequency",
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="residual_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="residual_ac_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual AC Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="residual_dc_current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        name="Residual DC Current",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="residual current status",
+        device_class=SensorDeviceClass.ENUM,
+        options=ResidualCurrentStatus.options(),
+        name="Residual Current Status",
+    ),
+    # endregion
 )
-SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_DESCRIPTIONS}
+SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_BACKED_SENSOR_DESCRIPTIONS}
 
-SensorDesc_co = TypeVar("SensorDesc_co", bound="RaritanPduDeviceSensorEntityDescription", covariant=True)
+PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescription, ...] = (
+    RaritanPduSensorEntityDescription(
+        key="voltage_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_voltage_rating",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="current_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_current_rating",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="frequency_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_frequency_rating",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="power_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_power_rating",
+        entity_registry_enabled_default=False,
+    ),
+)
+
+PDU_NETWORK_ENTITY_DESCRIPTIONS: tuple[Callable[[str, NetworkInterface], RaritanPduSensorEntityDescription], ...] = (
+    lambda key, interface: RaritanPduSensorEntityDescription(
+        key=f"network_interfaces[{key}].state",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        device_class=SensorDeviceClass.ENUM,
+        options=NetworkInterfaceState.options(),
+        translation_key=f"pdu_network_{interface.type.name.lower()}_state",
+        translation_placeholders={"if_name": interface.label},
+        entity_registry_enabled_default=(interface.type == NetworkInterfaceType.ETHERNET),
+    ),
+)
+
+OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityDescription, ...] = (
+    RaritanPduOutletSensorEntityDescription(
+        key="label",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_label",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="receptacle_type",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_receptacle_type",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="inlet.short_device_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_inlet",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="ocp.short_device_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_ocp",
+    ),
+)
+
+INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduInletSensorEntityDescription, ...] = (
+    RaritanPduInletSensorEntityDescription(
+        key="label",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="inlet_label",
+    ),
+    RaritanPduInletSensorEntityDescription(
+        key="plug_type",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="inlet_plug_type",
+        entity_registry_enabled_default=False,
+    ),
+)
+
+OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
+    RaritanPduOverCurrentProtectorSensorEntityDescription, ...
+] = (
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="label",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="ocp_label",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="inlet.short_device_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="ocp_inlet",
+    ),
+)
 
 
-def get_entity_description[SensorDesc_co: "RaritanPduDeviceSensorEntityDescription"](
-    desc_type: type[SensorDesc_co], sensor_name: str
-) -> SensorDesc_co:
+def get_entity_description[SensorDesc: "RaritanDeviceSensorEntityDescription"](
+    desc_type: type[SensorDesc], sensor_name: str
+) -> SensorDesc | None:
     """Get the entity description instance matching the sensor type and name."""
 
     def default_name(name: str = sensor_name) -> str:
         return name.replace("_", " ").replace(":", " ").title()
 
-    if (desc_type, sensor_name) in SENSOR_DESCRIPTIONS_MAP:
-        return SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)]  # pyright: ignore[reportReturnType, reportArgumentType]
+    if (desc_type, sensor_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
+        return SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)]  # pyright: ignore[reportReturnType, reportArgumentType]
 
     if ":" in sensor_name:
         generic_name, idx = sensor_name.split(":")
 
-        if (desc_type, generic_name) in SENSOR_DESCRIPTIONS_MAP:
-            desc = SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)]  # pyright: ignore[reportArgumentType]
+        if (desc_type, generic_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
+            desc = SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)]  # pyright: ignore[reportArgumentType]
 
             def formatted_name() -> str:
                 if type(desc.name) is str:
@@ -357,7 +559,4 @@ def get_entity_description[SensorDesc_co: "RaritanPduDeviceSensorEntityDescripti
                 )  # pyright: ignore[reportReturnType, reportArgumentType]
             )
 
-    return desc_type(
-        key=sensor_name,
-        name=default_name(),
-    )
+    return None

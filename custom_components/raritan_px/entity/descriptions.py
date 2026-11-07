@@ -1,25 +1,38 @@
 """Raritan PDU base entity descriptions."""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.entity import EntityDescription
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from custom_components.raritan_px.entity import EntityValue
+
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduDeviceEntityDescription(EntityDescription):
+class RaritanDeviceEntityDescription(EntityDescription):
+    """Base class for a Raritan PDU entity description."""
+
+    convert_fn: Callable[[Any], EntityValue | None] | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class RaritanPduInletEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduInletEntityDescription(RaritanPduDeviceEntityDescription):
+class RaritanPduOutletEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduOutletEntityDescription(RaritanPduDeviceEntityDescription):
+class RaritanPduOverCurrentProtectorEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanPduEntityDescription(RaritanPduDeviceEntityDescription):
+class RaritanPduEntityDescription(RaritanDeviceEntityDescription):
     """Base class for a Raritan PDU entity description."""
