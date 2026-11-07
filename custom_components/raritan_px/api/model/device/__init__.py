@@ -105,12 +105,20 @@ class RaritanEnergyDevice(RaritanDevice):
         self._pdu = pdu
 
     @property
+    def short_device_name(self) -> str:
+        """Get the device name (excluding PDU name) to use for this entity."""
+        if self.name:
+            return self.name
+
+        return f"{self.device_type} {self.label}"
+
+    @property
     def device_name(self) -> str:
         """Get the device name to use for this entity."""
         if self.name:
             return self.name
 
-        return f"{self.device_type} {self.label}"
+        return f"{self.pdu.device_name} {self.device_type} {self.label}"
 
     @property
     def device_model(self) -> str:

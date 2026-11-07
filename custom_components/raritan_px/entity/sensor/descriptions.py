@@ -484,7 +484,7 @@ OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityD
         translation_key="outlet_inlet",
     ),
     RaritanPduOutletSensorEntityDescription(
-        key="ocp.device_name",
+        key="ocp.short_device_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="outlet_ocp",
     ),
@@ -507,7 +507,7 @@ OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
         translation_key="ocp_label",
     ),
     RaritanPduOverCurrentProtectorSensorEntityDescription(
-        key="inlet.device_name",
+        key="inlet.short_device_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="ocp_inlet",
     ),
