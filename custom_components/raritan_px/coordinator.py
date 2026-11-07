@@ -70,7 +70,7 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
     def _cache_devices_by_id(self, pdu: RaritanPdu) -> dict[str, RaritanDevice]:
         devices: dict[str, RaritanDevice] = {}
 
-        for device in [pdu, *pdu.inlets, *pdu.outlets, *pdu.ocps]:
+        for _, device in [("", pdu), *pdu.inlets.items(), *pdu.outlets.items(), *pdu.ocps.items()]:
             devices[device.device_id] = device
 
         return devices

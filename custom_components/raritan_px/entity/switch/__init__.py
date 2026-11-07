@@ -47,7 +47,12 @@ class RaritanDeviceSwitchEntity(CoordinatedRaritanDeviceEntity, SwitchEntity):
 
         self._switch = switch
 
-    def _entity_type(self) -> str:
+    @classmethod
+    def _entity_type(cls) -> str:
+        return "switch"
+
+    @classmethod
+    def _entity_source(cls) -> str:
         return "switch"
 
     async def async_turn_on(self, **kwargs: Any) -> None:

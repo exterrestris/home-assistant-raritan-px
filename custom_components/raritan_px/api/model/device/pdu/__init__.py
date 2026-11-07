@@ -11,6 +11,7 @@ from custom_components.raritan_px.api.model.device import (
 from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
 from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
 from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
+from custom_components.raritan_px.api.model.network import NetworkInterface, NetworkInterfaceState
 from custom_components.raritan_px.api.model.sensor import (
     RaritanAccumulatingSensor,
     RaritanMultiStateSensor,
@@ -33,29 +34,34 @@ class RaritanPdu(RaritanDevice):
     has_switchable_outlets: bool
     has_metered_outlets: bool
     is_standalone: bool
+    voltage_rating: str
+    current_rating: str
+    frequency_rating: str
+    power_rating: str
     sensors: RaritanPduSensors
-    outlets: list[RaritanPduOutlet] = field(default_factory=list[RaritanPduOutlet])
-    inlets: list[RaritanPduInlet] = field(default_factory=list[RaritanPduInlet])
-    ocps: list[RaritanPduOverCurrentProtector] = field(default_factory=list[RaritanPduOverCurrentProtector])
+    outlets: dict[str, RaritanPduOutlet] = field(default_factory=dict[str, RaritanPduOutlet])
+    inlets: dict[str, RaritanPduInlet] = field(default_factory=dict[str, RaritanPduInlet])
+    ocps: dict[str, RaritanPduOverCurrentProtector] = field(default_factory=dict[str, RaritanPduOverCurrentProtector])
+    network_interfaces: dict[str, NetworkInterface] = field(default_factory=dict[str, NetworkInterface])
 
     def add_outlet(self, outlet: RaritanPduOutlet) -> RaritanPduOutlet:
         """Add an outlet to the PDU."""
         outlet.pdu = self
-        self.outlets.append(outlet)
+        self.outlets[outlet.rid] = outlet
 
         return outlet
 
     def add_inlet(self, inlet: RaritanPduInlet) -> RaritanPduInlet:
         """Add an inlet to the PDU."""
         inlet.pdu = self
-        self.inlets.append(inlet)
+        self.inlets[inlet.rid] = inlet
 
         return inlet
 
     def add_ocp(self, ocp: RaritanPduOverCurrentProtector) -> RaritanPduOverCurrentProtector:
         """Add an overcurrent protector to the PDU."""
         ocp.pdu = self
-        self.ocps.append(ocp)
+        self.ocps[ocp.rid] = ocp
 
         return ocp
 
@@ -65,9 +71,9 @@ class RaritanPdu(RaritanDevice):
         return list(
             flatten(
                 [super().all_defined_sensors]
-                + [outlet.all_defined_sensors for outlet in self.outlets]
-                + [inlet.all_defined_sensors for inlet in self.inlets]
-                + [ocp.all_defined_sensors for ocp in self.ocps]
+                + [outlet.all_defined_sensors for _, outlet in self.outlets.items()]
+                + [inlet.all_defined_sensors for _, inlet in self.inlets.items()]
+                + [ocp.all_defined_sensors for _, ocp in self.ocps.items()]
             )
         )
 
@@ -93,6 +99,15 @@ class RaritanPdu(RaritanDevice):
     def device_type(self) -> str:
         """Get the device type to use for this entity."""
         return "PDU"
+
+    @property
+    def active_network_interface(self) -> NetworkInterface | None:
+        """Get the active network interface."""
+        for key in self.network_interfaces:
+            if self.network_interfaces[key].state == NetworkInterfaceState.UP:
+                return self.network_interfaces[key]
+
+        return None
 
 
 @dataclass(kw_only=True)

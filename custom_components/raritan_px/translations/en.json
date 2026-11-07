@@ -22,7 +22,6 @@
         "title": "Reauthentication"
       },
       "reconfigure": {
-        "title": "Reconfigure {name} {model}",
         "data": {
           "host": "Host/IP address",
           "password": "Password",
@@ -35,7 +34,6 @@
         },
         "sections": {
           "options": {
-            "name": "Advanced connection options",
             "data": {
               "ssl": "Use HTTPS",
               "verify_ssl": "Verify SSL certificate"
@@ -43,9 +41,11 @@
             "data_description": {
               "ssl": "Connect to your Raritan PDU over HTTPS (recommended)",
               "verify_ssl": "Verify the SSL certificate is valid. Disable if your Raritan PDU has a self-signed certificate"
-            }
+            },
+            "name": "Advanced connection options"
           }
-        }
+        },
+        "title": "Reconfigure {name} {model}"
       },
       "user": {
         "data": {
@@ -58,9 +58,9 @@
           "password": "Account password for your Raritan PDU.",
           "username": "Account username for your Raritan PDU."
         },
+        "description": "Enter the connection details for your Raritan PX-Series PDU.\nIf both username and password are left blank, then the integration will attempt to connect using the default Raritan credentials.",
         "sections": {
           "options": {
-            "name": "Advanced connection options",
             "data": {
               "ssl": "Use HTTPS",
               "verify_ssl": "Verify SSL certificate"
@@ -68,16 +68,84 @@
             "data_description": {
               "ssl": "Connect to your Raritan PDU over HTTPS (recommended)",
               "verify_ssl": "Verify the SSL certificate is valid. Disable if your Raritan PDU has a self-signed certificate"
-            }
+            },
+            "name": "Advanced connection options"
           }
-        },
-        "description": "Enter the connection details for your Raritan PX-Series PDU.\nIf both username and password are left blank, then the integration will attempt to connect using the default Raritan credentials."
+        }
       }
     }
   },
   "device": {
     "unnamed_device": {
       "name": "Unnamed {model}"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "pdu_has_metered_outlets": {
+        "name": "Metered Outlets",
+        "state": {
+          "off": "No",
+          "on": "Yes"
+        }
+      },
+      "pdu_has_switchable_outlets": {
+        "name": "Switchable Outlets",
+        "state": {
+          "off": "No",
+          "on": "Yes"
+        }
+      }
+    },
+    "sensor": {
+      "inlet_label": {
+        "name": "Label"
+      },
+      "inlet_plug_type": {
+        "name": "Plug Type"
+      },
+      "ocp_inlet": {
+        "name": "Inlet"
+      },
+      "ocp_label": {
+        "name": "Label"
+      },
+      "outlet_inlet": {
+        "name": "Inlet"
+      },
+      "outlet_label": {
+        "name": "Label"
+      },
+      "outlet_ocp": {
+        "name": "Overcurrent Protector"
+      },
+      "outlet_receptacle_type": {
+        "name": "Receptacle Type"
+      },
+      "pdu_current_rating": {
+        "name": "Current Rating"
+      },
+      "pdu_frequency_rating": {
+        "name": "Frequency Rating"
+      },
+      "pdu_network_bridge_state": {
+        "name": "Network - {if_name}"
+      },
+      "pdu_network_ethernet_state": {
+        "name": "Network - {if_name}"
+      },
+      "pdu_network_wlan_state": {
+        "name": "Network - {if_name}"
+      },
+      "pdu_power_rating": {
+        "name": "Power Rating"
+      },
+      "pdu_power_supply_status": {
+        "name": "Power Supply {idx} Status"
+      },
+      "pdu_voltage_rating": {
+        "name": "Voltage Rating"
+      }
     }
   }
 }

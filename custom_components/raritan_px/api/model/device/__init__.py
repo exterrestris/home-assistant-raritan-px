@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Self, get_args, get_type_hints
 
 from raritan.rpc.sensors import Sensor
 
+from custom_components.raritan_px.api.model import RaritanModel
 from custom_components.raritan_px.api.model.sensor import RaritanSensor, RaritanSwitch
 
 if TYPE_CHECKING:
@@ -12,10 +13,11 @@ if TYPE_CHECKING:
 
 
 @dataclass(kw_only=True)
-class RaritanDevice:
+class RaritanDevice(RaritanModel):
     """Representation of a generic Raritan device."""
 
     id: int
+    rid: str
     device_id: str
     name: str
     url: str | None = None
@@ -101,6 +103,14 @@ class RaritanEnergyDevice(RaritanDevice):
     @pdu.setter
     def pdu(self, pdu: RaritanPdu) -> None:
         self._pdu = pdu
+
+    @property
+    def short_device_name(self) -> str:
+        """Get the device name (excluding PDU name) to use for this entity."""
+        if self.name:
+            return self.name
+
+        return f"{self.device_type} {self.label}"
 
     @property
     def device_name(self) -> str:
