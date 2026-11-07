@@ -34,8 +34,20 @@
       "pdu_voltage_rating": {
         "default": "mdi:sine-wave"
       },
-      "pdu_active_network_interface": {
+      "pdu_network_ethernet_state": {
         "default": "mdi:lan"
+      },
+      "pdu_network_wlan_state": {
+        "default": "mdi:wifi",
+        "state": {
+          "Not Present": "mdi:wifi-off"
+        }
+      },
+      "pdu_network_bridge_state": {
+        "default": "mdi:lan-connect",
+        "state": {
+          "Not Present": "mdi:lan-disconnect"
+        }
       }
     }
   }

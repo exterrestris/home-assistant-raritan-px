@@ -1,12 +1,13 @@
 """Raritan PDU sensor entities."""
 
+import re
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import callback
 
+from custom_components.raritan_px.api import RaritanEnum
 from custom_components.raritan_px.api.model import RaritanModel
-from custom_components.raritan_px.api.model.sensor.state import RaritanSensorState
 from custom_components.raritan_px.entity import (
     CoordinatedRaritanDeviceEntity,
     CoordinatedRaritanPduEntity,
@@ -68,7 +69,7 @@ class RaritanDeviceSensorEntity(CoordinatedRaritanDeviceEntity, SensorEntity):
         if value is not None:
             if self.entity_description.convert_fn is not None:
                 value = self.entity_description.convert_fn(value)
-            elif isinstance(value, RaritanSensorState):
+            elif isinstance(value, RaritanEnum):
                 value = value.friendly_name()
 
         self._attr_native_value = value
@@ -79,7 +80,8 @@ class RaritanDeviceSensorEntity(CoordinatedRaritanDeviceEntity, SensorEntity):
 class RaritanDeviceAttributeBackedSensorEntity(RaritanDeviceSensorEntity):
     """Representation of a Raritan PDU device property backed sensor."""
 
-    _attr: str
+    _device_attr: str
+    _model: RaritanModel | None
 
     def __init__(
         self,
@@ -87,26 +89,36 @@ class RaritanDeviceAttributeBackedSensorEntity(RaritanDeviceSensorEntity):
         hub: DeviceEntry,
         coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
-        attribute: str,
+        *,
+        model: RaritanModel | None = None,
     ) -> None:
         """Initialise the entity."""
+        self._device_attr = description.key
+        self._model = model
+
         super().__init__(device, hub, coordinator, description)
 
-        self._attr = attribute
-
     def _get_unique_id(self) -> str:
-        return f"{self._device.device_id}_prop_{self.entity_description.key}"
+        return re.sub(r"__+", "_", re.sub(r"[\.\[\]]", "_", f"{self._device.device_id}_prop_{self._device_attr}"))
 
     def _get_value(self) -> SensorEntityValue:
-        device = self._device
-        path = self._attr.split(".")
+        source = self._model or self._device
+        path = self._device_attr.split(".")
         attr = path.pop()
 
-        for elm in path:
-            if not isinstance(device := getattr(device, elm), RaritanModel):
-                return None
+        try:
+            for elm in path:
+                if m := re.fullmatch(r"(?P<elm>[a-z0-9_]+)\[(?P<key>[a-z0-9_]+)\]", elm):
+                    source = getattr(source, m.group("elm"))
+                    source = source[m.group("key")]
+                    continue
 
-        return getattr(device, attr)
+                if not isinstance(source := getattr(source, elm), RaritanModel):
+                    return None
+
+            return getattr(source, attr)
+        except AttributeError, KeyError, ValueError:
+            return None
 
 
 class RaritanPduAttributeBackedSensorEntity(CoordinatedRaritanPduEntity, RaritanDeviceAttributeBackedSensorEntity):

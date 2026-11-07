@@ -19,6 +19,7 @@ from custom_components.raritan_px.entity.sensor.descriptions import (
     OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
+    PDU_NETWORK_ENTITY_DESCRIPTIONS,
     RaritanPduInletSensorEntityDescription,
     RaritanPduOutletSensorEntityDescription,
     RaritanPduOverCurrentProtectorSensorEntityDescription,
@@ -46,7 +47,7 @@ async def async_setup_entry(
     """Set up sensors."""
     data: RaritanPduData = config_entry.runtime_data
     coordinator: RaritanPduDataUpdateCoordinator = data.coordinator
-    pdu: RaritanPdu = coordinator.pdu
+    pdu: RaritanPdu = data.coordinator.pdu
 
     async_add_entities(
         RaritanPduSensorBackedSensorEntity(
@@ -61,8 +62,14 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        RaritanPduAttributeBackedSensorEntity(pdu, data.hub, coordinator, desc, desc.key)
+        RaritanPduAttributeBackedSensorEntity(pdu, data.hub, data.coordinator, desc)
         for desc in PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
+    )
+
+    async_add_entities(
+        RaritanPduAttributeBackedSensorEntity(pdu, data.hub, data.coordinator, desc(key, interface))
+        for (key, interface) in pdu.network_interfaces.items()
+        for desc in PDU_NETWORK_ENTITY_DESCRIPTIONS
     )
 
     async_add_entities(
@@ -79,7 +86,7 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        RaritanPduInletAttributeBackedSensorEntity(inlet, data.hub, coordinator, desc, desc.key)
+        RaritanPduInletAttributeBackedSensorEntity(inlet, data.hub, data.coordinator, desc)
         for (_, inlet) in pdu.inlets.items()
         for desc in INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
     )
@@ -98,7 +105,7 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        RaritanPduOutletAttributeBackedSensorEntity(outlet, data.hub, coordinator, desc, desc.key)
+        RaritanPduOutletAttributeBackedSensorEntity(outlet, data.hub, data.coordinator, desc)
         for (_, outlet) in pdu.outlets.items()
         for desc in OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
     )
@@ -117,7 +124,7 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        RaritanPduOverCurrentProtectorAttributeBackedSensorEntity(ocp, data.hub, coordinator, desc, desc.key)
+        RaritanPduOverCurrentProtectorAttributeBackedSensorEntity(ocp, data.hub, data.coordinator, desc)
         for (_, ocp) in pdu.ocps.items()
         for desc in OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
     )

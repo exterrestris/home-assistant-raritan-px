@@ -1,10 +1,11 @@
 """Raritan PDU API network models."""
 
 from dataclasses import dataclass
-from enum import Enum, IntEnum
+from enum import IntEnum
 
 from raritan.rpc.net import InterfaceOpState, InterfaceType
 
+from custom_components.raritan_px.api import RaritanEnum
 from custom_components.raritan_px.api.model import RaritanModel
 
 
@@ -20,7 +21,7 @@ class NetworkInterface(RaritanModel):
     mac_address: str
 
 
-class NetworkEnum(Enum):
+class NetworkEnum(RaritanEnum):
     """Base network enum."""
 
 

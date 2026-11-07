@@ -115,8 +115,14 @@
       "pdu_voltage_rating": {
         "name": "Voltage Rating"
       },
-      "pdu_active_network_interface": {
-        "name": "Network Interface"
+      "pdu_network_ethernet_state": {
+        "name": "Network - {if_name}"
+      },
+      "pdu_network_wlan_state": {
+        "name": "Network - {if_name}"
+      },
+      "pdu_network_bridge_state": {
+        "name": "Network - {if_name}"
       }
     }
   }

@@ -9,6 +9,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescr
 from homeassistant.const import DEGREE, EntityCategory
 from homeassistant.helpers.typing import StateType
 
+from custom_components.raritan_px.api.model.network import NetworkInterface, NetworkInterfaceState, NetworkInterfaceType
 from custom_components.raritan_px.api.model.sensor.state import (
     NormalAlarmed,
     OkFaulted,
@@ -460,10 +461,17 @@ PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescriptio
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_power_rating",
     ),
-    RaritanPduSensorEntityDescription(
-        key="active_network_interface.label",
+)
+
+PDU_NETWORK_ENTITY_DESCRIPTIONS: tuple[Callable[[str, NetworkInterface], RaritanPduSensorEntityDescription], ...] = (
+    lambda key, interface: RaritanPduSensorEntityDescription(
+        key=f"network_interfaces[{key}].state",
         entity_category=EntityCategory.DIAGNOSTIC,
-        translation_key="pdu_active_network_interface",
+        device_class=SensorDeviceClass.ENUM,
+        options=NetworkInterfaceState.options(),
+        translation_key=f"pdu_network_{interface.type.name.lower()}_state",
+        translation_placeholders={"if_name": interface.label},
+        entity_registry_enabled_default=(interface.type == NetworkInterfaceType.ETHERNET),
     ),
 )
 
@@ -479,7 +487,7 @@ OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityD
         translation_key="outlet_receptacle_type",
     ),
     RaritanPduOutletSensorEntityDescription(
-        key="inlet.device_name",
+        key="inlet.short_device_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="outlet_inlet",
     ),
