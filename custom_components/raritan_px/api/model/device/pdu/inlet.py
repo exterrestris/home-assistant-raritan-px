@@ -14,6 +14,7 @@ from custom_components.raritan_px.api.model.sensor import (
 class RaritanPduInlet(RaritanEnergyDevice):
     """Representation of a Raritan PDU inlet."""
 
+    plug_type: str
     sensors: RaritanPduInletSensors
 
     @property

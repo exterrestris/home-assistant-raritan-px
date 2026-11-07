@@ -101,6 +101,9 @@
       "inlet_label": {
         "name": "Label"
       },
+      "inlet_plug_type": {
+        "name": "Plug Type"
+      },
       "ocp_inlet": {
         "name": "Inlet"
       },

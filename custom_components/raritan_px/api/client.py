@@ -574,6 +574,7 @@ class RaritanClient:
                     id=inlet_idx,
                     name=inlet_settings.name,
                     label=inlet_metadata.label,
+                    plug_type=inlet_metadata.plugType,
                     sensors=RaritanPduInletSensors.from_sensor_sources(
                         {
                             "voltage": inlet_sensors.voltage,

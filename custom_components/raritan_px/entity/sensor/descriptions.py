@@ -502,6 +502,12 @@ INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduInletSensorEntityDes
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="inlet_label",
     ),
+    RaritanPduInletSensorEntityDescription(
+        key="plug_type",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="inlet_plug_type",
+        entity_registry_enabled_default=False,
+    ),
 )
 
 OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[

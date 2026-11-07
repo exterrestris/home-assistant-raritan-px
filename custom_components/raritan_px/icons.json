@@ -12,6 +12,9 @@
       "inlet_label": {
         "default": "mdi:label-outline"
       },
+      "inlet_plug_type": {
+        "default": "mdi:power-plug-outline"
+      },
       "ocp_inlet": {
         "default": "mdi:power-plug"
       },
