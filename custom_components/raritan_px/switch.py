@@ -41,6 +41,6 @@ async def async_setup_entry(
                 get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name),
                 switch,
             )
-            for outlet in pdu.outlets
+            for (_, outlet) in pdu.outlets.items()
             for (switch_name, switch) in outlet.available_switches
         )

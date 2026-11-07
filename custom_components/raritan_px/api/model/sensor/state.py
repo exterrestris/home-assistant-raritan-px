@@ -1,19 +1,12 @@
 """Raritan PDU API device sensor state enums."""
 
-from enum import Enum, IntEnum
+from enum import IntEnum
+
+from custom_components.raritan_px.api import RaritanEnum
 
 
-class RaritanSensorState(Enum):
+class RaritanSensorState(RaritanEnum):
     """Generic sensor state enum."""
-
-    def friendly_name(self) -> str:
-        """Return a formatted 'friendly' name for the sensor state."""
-        return self.name.title()
-
-    @classmethod
-    def options(cls) -> list[str]:
-        """Return a list of the 'friendly' names for all the possible sensor states."""
-        return [opt.friendly_name() for opt in list(cls)]
 
 
 class OnOff(RaritanSensorState, IntEnum):

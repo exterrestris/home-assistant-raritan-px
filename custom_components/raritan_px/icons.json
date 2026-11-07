@@ -1,0 +1,54 @@
+{
+  "entity": {
+    "sensor": {
+      "inlet_label": {
+        "default": "mdi:label-outline"
+      },
+      "ocp_inlet": {
+        "default": "mdi:power-plug"
+      },
+      "ocp_label": {
+        "default": "mdi:label-outline"
+      },
+      "outlet_inlet": {
+        "default": "mdi:power-plug"
+      },
+      "outlet_label": {
+        "default": "mdi:label-outline"
+      },
+      "outlet_ocp": {
+        "default": "mdi:connection"
+      },
+      "outlet_receptacle_type": {
+        "default": "mdi:power-socket"
+      },
+      "pdu_current_rating": {
+        "default": "mdi:current-ac"
+      },
+      "pdu_frequency_rating": {
+        "default": "mdi:sine-wave"
+      },
+      "pdu_power_rating": {
+        "default": "mdi:flash"
+      },
+      "pdu_voltage_rating": {
+        "default": "mdi:sine-wave"
+      },
+      "pdu_network_ethernet_state": {
+        "default": "mdi:lan"
+      },
+      "pdu_network_wlan_state": {
+        "default": "mdi:wifi",
+        "state": {
+          "Not Present": "mdi:wifi-off"
+        }
+      },
+      "pdu_network_bridge_state": {
+        "default": "mdi:lan-connect",
+        "state": {
+          "Not Present": "mdi:lan-disconnect"
+        }
+      }
+    }
+  }
+}

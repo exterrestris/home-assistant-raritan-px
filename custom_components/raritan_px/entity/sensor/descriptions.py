@@ -6,9 +6,10 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription, SensorStateClass
-from homeassistant.const import DEGREE
+from homeassistant.const import DEGREE, EntityCategory
 from homeassistant.helpers.typing import StateType
 
+from custom_components.raritan_px.api.model.network import NetworkInterface, NetworkInterfaceState, NetworkInterfaceType
 from custom_components.raritan_px.api.model.sensor.state import (
     NormalAlarmed,
     OkFaulted,
@@ -58,8 +59,8 @@ class RaritanPduOverCurrentProtectorSensorEntityDescription(
     """Base class for a Raritan PDU outlet sensor entity description."""
 
 
-SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
-    # region PDU Sensors
+SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
+    # region PDU sensor-backed sensors
     RaritanPduSensorEntityDescription(
         key="power_supply_status",
         device_class=SensorDeviceClass.ENUM,
@@ -88,7 +89,7 @@ SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
         name="Apparent Energy",
     ),
     # endregion
-    # region Outlet Sensors
+    # region Outlet sensor-backed sensors
     RaritanPduOutletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -188,7 +189,7 @@ SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
         name="Inrush Current",
     ),
     # endregion
-    # region Inlet Sensors
+    # region Inlet sensor-backed sensors
     RaritanPduInletSensorEntityDescription(
         key="voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -437,7 +438,93 @@ SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
     ),
     # endregion
 )
-SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_DESCRIPTIONS}
+SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_BACKED_SENSOR_DESCRIPTIONS}
+
+PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescription, ...] = (
+    RaritanPduSensorEntityDescription(
+        key="voltage_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_voltage_rating",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="current_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_current_rating",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="frequency_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_frequency_rating",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="power_rating",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_power_rating",
+        entity_registry_enabled_default=False,
+    ),
+)
+
+PDU_NETWORK_ENTITY_DESCRIPTIONS: tuple[Callable[[str, NetworkInterface], RaritanPduSensorEntityDescription], ...] = (
+    lambda key, interface: RaritanPduSensorEntityDescription(
+        key=f"network_interfaces[{key}].state",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        device_class=SensorDeviceClass.ENUM,
+        options=NetworkInterfaceState.options(),
+        translation_key=f"pdu_network_{interface.type.name.lower()}_state",
+        translation_placeholders={"if_name": interface.label},
+        entity_registry_enabled_default=(interface.type == NetworkInterfaceType.ETHERNET),
+    ),
+)
+
+OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityDescription, ...] = (
+    RaritanPduOutletSensorEntityDescription(
+        key="label",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_label",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="receptacle_type",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_receptacle_type",
+        entity_registry_enabled_default=False,
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="inlet.short_device_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_inlet",
+    ),
+    RaritanPduOutletSensorEntityDescription(
+        key="ocp.short_device_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_ocp",
+    ),
+)
+
+INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduInletSensorEntityDescription, ...] = (
+    RaritanPduInletSensorEntityDescription(
+        key="label",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="inlet_label",
+    ),
+)
+
+OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
+    RaritanPduOverCurrentProtectorSensorEntityDescription, ...
+] = (
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="label",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="ocp_label",
+    ),
+    RaritanPduOverCurrentProtectorSensorEntityDescription(
+        key="inlet.short_device_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="ocp_inlet",
+    ),
+)
 
 SensorDesc_co = TypeVar("SensorDesc_co", bound="RaritanDeviceSensorEntityDescription", covariant=True)
 
@@ -450,14 +537,14 @@ def get_entity_description[SensorDesc_co: "RaritanDeviceSensorEntityDescription"
     def default_name(name: str = sensor_name) -> str:
         return name.replace("_", " ").replace(":", " ").title()
 
-    if (desc_type, sensor_name) in SENSOR_DESCRIPTIONS_MAP:
-        return SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)]  # pyright: ignore[reportReturnType, reportArgumentType]
+    if (desc_type, sensor_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
+        return SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)]  # pyright: ignore[reportReturnType, reportArgumentType]
 
     if ":" in sensor_name:
         generic_name, idx = sensor_name.split(":")
 
-        if (desc_type, generic_name) in SENSOR_DESCRIPTIONS_MAP:
-            desc = SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)]  # pyright: ignore[reportArgumentType]
+        if (desc_type, generic_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
+            desc = SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)]  # pyright: ignore[reportArgumentType]
 
             def formatted_name() -> str:
                 if type(desc.name) is str:

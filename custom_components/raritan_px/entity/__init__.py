@@ -131,8 +131,8 @@ class CoordinatedRaritanPduEntity(CoordinatedRaritanDeviceEntity, ABC):
         )
 
 
-class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanDeviceEntity, ABC):
-    """Common base class for all coordinated raritan pdu energy device based entities."""
+class CoordinatedRaritanEnergyDeviceEntity(CoordinatedRaritanDeviceEntity, ABC):
+    """Common base class for all coordinated raritan energy device based entities."""
 
     _device: RaritanEnergyDevice
     entity_description: RaritanDeviceEntityDescription
@@ -147,21 +147,21 @@ class CoordinatedRaritanPduEnergyDeviceEntity(CoordinatedRaritanDeviceEntity, AB
         )
 
 
-class CoordinatedRaritanPduOutletEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
+class CoordinatedRaritanPduOutletEntity(CoordinatedRaritanEnergyDeviceEntity, ABC):
     """Common base class for all coordinated raritan pdu outlet based entities."""
 
     _device: RaritanPduOutlet
     entity_description: RaritanPduOutletEntityDescription
 
 
-class CoordinatedRaritanPduInletEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
+class CoordinatedRaritanPduInletEntity(CoordinatedRaritanEnergyDeviceEntity, ABC):
     """Common base class for all coordinated raritan pdu inlet based entities."""
 
     _device: RaritanPduInlet
     entity_description: RaritanPduInletEntityDescription
 
 
-class CoordinatedRaritanPduOverCurrentProtectorEntity(CoordinatedRaritanPduEnergyDeviceEntity, ABC):
+class CoordinatedRaritanPduOverCurrentProtectorEntity(CoordinatedRaritanEnergyDeviceEntity, ABC):
     """Common base class for all coordinated raritan pdu overcurrent protector based entities."""
 
     _device: RaritanPduOverCurrentProtector
