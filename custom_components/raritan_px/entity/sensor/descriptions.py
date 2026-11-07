@@ -1,7 +1,7 @@
 """Raritan PDU sensor entity descriptions."""
 
 from dataclasses import asdict, dataclass
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription, SensorStateClass
 from homeassistant.const import DEGREE, EntityCategory
@@ -525,12 +525,10 @@ OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
     ),
 )
 
-SensorDesc_co = TypeVar("SensorDesc_co", bound="RaritanDeviceSensorEntityDescription", covariant=True)
 
-
-def get_entity_description[SensorDesc_co: "RaritanDeviceSensorEntityDescription"](
-    desc_type: type[SensorDesc_co], sensor_name: str
-) -> SensorDesc_co | None:
+def get_entity_description[SensorDesc: "RaritanDeviceSensorEntityDescription"](
+    desc_type: type[SensorDesc], sensor_name: str
+) -> SensorDesc | None:
     """Get the entity description instance matching the sensor type and name."""
 
     def default_name(name: str = sensor_name) -> str:

@@ -38,9 +38,10 @@ async def async_setup_entry(
                 outlet,
                 data.hub,
                 coordinator,
-                get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name),
+                description,
                 switch,
             )
             for (_, outlet) in pdu.outlets.items()
             for (switch_name, switch) in outlet.available_switches
+            if (description := get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name))
         )

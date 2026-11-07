@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum, Flag, auto
 from ssl import SSLCertVerificationError
 from time import monotonic
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Final
 
 from more_itertools import flatten, grouper, interleave
 from raritan import rpc
@@ -53,8 +53,6 @@ if TYPE_CHECKING:
     )
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
-
-RaritanDevice_co = TypeVar("RaritanDevice_co", bound="RaritanDevice", covariant=True)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -697,17 +695,17 @@ class RaritanClient:
         for response, method in zip(responses, update_methods, strict=True):
             method(response)
 
-    async def _update_sensor_info_for_device(self, device: RaritanDevice_co) -> RaritanDevice_co:
+    async def _update_sensor_info_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
         await self._update_sensors_for_device(device, device.updatable_sensors, _SensorUpdate.INFO)
 
         return device
 
-    async def _update_all_sensor_info_for_device(self, device: RaritanDevice_co) -> RaritanDevice_co:
+    async def _update_all_sensor_info_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
         await self._update_sensors_for_device(device, device.all_updatable_sensors, _SensorUpdate.INFO)
 
         return device
 
-    async def update_sensor_readings_for_device(self, device: RaritanDevice_co) -> RaritanDevice_co:
+    async def update_sensor_readings_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
         """Update sensor readings for device."""
         await self.authenticate()
 
@@ -715,9 +713,9 @@ class RaritanClient:
 
         return device
 
-    async def update_sensor_readings_for_devices(
-        self, pdu: RaritanPdu, devices: list[RaritanDevice_co]
-    ) -> list[RaritanDevice_co]:
+    async def update_sensor_readings_for_devices[Device: "RaritanDevice"](
+        self, pdu: RaritanPdu, devices: list[Device]
+    ) -> list[Device]:
         """Update sensor readings for device."""
         await self.authenticate()
 
@@ -729,7 +727,7 @@ class RaritanClient:
 
         return devices
 
-    async def update_all_sensor_readings_for_device(self, device: RaritanDevice_co) -> RaritanDevice_co:
+    async def update_all_sensor_readings_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
         """Update all sensor readings for device."""
         await self.authenticate()
 
