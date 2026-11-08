@@ -12,7 +12,7 @@ DOMAIN = "raritan_px"
 DISCOVERY_TIMEOUT = 5  # Home Assistant will complain if startup takes > 10s
 CONNECT_TIMEOUT = 5
 
-CONF_CONFIG_ENTRY_MINOR_VERSION: Final = 3
+CONF_CONFIG_ENTRY_MINOR_VERSION: Final = 4
 
 PLATFORMS: Final = [
     Platform.BINARY_SENSOR,
