@@ -311,7 +311,7 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         name="Surge Protector Status",
     ),
     RaritanPduInletSensorEntityDescription(
-        key="residual current status",
+        key="residual_current_status",
         device_class=SensorDeviceClass.ENUM,
         options=ResidualCurrentStatus.options(),
         name="Residual Current Status",
@@ -418,7 +418,7 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         name="Residual DC Current",
     ),
     RaritanPduOverCurrentProtectorSensorEntityDescription(
-        key="residual current status",
+        key="residual_current_status",
         device_class=SensorDeviceClass.ENUM,
         options=ResidualCurrentStatus.options(),
         name="Residual Current Status",
