@@ -17,8 +17,8 @@ class RaritanPduOutlet(RaritanEnergyDevice):
 
     is_switchable: bool
     receptacle_type: str
-    inlet_rid: str
-    ocp_rid: str
+    inlet_rid: str | None
+    ocp_rid: str | None
     sensors: RaritanPduOutletSensors
 
     @property
@@ -29,12 +29,12 @@ class RaritanPduOutlet(RaritanEnergyDevice):
     @property
     def inlet(self) -> RaritanPduInlet | None:
         """Return the inlet supplying power to this device."""
-        return self.pdu.inlets[self.inlet_rid] if self.pdu else None
+        return self.pdu.inlets.get(self.inlet_rid) if self.pdu and self.inlet_rid else None
 
     @property
     def ocp(self) -> RaritanPduOverCurrentProtector | None:
         """Return the overcurrent protector supplying power to this device."""
-        return self.pdu.ocps[self.ocp_rid] if self.pdu else None
+        return self.pdu.ocps.get(self.ocp_rid) if self.pdu and self.ocp_rid else None
 
 
 @dataclass(kw_only=True)

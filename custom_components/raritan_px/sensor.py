@@ -108,6 +108,7 @@ async def async_setup_entry(
         RaritanPduOutletAttributeBackedSensorEntity(outlet, data.hub, data.coordinator, desc)
         for (_, outlet) in pdu.outlets.items()
         for desc in OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
+        if not (desc.key.startswith("ocp.") and outlet.ocp is None)
     )
 
     async_add_entities(
