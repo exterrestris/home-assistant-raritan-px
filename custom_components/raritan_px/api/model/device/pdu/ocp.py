@@ -19,7 +19,7 @@ class RaritanPduOverCurrentProtector(RaritanEnergyDevice):
     """Representation of a Raritan PDU OCP."""
 
     sensors: RaritanPduOverCurrentProtectorSensors
-    inlet_rid: str
+    inlet_rid: str | None
 
     @property
     def device_type(self) -> str:
@@ -29,7 +29,7 @@ class RaritanPduOverCurrentProtector(RaritanEnergyDevice):
     @property
     def inlet(self) -> RaritanPduInlet | None:
         """Return the inlet supplying power to this device."""
-        return self.pdu.inlets[self.inlet_rid] if self.pdu else None
+        return self.pdu.inlets.get(self.inlet_rid) if self.pdu and self.inlet_rid else None
 
 
 @dataclass(kw_only=True)

@@ -458,26 +458,29 @@ class RaritanClient:
                 network_interfaces=network_interfaces,
             )
 
-            if populate | PduDevices.OUTLETS:
+            if (populate & PduDevices.OUTLETS) and pdu_outlets:
                 await self._get_outlets_info(pdu_outlets, device, pdu_metadata.nameplate.serialNumber)
 
-            if populate | PduDevices.INLETS:
+            if (populate & PduDevices.INLETS) and pdu_inlets:
                 await self._get_inlets_info(pdu_inlets, device, pdu_metadata.nameplate.serialNumber)
 
-            if populate | PduDevices.OCPS:
+            if (populate & PduDevices.OCPS) and pdu_ocps:
                 await self._get_ocps_info(pdu_ocps, device, pdu_metadata.nameplate.serialNumber)
 
-            if update | UpdateSensors.INFO:
-                return await self._update_all_sensor_info_for_device(device)
+            if update & UpdateSensors.INFO:
+                await self._update_all_sensor_info_for_device(device)
 
-            if update | UpdateSensors.READINGS:
-                return await self.update_all_sensor_readings_for_device(device)
+            if update & UpdateSensors.READINGS:
+                await self.update_all_sensor_readings_for_device(device)
 
             return device
 
     async def _get_outlets_info(
         self, pdu_outlets: list[Outlet], pdu: RaritanPdu, pdu_serial: str
     ) -> list[RaritanPduOutlet]:
+        if not pdu_outlets:
+            return []
+
         try:
             responses = await self._execute_bulk_requests(
                 interleave(
@@ -494,8 +497,8 @@ class RaritanClient:
             outlet_metadata: Outlet.MetaData
             outlet_settings: Outlet.Settings
             outlet_sensors: Outlet.Sensors
-            inlet: Inlet
-            ocp: OverCurrentProtector
+            inlet: Inlet | None
+            ocp: OverCurrentProtector | None
 
             for outlet_idx, (
                 outlet_metadata,
@@ -506,8 +509,8 @@ class RaritanClient:
                 outlet = RaritanPduOutlet(
                     device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/outlet/{outlet_idx}",
                     rid=pdu_outlets[outlet_idx].target,
-                    inlet_rid=inlet.target,
-                    ocp_rid=ocp.target,
+                    inlet_rid=inlet.target if inlet else None,
+                    ocp_rid=ocp.target if ocp else None,
                     id=outlet_idx,
                     name=outlet_settings.name,
                     label=outlet_metadata.label,
@@ -549,6 +552,9 @@ class RaritanClient:
     async def _get_inlets_info(
         self, pdu_inlets: list[Inlet], pdu: RaritanPdu, pdu_serial: str
     ) -> list[RaritanPduInlet]:
+        if not pdu_inlets:
+            return []
+
         try:
             responses = await self._execute_bulk_requests(
                 interleave(
@@ -616,6 +622,9 @@ class RaritanClient:
     async def _get_ocps_info(
         self, pdu_ocps: list[OverCurrentProtector], pdu: RaritanPdu, pdu_serial: str
     ) -> list[RaritanPduOverCurrentProtector]:
+        if not pdu_ocps:
+            return []
+
         try:
             responses = await self._execute_bulk_requests(
                 interleave(
@@ -632,14 +641,14 @@ class RaritanClient:
             ocp_metadata: OverCurrentProtector.MetaData
             ocp_settings: OverCurrentProtector.Settings
             ocp_sensors: OverCurrentProtector.Sensors
-            inlet: Inlet
+            inlet: Inlet | None
 
             for ocp_idx, (ocp_metadata, ocp_settings, ocp_sensors, inlet) in enumerate(grouper(responses, 4)):  # pyright: ignore[reportAssignmentType]
                 ocp = RaritanPduOverCurrentProtector(
                     device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/ocp/{ocp_idx}",
                     id=ocp_idx,
                     rid=pdu_ocps[ocp_idx].target,
-                    inlet_rid=inlet.target,
+                    inlet_rid=inlet.target if inlet else None,
                     name=ocp_settings.name,
                     label=ocp_metadata.label,
                     sensors=RaritanPduOverCurrentProtectorSensors.from_sensor_sources(
