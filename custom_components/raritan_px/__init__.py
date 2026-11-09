@@ -258,6 +258,40 @@ async def migrate_config_entry_to_version_1_2(hass: HomeAssistant, config_entry:
     hass.config_entries.async_update_entry(config_entry, data=updates)
 
 
+def _get_new_entity_unique_id(entity: er.RegistryEntry) -> str:
+    new_unique_id = entity.unique_id
+
+    if entity.domain == Platform.SWITCH:
+        new_unique_id = re.sub(
+            r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+)$",
+            r"\g<device_id>::switch::\g<entity_key>",
+            new_unique_id,
+        )
+    else:
+        # Migrate attribute backed entities
+        new_unique_id = re.sub(
+            r"^(?P<device_id>[^:]+:[^_:]+)_prop_(?P<entity_key>.+)$",
+            r"\g<device_id>::attribute::\g<entity_key>",
+            new_unique_id,
+        )
+
+        # Replace colon in multi-statesensor entities
+        new_unique_id = re.sub(
+            r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+):(?P<index>[0-9]+)$",
+            r"\g<device_id>::sensor::\g<entity_key>_\g<index>",
+            new_unique_id,
+        )
+
+        # Migrate remaining sensor backed entities
+        new_unique_id = re.sub(
+            r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+)$",
+            r"\g<device_id>::sensor::\g<entity_key>",
+            new_unique_id,
+        )
+
+    return new_unique_id
+
+
 async def migrate_config_entry_to_version_1_3(hass: HomeAssistant, config_entry: RaritanPduConfigEntry) -> None:
     """Migrate config entry data to 1.3."""
     entity_registry = er.async_get(hass)
@@ -265,35 +299,7 @@ async def migrate_config_entry_to_version_1_3(hass: HomeAssistant, config_entry:
     migrated = 0
 
     for entity in entities:
-        new_unique_id = entity.unique_id
-
-        if entity.domain == Platform.SWITCH:
-            new_unique_id = re.sub(
-                r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+)$",
-                r"\g<device_id>::switch::\g<entity_key>",
-                new_unique_id,
-            )
-        else:
-            # Migrate attribute backed entities
-            new_unique_id = re.sub(
-                r"^(?P<device_id>[^:]+:[^_:]+)_prop_(?P<entity_key>.+)$",
-                r"\g<device_id>::attribute::\g<entity_key>",
-                new_unique_id,
-            )
-
-            # Replace colon in multi-statesensor entities
-            new_unique_id = re.sub(
-                r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+):(?P<index>[0-9]+)$",
-                r"\g<device_id>::sensor::\g<entity_key>_\g<index>",
-                new_unique_id,
-            )
-
-            # Migrate remaining sensor backed entities
-            new_unique_id = re.sub(
-                r"^(?P<device_id>[^:]+:[^_:]+)_(?P<entity_key>.+)$",
-                r"\g<device_id>::sensor::\g<entity_key>",
-                new_unique_id,
-            )
+        new_unique_id = _get_new_entity_unique_id(entity)
 
         if new_unique_id != entity.unique_id:
             try:
@@ -301,11 +307,44 @@ async def migrate_config_entry_to_version_1_3(hass: HomeAssistant, config_entry:
 
                 migrated += 1
             except ValueError:
-                _LOGGER.warning(
-                    "Cannot migrate %s unique id to %s",
-                    entity.entity_id,
-                    new_unique_id,
-                    exc_info=True,
-                )
+                pass
 
     _LOGGER.info("Migrated unique IDs of %s of %s entities", migrated, len(entities))
+
+
+async def migrate_config_entry_to_version_1_4(hass: HomeAssistant, config_entry: RaritanPduConfigEntry) -> None:
+    """Migrate config entry data to 1.4."""
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(entity_registry, config_entry.entry_id)
+    removed = 0
+
+    # Handle upgrade after downgrading from 2.10 to 2.0.1
+    entity_unique_ids = {(entity.domain, entity.unique_id): entity.entity_id for entity in entities}
+
+    for entity in entities:
+        if entity.previous_unique_id and (entity.domain, entity.previous_unique_id) in entity_unique_ids:
+            # Remove the entity so the old enand remigrate the old entity
+            entity_registry.async_remove(entity_unique_ids[(entity.domain, entity.previous_unique_id)])
+
+            removed += 1
+
+    _LOGGER.info("Removed %s dangling entities after downgrade", removed)
+
+    entities = er.async_entries_for_config_entry(entity_registry, config_entry.entry_id)
+    migrated = 0
+
+    for entity in entities:
+        if entity.previous_unique_id:
+            continue
+
+        new_unique_id = _get_new_entity_unique_id(entity)
+
+        if new_unique_id != entity.unique_id:
+            try:
+                entity_registry.async_update_entity(entity.entity_id, new_unique_id=new_unique_id)
+
+                migrated += 1
+            except ValueError:
+                pass
+
+    _LOGGER.info("Re-migrated unique IDs of %s of %s entities", migrated, len(entities))
