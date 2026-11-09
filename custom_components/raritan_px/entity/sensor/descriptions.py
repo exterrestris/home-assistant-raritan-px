@@ -1,6 +1,6 @@
 """Raritan PDU sensor entity descriptions."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription, SensorStateClass
@@ -54,12 +54,6 @@ class RaritanPduOverCurrentProtectorSensorEntityDescription(
 
 SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
     # region PDU sensor-backed sensors
-    RaritanPduSensorEntityDescription(
-        key="power_supply_status",
-        device_class=SensorDeviceClass.ENUM,
-        options=NormalAlarmed.options(),
-        name="Power Supply {} Status",
-    ),
     RaritanPduSensorEntityDescription(
         key="active_power",
         device_class=SensorDeviceClass.POWER,
@@ -317,7 +311,7 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         name="Surge Protector Status",
     ),
     RaritanPduInletSensorEntityDescription(
-        key="residual current status",
+        key="residual_current_status",
         device_class=SensorDeviceClass.ENUM,
         options=ResidualCurrentStatus.options(),
         name="Residual Current Status",
@@ -424,7 +418,7 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         name="Residual DC Current",
     ),
     RaritanPduOverCurrentProtectorSensorEntityDescription(
-        key="residual current status",
+        key="residual_current_status",
         device_class=SensorDeviceClass.ENUM,
         options=ResidualCurrentStatus.options(),
         name="Residual Current Status",
@@ -432,6 +426,19 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
     # endregion
 )
 SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP = {(type(desc), desc.key): desc for desc in SENSOR_BACKED_SENSOR_DESCRIPTIONS}
+
+SENSOR_BACKED_MULTI_SENSOR_DESCRIPTIONS_MAP: dict[
+    tuple[type, str], Callable[[str, int], RaritanDeviceSensorEntityDescription]
+] = {
+    (RaritanPduSensorEntityDescription, "power_supply_status"): lambda key, idx: RaritanPduSensorEntityDescription(
+        key=key,
+        device_class=SensorDeviceClass.ENUM,
+        options=NormalAlarmed.options(),
+        translation_key="pdu_power_supply_status",
+        translation_placeholders={"idx": str(idx + 1)},
+    ),
+}
+
 
 PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescription, ...] = (
     RaritanPduSensorEntityDescription(
@@ -533,33 +540,13 @@ def get_entity_description[SensorDesc: "RaritanDeviceSensorEntityDescription"](
     desc_type: type[SensorDesc], sensor_name: str
 ) -> SensorDesc | None:
     """Get the entity description instance matching the sensor type and name."""
-
-    def default_name(name: str = sensor_name) -> str:
-        return name.replace("_", " ").replace(":", " ").title()
-
     if (desc_type, sensor_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
         return SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, sensor_name)]  # pyright: ignore[reportReturnType, reportArgumentType]
 
     if ":" in sensor_name:
         generic_name, idx = sensor_name.split(":")
 
-        if (desc_type, generic_name) in SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP:
-            desc = SENSOR_BACKED_SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)]  # pyright: ignore[reportArgumentType]
-
-            def formatted_name() -> str:
-                if type(desc.name) is str:
-                    return desc.name.format(int(idx) + 1)
-
-                return f"{default_name(generic_name)} {int(idx) + 1}"
-
-            return desc_type(
-                **(
-                    asdict(desc)
-                    | {
-                        "key": sensor_name,
-                        "name": formatted_name(),
-                    }
-                )  # pyright: ignore[reportReturnType, reportArgumentType]
-            )
+        if (desc_type, generic_name) in SENSOR_BACKED_MULTI_SENSOR_DESCRIPTIONS_MAP:
+            return SENSOR_BACKED_MULTI_SENSOR_DESCRIPTIONS_MAP[(desc_type, generic_name)](sensor_name, int(idx))  # pyright: ignore[reportReturnType, reportArgumentType]
 
     return None
