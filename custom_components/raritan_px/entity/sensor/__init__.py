@@ -121,6 +121,9 @@ class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBacked
         if isinstance(self._sensor, RaritanNumericSensor) and description.suggested_display_precision is None:
             self._attr_suggested_display_precision = self._sensor.display_precision
 
+        if self._sensor.unit is not None:
+            self._attr_native_unit_of_measurement = self._sensor.unit
+
     def _get_value(self) -> EntityValue:
         return self._get_sensor_value()
 
@@ -134,9 +137,6 @@ class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBacked
         # class of TOTAL_INCREASING
         if self.entity_description.state_class == SensorStateClass.TOTAL and self._sensor.last_reset is not None:
             self._attr_last_reset = self._sensor.last_reset
-
-        if self._sensor.unit is not None:
-            self._attr_native_unit_of_measurement = self._sensor.unit
 
         return True
 
