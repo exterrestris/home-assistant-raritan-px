@@ -1,8 +1,9 @@
 """Raritan PDU API sensor models."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import chain
+from math import log10
 from typing import TYPE_CHECKING, Any, Self, get_args, get_type_hints
 
 from homeassistant.const import (
@@ -164,7 +165,7 @@ class RaritanSensor(RaritanUpdatable):
     unit: str | None = None
     last_reset: datetime | None = None
     available: bool | None = None
-    precision: int | None = None
+    resolution: float | None = None
     last_sample: datetime | None = None
 
     @property
@@ -186,7 +187,7 @@ class RaritanStateSensor(RaritanSensor):
     state: RaritanSensorState | None = None
     last_reset: None = None
     unit: None = None
-    precision: None = None
+    resolution: None = None
     type: Any = None
 
     @property
@@ -230,15 +231,22 @@ class RaritanSwitch(RaritanStateSensor):
 class RaritanNumericSensor(RaritanSensor):
     """Representation of a device numeric sensor."""
 
-    MAX_PRECISION = 6
+    _DEFAULT_PRECISION = 3
+    _MAX_PRECISION = 6
 
     source: NumericSensor
     reading: float | None = None
+    _precision: int = field(default=_DEFAULT_PRECISION)
 
     @property
     def value(self) -> Any:
         """Return the current reading of the sensor."""
         return self.reading
+
+    @property
+    def display_precision(self) -> int | None:
+        """Return the display precision of the sensor based on it's defined resolution."""
+        return round(abs(log10(self.resolution))) if self.resolution is not None else None
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor information."""
@@ -254,14 +262,15 @@ class RaritanNumericSensor(RaritanSensor):
 
     def update_reading(self, reading: NumericSensor.Reading) -> None:
         """Update the current sensor reading from API sensor reading."""
-        self.reading = round(reading.value, self.MAX_PRECISION)
+        self.reading = round(reading.value, self._precision)
 
     def update_metadata(self, reading: NumericSensor.MetaData) -> None:
         """Update the current sensor metadata from API sensor metadata."""
         if reading.type.unit in SENSOR_UNITS_MAPPING:
             self.unit = SENSOR_UNITS_MAPPING[reading.type.unit]
 
-        self.precision = reading.decdigits
+        self._precision = min(reading.decdigits, self._MAX_PRECISION)
+        self.resolution = round(reading.resolution, self._precision)
 
 
 @dataclass(kw_only=True)

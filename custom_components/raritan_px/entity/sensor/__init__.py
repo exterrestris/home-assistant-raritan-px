@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import callback
 
+from custom_components.raritan_px.api.model.sensor import RaritanNumericSensor
 from custom_components.raritan_px.entity import (
     CoordinatedRaritanDeviceAttributeBackedEntity,
     CoordinatedRaritanDeviceEntity,
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from homeassistant.helpers.device_registry import DeviceEntry
 
     from custom_components.raritan_px.api.model.device import RaritanDevice
+    from custom_components.raritan_px.api.model.sensor import RaritanSensor
     from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
     from custom_components.raritan_px.entity.descriptions import (
         RaritanDeviceEntityDescription,
@@ -105,6 +107,20 @@ class RaritanPduOverCurrentProtectorAttributeBackedSensorEntity(
 class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBackedEntity, RaritanDeviceSensorEntity):
     """Representation of a Raritan device sensor backed sensor."""
 
+    def __init__(
+        self,
+        device: RaritanDevice,
+        hub: DeviceEntry,
+        coordinator: RaritanPduDataUpdateCoordinator,
+        description: RaritanDeviceSensorEntityDescription,
+        sensor: RaritanSensor,
+    ) -> None:
+        """Initialise the entity."""
+        super().__init__(device, hub, coordinator, description, sensor)
+
+        if isinstance(self._sensor, RaritanNumericSensor) and description.suggested_display_precision is None:
+            self._attr_suggested_display_precision = self._sensor.display_precision
+
     def _get_value(self) -> EntityValue:
         return self._get_sensor_value()
 
@@ -112,9 +128,6 @@ class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBacked
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
         super()._async_update_attrs()
-
-        if self._sensor.precision is not None:
-            self._attr_suggested_display_precision = self._sensor.precision
 
         # This check is here because Home Assistant only supports last_reset with a state class of TOTAL, however the
         # Raritan JSON-RPC API only supplies a last reset time for accumlating numeric sensors which best map to a state
