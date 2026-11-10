@@ -233,6 +233,7 @@ class RaritanNumericSensor(RaritanSensor):
 
     _DEFAULT_PRECISION = 3
     _MAX_PRECISION = 6
+    _PRECISION_ADJUSTMENT = 2
 
     source: NumericSensor
     reading: float | None = None
@@ -262,7 +263,9 @@ class RaritanNumericSensor(RaritanSensor):
 
     def update_reading(self, reading: NumericSensor.Reading) -> None:
         """Update the current sensor reading from API sensor reading."""
-        self.reading = round(reading.value, self._precision)
+        # The PDU web UI occasionally displays values with greater precision than defined by the sensor, so to preserve
+        # that additional fidelity for display we increase the reported sensor precision before rounding
+        self.reading = round(reading.value, min(self._precision + self._PRECISION_ADJUSTMENT, self._MAX_PRECISION))
 
     def update_metadata(self, reading: NumericSensor.MetaData) -> None:
         """Update the current sensor metadata from API sensor metadata."""
