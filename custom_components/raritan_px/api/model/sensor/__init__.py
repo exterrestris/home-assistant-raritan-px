@@ -1,9 +1,8 @@
 """Raritan PDU API sensor models."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from itertools import chain
-from math import log10
 from typing import TYPE_CHECKING, Any, Self, get_args, get_type_hints
 
 from homeassistant.const import (
@@ -165,7 +164,7 @@ class RaritanSensor(RaritanUpdatable):
     unit: str | None = None
     last_reset: datetime | None = None
     available: bool | None = None
-    resolution: float | None = None
+    precision: int | None = None
     last_sample: datetime | None = None
 
     @property
@@ -187,7 +186,7 @@ class RaritanStateSensor(RaritanSensor):
     state: RaritanSensorState | None = None
     last_reset: None = None
     unit: None = None
-    resolution: None = None
+    precision: None = None
     type: Any = None
 
     @property
@@ -231,24 +230,15 @@ class RaritanSwitch(RaritanStateSensor):
 class RaritanNumericSensor(RaritanSensor):
     """Representation of a device numeric sensor."""
 
-    _DEFAULT_PRECISION = 3
-    _MAX_PRECISION = 6
-    _PRECISION_ADJUSTMENT = 2
+    MAX_PRECISION = 6
 
     source: NumericSensor
     reading: float | None = None
-    _base_precision: int = field(default=_DEFAULT_PRECISION)
-    _reading_precision: int = field(default=_DEFAULT_PRECISION + _PRECISION_ADJUSTMENT)
 
     @property
     def value(self) -> Any:
         """Return the current reading of the sensor."""
         return self.reading
-
-    @property
-    def display_precision(self) -> int | None:
-        """Return the display precision of the sensor based on it's defined resolution."""
-        return round(abs(log10(self.resolution))) if self.resolution is not None else None
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor information."""
@@ -264,18 +254,14 @@ class RaritanNumericSensor(RaritanSensor):
 
     def update_reading(self, reading: NumericSensor.Reading) -> None:
         """Update the current sensor reading from API sensor reading."""
-        # The PDU web UI occasionally displays values with greater precision than defined by the sensor, so to preserve
-        # that additional fidelity for display we increase the reported sensor precision before rounding
-        self.reading = round(reading.value, self._reading_precision)
+        self.reading = round(reading.value, self.MAX_PRECISION)
 
     def update_metadata(self, reading: NumericSensor.MetaData) -> None:
         """Update the current sensor metadata from API sensor metadata."""
         if reading.type.unit in SENSOR_UNITS_MAPPING:
             self.unit = SENSOR_UNITS_MAPPING[reading.type.unit]
 
-        self._base_precision = min(reading.decdigits, self._MAX_PRECISION)
-        self._reading_precision = min(self._base_precision + self._PRECISION_ADJUSTMENT, self._MAX_PRECISION)
-        self.resolution = round(reading.resolution, self._base_precision)
+        self.precision = reading.decdigits
 
 
 @dataclass(kw_only=True)
