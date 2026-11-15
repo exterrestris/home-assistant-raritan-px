@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.sensor import RaritanSwitch
-    from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+    from custom_components.raritan_px.coordinator import RaritanApiDataUpdateCoordinator
     from custom_components.raritan_px.entity.descriptions import (
         RaritanDeviceEntityDescription,
     )
@@ -33,12 +33,13 @@ class RaritanDeviceSwitchEntity(CoordinatedRaritanDeviceEntity, SwitchEntity):
 
     _switch: RaritanSwitch
     entity_description: RaritanDeviceSwitchEntityDescription
+    coordinator: RaritanApiDataUpdateCoordinator
 
     def __init__(
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
+        coordinator: RaritanApiDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
         switch: RaritanSwitch,
     ) -> None:

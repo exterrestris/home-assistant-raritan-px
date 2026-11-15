@@ -18,7 +18,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from custom_components.raritan_px.api import RaritanEnum
 from custom_components.raritan_px.api.model import RaritanModel
 from custom_components.raritan_px.const import DOMAIN
-from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+from custom_components.raritan_px.coordinator import RaritanApiDataUpdateCoordinator, RaritanDataUpdateCoordinator
 
 if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device import (
@@ -43,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 type EntityValue = StateType | date | datetime | Decimal
 
 
-class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoordinator], ABC):
+class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanDataUpdateCoordinator], ABC):
     """Common base class for all coordinated raritan device entities."""
 
     _attr_has_entity_name = True
@@ -51,13 +51,14 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoord
     _pdu: RaritanPdu
     _hub: DeviceEntry
 
+    coordinator: RaritanDataUpdateCoordinator
     entity_description: RaritanDeviceEntityDescription
 
     def __init__(
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
+        coordinator: RaritanDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
     ) -> None:
         """Initialise the entity."""
@@ -138,13 +139,14 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanPduDataUpdateCoord
 class CoordinatedRaritanDeviceSensorBackedEntity(CoordinatedRaritanDeviceEntity, ABC):
     """Common base class for all coordinated raritan device entities backed by a device sensor."""
 
+    coordinator: RaritanApiDataUpdateCoordinator
     _sensor: RaritanSensor
 
     def __init__(
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
+        coordinator: RaritanApiDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
         sensor: RaritanSensor,
     ) -> None:
@@ -175,6 +177,7 @@ class CoordinatedRaritanDeviceSensorBackedEntity(CoordinatedRaritanDeviceEntity,
 class CoordinatedRaritanDeviceAttributeBackedEntity(CoordinatedRaritanDeviceEntity, ABC):
     """Common base class for all coordinated raritan device entities backed by a device attribute."""
 
+    coordinator: RaritanApiDataUpdateCoordinator
     _device_attr: str
     _model: RaritanModel | None
 
@@ -182,7 +185,7 @@ class CoordinatedRaritanDeviceAttributeBackedEntity(CoordinatedRaritanDeviceEnti
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
+        coordinator: RaritanApiDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
         *,
         model: RaritanModel | None = None,

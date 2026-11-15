@@ -20,5 +20,5 @@ PLATFORMS: Final = [
     Platform.SWITCH,
 ]
 
-DEFAULT_UPDATE_INTERVAL = dt.timedelta(seconds=5)
+DEFAULT_API_UPDATE_INTERVAL = dt.timedelta(seconds=5)
 DISCOVERY_INTERVAL = dt.timedelta(minutes=15)

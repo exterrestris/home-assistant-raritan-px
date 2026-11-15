@@ -2,6 +2,7 @@
 
 import logging
 import re
+from asyncio import Lock
 from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.const import (
@@ -42,14 +43,14 @@ from custom_components.raritan_px.api.const import (
 )
 from custom_components.raritan_px.const import (
     CONF_CONFIG_ENTRY_MINOR_VERSION,
-    DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_API_UPDATE_INTERVAL,
     DOMAIN,
     PLATFORMS,
 )
 from custom_components.raritan_px.coordinator import (
+    RaritanApiDataUpdateCoordinator,
     RaritanPduConfigEntry,
     RaritanPduData,
-    RaritanPduDataUpdateCoordinator,
 )
 
 if TYPE_CHECKING:
@@ -67,6 +68,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
     config = await get_connection_details_from_entry(entry)
 
     try:
+        lock = Lock()
         client = RaritanClient(hass, config)
         pdu: RaritanPdu = await client.get_pdu_info()
     except AuthenticationError as ex:
@@ -127,10 +129,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             },
         )
 
-    coordinator = RaritanPduDataUpdateCoordinator(
-        hass, _LOGGER, entry, client, pdu, update_interval=DEFAULT_UPDATE_INTERVAL
-    )
-
     device_registry = dr.async_get(hass)
 
     hub = device_registry.async_get_or_create(
@@ -152,7 +150,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
 
     _LOGGER.debug("Registered device %s", pdu.device_id)
 
-    entry.runtime_data = RaritanPduData(client=client, coordinator=coordinator, hub=hub)
+    api_coordinator = RaritanApiDataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        config_entry=entry,
+        client=client,
+        client_lock=lock,
+        pdu=pdu,
+        update_interval=DEFAULT_API_UPDATE_INTERVAL,
+    )
+
+    entry.runtime_data = RaritanPduData(
+        client=client,
+        client_lock=lock,
+        api_coordinator=api_coordinator,
+        hub=hub,
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
@@ -162,7 +175,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) 
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    await entry.runtime_data.client.close_session()
+    async with entry.runtime_data.client_lock:
+        await entry.runtime_data.client.close_session()
 
     return unload_ok
 

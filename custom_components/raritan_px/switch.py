@@ -16,9 +16,9 @@ if TYPE_CHECKING:
 
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.coordinator import (
+        RaritanApiDataUpdateCoordinator,
         RaritanPduConfigEntry,
         RaritanPduData,
-        RaritanPduDataUpdateCoordinator,
     )
 
 
@@ -29,7 +29,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up switches."""
     data: RaritanPduData = config_entry.runtime_data
-    coordinator: RaritanPduDataUpdateCoordinator = data.coordinator
+    coordinator: RaritanApiDataUpdateCoordinator = data.api_coordinator
     pdu: RaritanPdu = coordinator.pdu
 
     if pdu.has_switchable_outlets:

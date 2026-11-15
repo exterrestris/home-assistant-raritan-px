@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
-    from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+    from custom_components.raritan_px.coordinator import RaritanApiDataUpdateCoordinator
     from custom_components.raritan_px.entity.descriptions import (
         RaritanDeviceEntityDescription,
     )
@@ -44,7 +44,7 @@ class RaritanDeviceSensorEntity(CoordinatedRaritanDeviceEntity, SensorEntity):
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
+        coordinator: RaritanApiDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
     ) -> None:
         """Initialise the entity."""
@@ -111,7 +111,7 @@ class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBacked
         self,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
+        coordinator: RaritanApiDataUpdateCoordinator,
         description: RaritanDeviceSensorEntityDescription,
         sensor: RaritanSensor,
     ) -> None:
