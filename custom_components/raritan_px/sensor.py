@@ -31,9 +31,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.coordinator import (
-        RaritanApiDataUpdateCoordinator,
         RaritanPduConfigEntry,
         RaritanPduData,
     )
@@ -46,89 +44,91 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors."""
     data: RaritanPduData = config_entry.runtime_data
-    coordinator: RaritanApiDataUpdateCoordinator = data.api_coordinator
-    pdu: RaritanPdu = data.api_coordinator.pdu
 
     async_add_entities(
         RaritanPduSensorBackedSensorEntity(
-            pdu,
-            data.hub,
-            coordinator,
-            description,
-            sensor,
+            data.api_coordinator,
+            device=data.pdu,
+            hub=data.hub,
+            description=description,
+            sensor=sensor,
         )
-        for sensor_name, sensor in pdu.available_sensors
+        for sensor_name, sensor in data.pdu.available_sensors
         if (description := get_entity_description(RaritanPduSensorEntityDescription, sensor_name))
     )
 
     async_add_entities(
-        RaritanPduAttributeBackedSensorEntity(pdu, data.hub, data.api_coordinator, desc)
+        RaritanPduAttributeBackedSensorEntity(data.api_coordinator, device=data.pdu, hub=data.hub, description=desc)
         for desc in PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
-        if desc.is_available_for(pdu)
+        if desc.is_available_for(data.pdu)
     )
 
     async_add_entities(
-        RaritanPduAttributeBackedSensorEntity(pdu, data.hub, data.api_coordinator, desc(key, interface))
-        for (key, interface) in pdu.network_interfaces.items()
+        RaritanPduAttributeBackedSensorEntity(
+            data.api_coordinator, device=data.pdu, hub=data.hub, description=desc(key, interface)
+        )
+        for (key, interface) in data.pdu.network_interfaces.items()
         for desc in PDU_NETWORK_ENTITY_DESCRIPTIONS
     )
 
     async_add_entities(
         RaritanPduInletSensorBackedSensorEntity(
-            inlet,
-            data.hub,
-            coordinator,
-            description,
-            sensor,
+            data.api_coordinator,
+            device=inlet,
+            hub=data.hub,
+            description=description,
+            sensor=sensor,
         )
-        for (_, inlet) in pdu.inlets.items()
+        for (_, inlet) in data.pdu.inlets.items()
         for (sensor_name, sensor) in inlet.available_sensors
         if (description := get_entity_description(RaritanPduInletSensorEntityDescription, sensor_name))
     )
 
     async_add_entities(
-        RaritanPduInletAttributeBackedSensorEntity(inlet, data.hub, data.api_coordinator, desc)
-        for (_, inlet) in pdu.inlets.items()
+        RaritanPduInletAttributeBackedSensorEntity(data.api_coordinator, device=inlet, hub=data.hub, description=desc)
+        for (_, inlet) in data.pdu.inlets.items()
         for desc in INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
         if desc.is_available_for(inlet)
     )
 
     async_add_entities(
         RaritanPduOutletSensorBackedSensorEntity(
-            outlet,
-            data.hub,
-            coordinator,
-            description,
-            sensor,
+            data.api_coordinator,
+            device=outlet,
+            hub=data.hub,
+            description=description,
+            sensor=sensor,
         )
-        for (_, outlet) in pdu.outlets.items()
+        for (_, outlet) in data.pdu.outlets.items()
         for (sensor_name, sensor) in outlet.available_sensors
         if (description := get_entity_description(RaritanPduOutletSensorEntityDescription, sensor_name))
     )
 
     async_add_entities(
-        RaritanPduOutletAttributeBackedSensorEntity(outlet, data.hub, data.api_coordinator, desc)
-        for (_, outlet) in pdu.outlets.items()
+        RaritanPduOutletAttributeBackedSensorEntity(data.api_coordinator, device=outlet, hub=data.hub, description=desc)
+        for (_, outlet) in data.pdu.outlets.items()
         for desc in OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
         if desc.is_available_for(outlet)
     )
 
     async_add_entities(
         RaritanPduOverCurrentProtectorSensorBackedSensorEntity(
-            ocp,
-            data.hub,
-            coordinator,
-            description,
-            sensor,
+            data.api_coordinator,
+            device=ocp,
+            hub=data.hub,
+            description=description,
+            sensor=sensor,
         )
-        for (_, ocp) in pdu.ocps.items()
+        for (_, ocp) in data.pdu.ocps.items()
         for (sensor_name, sensor) in ocp.available_sensors
         if (description := get_entity_description(RaritanPduOverCurrentProtectorSensorEntityDescription, sensor_name))
     )
 
     async_add_entities(
-        RaritanPduOverCurrentProtectorAttributeBackedSensorEntity(ocp, data.hub, data.api_coordinator, desc)
-        for (_, ocp) in pdu.ocps.items()
+        RaritanPduOverCurrentProtectorAttributeBackedSensorEntity(
+            data.api_coordinator, device=ocp, hub=data.hub, description=desc
+        )
+        for (_, ocp) in data.pdu.ocps.items()
         for desc in OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
         if desc.is_available_for(ocp)
     )

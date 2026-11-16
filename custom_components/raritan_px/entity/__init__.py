@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
     from custom_components.raritan_px.entity.descriptions import (
         RaritanDeviceEntityDescription,
+        RaritanEntityDescription,
         RaritanPduEntityDescription,
         RaritanPduInletEntityDescription,
         RaritanPduOutletEntityDescription,
@@ -43,30 +44,30 @@ _LOGGER = logging.getLogger(__name__)
 type EntityValue = StateType | date | datetime | Decimal
 
 
-class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanDataUpdateCoordinator], ABC):
-    """Common base class for all coordinated raritan device entities."""
+class CoordinatedRaritanEntity(CoordinatorEntity[RaritanDataUpdateCoordinator], ABC):
+    """Common base class for all coordinated raritan entities."""
 
     _attr_has_entity_name = True
-    _device: RaritanDevice
-    _pdu: RaritanPdu
-    _hub: DeviceEntry
+    _device: RaritanDevice | None
+    _hub: DeviceEntry | None
 
     coordinator: RaritanDataUpdateCoordinator
-    entity_description: RaritanDeviceEntityDescription
+    entity_description: RaritanEntityDescription
 
     def __init__(
         self,
-        device: RaritanDevice,
-        hub: DeviceEntry,
         coordinator: RaritanDataUpdateCoordinator,
-        description: RaritanDeviceEntityDescription,
+        *,
+        context: Any = None,
+        description: RaritanEntityDescription,
+        device: RaritanDevice | None,
+        hub: DeviceEntry | None,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(coordinator, context=(device.device_id, description.key))
+        super().__init__(coordinator, context=context)
 
         self.entity_description = description
         self._device = device
-        self._pdu = coordinator.pdu
         self._hub = hub
 
         self._attr_device_info = self._get_device_info()
@@ -74,8 +75,11 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanDataUpdateCoordina
 
         _LOGGER.debug("Created %s %s", self._entity_type(), self._attr_unique_id)
 
+        self._async_update_attrs()
+
+    @abstractmethod
     def _get_unique_id(self) -> str:
-        return self._build_unique_id(self._device.device_id, self.entity_description.key)
+        raise NotImplementedError
 
     @classmethod
     def _build_unique_id(cls, device_id: str, entity_id: str) -> str:
@@ -94,7 +98,7 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanDataUpdateCoordina
         raise NotImplementedError
 
     @abstractmethod
-    def _get_device_info(self) -> DeviceInfo:
+    def _get_device_info(self) -> DeviceInfo | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -136,6 +140,38 @@ class CoordinatedRaritanDeviceEntity(CoordinatorEntity[RaritanDataUpdateCoordina
         return self.coordinator.last_update_success and self._attr_available
 
 
+class CoordinatedRaritanDeviceEntity(CoordinatedRaritanEntity, ABC):
+    """Common base class for all coordinated raritan device entities."""
+
+    _device: RaritanDevice
+    _pdu: RaritanPdu
+    _hub: DeviceEntry
+
+    entity_description: RaritanDeviceEntityDescription
+
+    def __init__(
+        self,
+        coordinator: RaritanDataUpdateCoordinator,
+        *,
+        description: RaritanDeviceEntityDescription,
+        device: RaritanDevice,
+        hub: DeviceEntry,
+    ) -> None:
+        """Initialise the entity."""
+        self._pdu = coordinator.pdu
+
+        super().__init__(
+            coordinator, context=(device.device_id, description.key), description=description, device=device, hub=hub
+        )
+
+    def _get_unique_id(self) -> str:
+        return self._build_unique_id(self._device.device_id, self.entity_description.key)
+
+    @abstractmethod
+    def _get_device_info(self) -> DeviceInfo:
+        raise NotImplementedError
+
+
 class CoordinatedRaritanDeviceSensorBackedEntity(CoordinatedRaritanDeviceEntity, ABC):
     """Common base class for all coordinated raritan device entities backed by a device sensor."""
 
@@ -144,16 +180,18 @@ class CoordinatedRaritanDeviceSensorBackedEntity(CoordinatedRaritanDeviceEntity,
 
     def __init__(
         self,
+        coordinator: RaritanApiDataUpdateCoordinator,
+        *,
+        description: RaritanDeviceEntityDescription,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanApiDataUpdateCoordinator,
-        description: RaritanDeviceEntityDescription,
         sensor: RaritanSensor,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, hub, coordinator, description)
-
         self._sensor = sensor
+
+        super().__init__(coordinator, device=device, hub=hub, description=description)
+
 
     @classmethod
     def _entity_source(cls) -> str:
@@ -174,35 +212,26 @@ class CoordinatedRaritanDeviceSensorBackedEntity(CoordinatedRaritanDeviceEntity,
         return value
 
 
-class CoordinatedRaritanDeviceAttributeBackedEntity(CoordinatedRaritanDeviceEntity, ABC):
-    """Common base class for all coordinated raritan device entities backed by a device attribute."""
+class CoordinatedRaritanAttributeBackedEntity(CoordinatedRaritanEntity, ABC):
+    """Mixin for all coordinated raritan device entities backed by a device attribute."""
 
-    coordinator: RaritanApiDataUpdateCoordinator
-    _device_attr: str
-    _model: RaritanModel | None
+    _source_attr: str
 
     def __init__(
         self,
-        device: RaritanDevice,
-        hub: DeviceEntry,
-        coordinator: RaritanApiDataUpdateCoordinator,
-        description: RaritanDeviceEntityDescription,
+        coordinator: RaritanDataUpdateCoordinator,
         *,
-        model: RaritanModel | None = None,
+        description: RaritanEntityDescription,
+        device: RaritanDevice | None,
+        hub: DeviceEntry | None,
     ) -> None:
         """Initialise the entity."""
-        self._device_attr = description.key
-        self._model = model
+        self._source_attr = description.key
 
-        super().__init__(device, hub, coordinator, description)
+        super().__init__(coordinator, device=device, hub=hub, description=description)
 
-    @classmethod
-    def _entity_source(cls) -> str:
-        return "attribute"
-
-    def _get_raw_device_attr_value(self) -> Any:
-        source = self._model or self._device
-        path = self._device_attr.split(".")
+    def _get_raw_attr_value(self, source: Any, type_check: type | None = None) -> Any:
+        path = self._source_attr.split(".")
         attr = path.pop()
 
         try:
@@ -212,15 +241,18 @@ class CoordinatedRaritanDeviceAttributeBackedEntity(CoordinatedRaritanDeviceEnti
                     source = source[m.group("key")]
                     continue
 
-                if not isinstance(source := getattr(source, elm), RaritanModel):
+                source = getattr(source, elm)
+
+                if type_check and not isinstance(source, type_check):
                     return None
 
             return getattr(source, attr)
         except AttributeError, KeyError, ValueError:
+            _LOGGER.debug("Created %s %s", self._entity_type(), self._attr_unique_id)
             return None
 
-    def _get_device_attr_value(self) -> EntityValue:
-        value = self._get_raw_device_attr_value()
+    def _get_attr_value(self, source: Any, type_check: type | None = None) -> EntityValue:
+        value = self._get_raw_attr_value(source, type_check)
 
         if value is not None and self.entity_description.convert_fn is not None:
             value = self.entity_description.convert_fn(value)
@@ -229,6 +261,39 @@ class CoordinatedRaritanDeviceAttributeBackedEntity(CoordinatedRaritanDeviceEnti
             value = value.friendly_name()
 
         return value
+
+
+class CoordinatedRaritanDeviceAttributeBackedEntity(
+    CoordinatedRaritanAttributeBackedEntity, CoordinatedRaritanDeviceEntity, ABC
+):
+    """Common base class for all coordinated raritan device entities backed by a device attribute."""
+
+    coordinator: RaritanApiDataUpdateCoordinator
+    _model: RaritanModel | None
+
+    def __init__(
+        self,
+        coordinator: RaritanApiDataUpdateCoordinator,
+        *,
+        description: RaritanDeviceEntityDescription,
+        device: RaritanDevice,
+        hub: DeviceEntry,
+        model: RaritanModel | None = None,
+    ) -> None:
+        """Initialise the entity."""
+        self._model = model
+
+        super().__init__(coordinator, device=device, hub=hub, description=description)
+
+    @classmethod
+    def _entity_source(cls) -> str:
+        return "attribute"
+
+    def _get_raw_device_attr_value(self) -> Any:
+        return self._get_raw_attr_value(self._model or self._device, RaritanModel)
+
+    def _get_device_attr_value(self) -> EntityValue:
+        return self._get_attr_value(self._model or self._device, RaritanModel)
 
 
 class CoordinatedRaritanPduEntity(CoordinatedRaritanDeviceEntity, ABC):
@@ -283,3 +348,7 @@ class CoordinatedRaritanPduOverCurrentProtectorEntity(CoordinatedRaritanEnergyDe
 
     _device: RaritanPduOverCurrentProtector
     entity_description: RaritanPduOverCurrentProtectorEntityDescription
+
+
+class CoordinatedRaritanIntegrationEntity(CoordinatedRaritanAttributeBackedEntity, ABC):
+    """Common base class for all coordinated raritan pdu overcurrent protector based entities."""

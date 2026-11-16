@@ -14,9 +14,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.coordinator import (
-        RaritanApiDataUpdateCoordinator,
         RaritanPduConfigEntry,
         RaritanPduData,
     )
@@ -29,19 +27,17 @@ async def async_setup_entry(
 ) -> None:
     """Set up switches."""
     data: RaritanPduData = config_entry.runtime_data
-    coordinator: RaritanApiDataUpdateCoordinator = data.api_coordinator
-    pdu: RaritanPdu = coordinator.pdu
 
-    if pdu.has_switchable_outlets:
+    if data.pdu.has_switchable_outlets:
         async_add_entities(
             RaritanPduOutletSwitchEntity(
-                outlet,
-                data.hub,
-                coordinator,
-                description,
-                switch,
+                data.api_coordinator,
+                device=outlet,
+                hub=data.hub,
+                description=description,
+                switch=switch,
             )
-            for (_, outlet) in pdu.outlets.items()
+            for (_, outlet) in data.pdu.outlets.items()
             for (switch_name, switch) in outlet.available_switches
             if (description := get_entity_description(RaritanPduOutletSwitchEntityDescription, switch_name))
         )

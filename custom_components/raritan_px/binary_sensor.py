@@ -15,9 +15,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-    from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.coordinator import (
-        RaritanApiDataUpdateCoordinator,
         RaritanPduConfigEntry,
         RaritanPduData,
     )
@@ -30,15 +28,13 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors."""
     data: RaritanPduData = config_entry.runtime_data
-    coordinator: RaritanApiDataUpdateCoordinator = data.api_coordinator
-    pdu: RaritanPdu = coordinator.pdu
 
     async_add_entities(
         RaritanPduAttributeBackedBinarySensorEntity(
-            pdu,
-            data.hub,
-            coordinator,
-            desc,
+            data.api_coordinator,
+            hub=data.hub,
+            description=desc,
+            device=data.pdu,
         )
         for desc in PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
     )

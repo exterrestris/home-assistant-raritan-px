@@ -37,16 +37,17 @@ class RaritanDeviceSwitchEntity(CoordinatedRaritanDeviceEntity, SwitchEntity):
 
     def __init__(
         self,
+        coordinator: RaritanApiDataUpdateCoordinator,
+        *,
+        description: RaritanDeviceEntityDescription,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanApiDataUpdateCoordinator,
-        description: RaritanDeviceEntityDescription,
         switch: RaritanSwitch,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, hub, coordinator, description)
-
         self._switch = switch
+
+        super().__init__(coordinator, device=device, hub=hub, description=description)
 
     @classmethod
     def _entity_type(cls) -> str:

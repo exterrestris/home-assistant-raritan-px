@@ -38,13 +38,14 @@ class RaritanDeviceUpdateEntity(CoordinatedRaritanDeviceEntity, UpdateEntity):
 
     def __init__(
         self,
+        coordinator: RaritanFirmwareDataUpdateCoordinator,
+        *,
+        description: RaritanDeviceEntityDescription,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanFirmwareDataUpdateCoordinator,
-        description: RaritanDeviceEntityDescription,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, hub, coordinator, description)
+        super().__init__(coordinator, device=device, hub=hub, description=description)
 
     @classmethod
     def _entity_type(cls) -> str:
@@ -69,13 +70,14 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
 
     def __init__(
         self,
+        coordinator: RaritanFirmwareDataUpdateCoordinator,
+        *,
+        description: RaritanPduUpdateEntityDescription,
         device: RaritanPdu,
         hub: DeviceEntry,
-        coordinator: RaritanFirmwareDataUpdateCoordinator,
-        description: RaritanPduUpdateEntityDescription,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, hub, coordinator, description)
+        super().__init__(coordinator, device=device, hub=hub, description=description)
 
         self._async_update_attrs()
 

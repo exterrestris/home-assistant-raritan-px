@@ -194,6 +194,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         api_coordinator=api_coordinator,
         firmware_coordinator=firmware_coordinator,
         hub=hub,
+        pdu=pdu,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

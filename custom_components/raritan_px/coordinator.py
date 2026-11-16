@@ -40,6 +40,7 @@ class RaritanPduData:
     client_lock: Lock
     api_coordinator: RaritanApiDataUpdateCoordinator
     firmware_coordinator: RaritanFirmwareDataUpdateCoordinator
+    pdu: RaritanPdu
     hub: DeviceEntry
 
 

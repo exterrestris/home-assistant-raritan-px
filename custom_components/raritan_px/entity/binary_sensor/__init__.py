@@ -40,13 +40,14 @@ class RaritanDeviceBinarySensorEntity(CoordinatedRaritanDeviceEntity, BinarySens
 
     def __init__(
         self,
+        coordinator: RaritanApiDataUpdateCoordinator,
+        *,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanApiDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, hub, coordinator, description)
+        super().__init__(coordinator, device=device, hub=hub, description=description)
 
     def _get_value(self) -> EntityValue:
         raise NotImplementedError
