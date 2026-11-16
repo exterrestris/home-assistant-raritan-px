@@ -168,6 +168,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
     _manager: FirmwareCatalogueManager
     latest_firmware: Firmware | None = None
+    catalogue_update_check: bool = False  # Don't check for a catalogue update on first refresh
 
     @override
     def __init__(
@@ -198,9 +199,12 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     async def _async_update_data(self) -> None:
         """Fetch firmware data."""
         try:
-            catalogue = await self._manager.get_catalogue()
+            catalogue = await self._manager.get_catalogue(update_check=self.catalogue_update_check)
 
             self.latest_firmware = catalogue.get_latest_firmware(self.pdu.model, self.pdu.firmware_version)
+
+            # Ensure subsequent data updates check for a catalogue update
+            self.catalogue_update_check = True
         except Exception as ex:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
