@@ -18,7 +18,9 @@ PLATFORMS: Final = [
     Platform.BINARY_SENSOR,
     Platform.SENSOR,
     Platform.SWITCH,
+    Platform.UPDATE,
 ]
 
 DEFAULT_API_UPDATE_INTERVAL = dt.timedelta(seconds=5)
+DEFAULT_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(hours=12)
 DISCOVERY_INTERVAL = dt.timedelta(minutes=15)

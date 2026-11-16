@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
+    from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+    from custom_components.raritan_px.firmware.model import Firmware
 
 
 @dataclass(slots=True)
@@ -37,6 +39,7 @@ class RaritanPduData:
     client: RaritanClient
     client_lock: Lock
     api_coordinator: RaritanApiDataUpdateCoordinator
+    firmware_coordinator: RaritanFirmwareDataUpdateCoordinator
     hub: DeviceEntry
 
 
@@ -156,3 +159,51 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
                 ) from ex
             else:
                 return updated == state
+
+
+class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
+    """DataUpdateCoordinator to gather data for a specific RaritanPdu device."""
+
+    _manager: FirmwareCatalogueManager
+    latest_firmware: Firmware | None = None
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        logger: Logger,
+        *,
+        config_entry: RaritanPduConfigEntry,
+        client: RaritanClient,
+        client_lock: Lock,
+        manager: FirmwareCatalogueManager,
+        pdu: RaritanPdu,
+        update_interval: timedelta,
+    ) -> None:
+        """Initialize the RaritanPdu coordinator."""
+        super().__init__(
+            hass,
+            logger,
+            config_entry=config_entry,
+            client=client,
+            client_lock=client_lock,
+            pdu=pdu,
+            name="RaritanPduFirmware",
+            update_interval=update_interval,
+        )
+        self._manager = manager
+
+    async def _async_update_data(self) -> None:
+        """Fetch firmware data."""
+        try:
+            catalogue = await self._manager.get_catalogue()
+
+            self.latest_firmware = catalogue.get_latest_firmware(self.pdu.model, self.pdu.firmware_version)
+        except Exception as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="device_error",
+                translation_placeholders={
+                    "func": "update_outlets",
+                    "exc": str(ex),
+                },
+            ) from ex

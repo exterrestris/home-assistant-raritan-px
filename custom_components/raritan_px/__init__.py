@@ -27,6 +27,7 @@ from homeassistant.helpers import (
 from homeassistant.helpers import (
     entity_registry as er,
 )
+from homeassistant.helpers.storage import Store
 
 from custom_components.raritan_px.api.client import (
     AuthenticationDetails,
@@ -44,23 +45,37 @@ from custom_components.raritan_px.api.const import (
 from custom_components.raritan_px.const import (
     CONF_CONFIG_ENTRY_MINOR_VERSION,
     DEFAULT_API_UPDATE_INTERVAL,
+    DEFAULT_FIRMWARE_UPDATE_INTERVAL,
     DOMAIN,
     PLATFORMS,
 )
 from custom_components.raritan_px.coordinator import (
     RaritanApiDataUpdateCoordinator,
+    RaritanFirmwareDataUpdateCoordinator,
     RaritanPduConfigEntry,
     RaritanPduData,
 )
+from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+from custom_components.raritan_px.firmware.const import CATALOGUE_STORE, STORAGE_KEY, STORAGE_VERSION
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.typing import ConfigType
 
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa: ARG001
+    """Set up the Raritan PX component."""
+    hass.data.setdefault(DOMAIN, {})
+
+    hass.data[CATALOGUE_STORE] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -> bool:
@@ -159,11 +174,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         pdu=pdu,
         update_interval=DEFAULT_API_UPDATE_INTERVAL,
     )
+    firmware_coordinator = RaritanFirmwareDataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        config_entry=entry,
+        client=client,
+        client_lock=lock,
+        manager=FirmwareCatalogueManager(hass),
+        pdu=pdu,
+        update_interval=DEFAULT_FIRMWARE_UPDATE_INTERVAL,
+    )
 
     entry.runtime_data = RaritanPduData(
         client=client,
         client_lock=lock,
         api_coordinator=api_coordinator,
+        firmware_coordinator=firmware_coordinator,
         hub=hub,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
