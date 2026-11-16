@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 from logging import Logger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -53,6 +53,7 @@ class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
     _client: RaritanClient
     _client_lock: Lock
 
+    @override
     def __init__(
         self,
         hass: HomeAssistant,
@@ -79,10 +80,11 @@ class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
 
 
 class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
-    """DataUpdateCoordinator to gather data for a specific RaritanPdu device."""
+    """DataUpdateCoordinator to gather data from the JSON-RPC API for a specific Raritan PDU."""
 
     _devices: dict[str, RaritanDevice]
 
+    @override
     def __init__(
         self,
         hass: HomeAssistant,
@@ -94,7 +96,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         pdu: RaritanPdu,
         update_interval: timedelta,
     ) -> None:
-        """Initialize the RaritanPdu coordinator."""
+        """Initialize the JSON-RPC API coordinator."""
         super().__init__(
             hass,
             logger,
@@ -102,7 +104,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             client=client,
             client_lock=client_lock,
             pdu=pdu,
-            name="RaritanPduApi",
+            name="Raritan PX - JSON-RPC API Updates",
             update_interval=update_interval,
         )
         self._devices = self._cache_devices_by_id(pdu)
@@ -162,11 +164,12 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
 
 class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
-    """DataUpdateCoordinator to gather data for a specific RaritanPdu device."""
+    """DataUpdateCoordinator to gather firmware update data for a specific Raritan PDU."""
 
     _manager: FirmwareCatalogueManager
     latest_firmware: Firmware | None = None
 
+    @override
     def __init__(
         self,
         hass: HomeAssistant,
@@ -179,7 +182,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         pdu: RaritanPdu,
         update_interval: timedelta,
     ) -> None:
-        """Initialize the RaritanPdu coordinator."""
+        """Initialize the firmware update coordinator."""
         super().__init__(
             hass,
             logger,
@@ -187,7 +190,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             client=client,
             client_lock=client_lock,
             pdu=pdu,
-            name="RaritanPduFirmware",
+            name="Raritan PX - Firmware Updates",
             update_interval=update_interval,
         )
         self._manager = manager
