@@ -132,9 +132,9 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,
-                    translation_key="device_error",
+                    translation_key="api_update_error",
                     translation_placeholders={
-                        "func": "update_outlets",
+                        "pdu": self.pdu.device_name,
                         "exc": str(ex),
                     },
                 ) from ex
@@ -153,9 +153,9 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,
-                    translation_key="device_error",
+                    translation_key="api_change_outlet_state_error",
                     translation_placeholders={
-                        "func": "set_outlet_state",
+                        "outlet": outlet.device_name,
                         "exc": str(ex),
                     },
                 ) from ex
@@ -204,9 +204,8 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         except Exception as ex:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
-                translation_key="device_error",
+                translation_key="catalogue_error",
                 translation_placeholders={
-                    "func": "update_outlets",
                     "exc": str(ex),
                 },
             ) from ex
