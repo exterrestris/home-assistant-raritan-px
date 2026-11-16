@@ -5,8 +5,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from aiohttp import ClientError
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
 
 from custom_components.raritan_px.firmware.const import CATALOGUE_FILE, CATALOGUE_STORE, CATALOGUE_URL
 from custom_components.raritan_px.firmware.model import FirmwareCatalogue
@@ -71,15 +74,19 @@ class FirmwareCatalogueManager:
                 return catalogue
         except ValidationError:
             self._logger.warning("Unable to parse saved firmware catalogue data")
+        except HomeAssistantError:
+            self._logger.warning("Unable to load saved firmware catalogue data")
 
         return None
 
     async def _save_catalogue_to_store(self, catalogue: FirmwareCatalogue) -> None:
-        data = catalogue.model_dump(mode="json")
+        try:
+            self._logger.debug("Saving firmware catalogue data to HA store")
+            data = catalogue.model_dump(mode="json")
 
-        self._logger.debug("Saving firmware catalogue data to HA store")
-
-        await self._store.async_save(data)
+            await self._store.async_save(data)
+        except HomeAssistantError, PydanticSerializationError:
+            self._logger.exception("Unable to save firmware catalogue data")
 
     def _get_session(self) -> ClientSession:
         if self._session is None:
@@ -94,9 +101,14 @@ class FirmwareCatalogueManager:
             async with session.get(CATALOGUE_URL) as response:
                 release = await response.json()
 
-                return (release.get("tag_name"), release)
+                if not release.get("tag_name"):
+                    return (release.get("tag_name"), release)
+        except ClientError as err:
+            raise GitHubApiHttpError from err
         except Exception as err:
-            raise CommunicationError from err
+            raise GitHubApiParseError from err
+
+        raise GitHubApiParseError
 
     async def _get_latest_url(self) -> str:
         (_, release) = await self._get_latest_version()
@@ -114,10 +126,13 @@ class FirmwareCatalogueManager:
 
         url = await self._get_latest_url()
 
-        async with session.get(url, headers={"Accept": "application/octet-stream"}) as response:
-            json = await response.text()
+        try:
+            async with session.get(url, headers={"Accept": "application/octet-stream"}) as response:
+                json = await response.text()
 
-            return self._parse_catalogue(json)
+                return self._parse_catalogue(json)
+        except ClientError as err:
+            raise GitHubApiHttpError from err
 
     def _parse_catalogue(self, json: str) -> FirmwareCatalogue:
         try:
@@ -132,13 +147,29 @@ class FirmwareCatalogueManagerError(Exception):
     """Base exception for all client exceptions."""
 
 
-class ReleaseParseError(FirmwareCatalogueManagerError):
+class ParseError(FirmwareCatalogueManagerError):
+    """Generic parsing exception."""
+
+
+class ReleaseParseError(ParseError):
     """Raised when GitHub release data cannot be parsed."""
 
 
-class CatalogueParseError(FirmwareCatalogueManagerError):
+class CatalogueParseError(ParseError):
     """Raised when catalogue cannot be parsed."""
 
 
-class CommunicationError(FirmwareCatalogueManagerError):
-    """Raised when a generic error occurs while communicating with the Raritan API."""
+class HttpClientError(FirmwareCatalogueManagerError):
+    """Raised when a generic error occurs handling an HTTP request."""
+
+
+class GitHubApiError(FirmwareCatalogueManagerError):
+    """Raised when a generic error occurs communicating with or handling response data from the GitHub API."""
+
+
+class GitHubApiParseError(GitHubApiError, ParseError):
+    """Raised when a generic error occurs communicating with or handling response data from the GitHub API."""
+
+
+class GitHubApiHttpError(HttpClientError, GitHubApiError):
+    """Raised when a generic error occurs handling an HTTP request."""
