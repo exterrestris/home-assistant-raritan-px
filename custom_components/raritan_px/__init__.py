@@ -185,6 +185,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         update_interval=DEFAULT_FIRMWARE_UPDATE_INTERVAL,
     )
 
+    await api_coordinator.async_config_entry_first_refresh()
+    await firmware_coordinator.async_refresh()
+
     entry.runtime_data = RaritanPduData(
         client=client,
         client_lock=lock,
