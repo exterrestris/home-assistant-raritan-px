@@ -105,7 +105,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             client=client,
             client_lock=client_lock,
             pdu=pdu,
-            name="Raritan PX - JSON-RPC API Updates",
+            name=f"{pdu.device_name} API",
             update_interval=update_interval,
         )
         self._devices = self._cache_devices_by_id(pdu)
@@ -193,7 +193,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             client=client,
             client_lock=client_lock,
             pdu=pdu,
-            name="Raritan PX - Firmware Updates",
+            name="firmware catalogue",
             update_interval=update_interval,
         )
         self._manager = manager

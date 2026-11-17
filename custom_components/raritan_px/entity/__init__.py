@@ -192,7 +192,6 @@ class CoordinatedRaritanDeviceSensorBackedEntity(CoordinatedRaritanDeviceEntity,
 
         super().__init__(coordinator, device=device, hub=hub, description=description)
 
-
     @classmethod
     def _entity_source(cls) -> str:
         return "sensor"
