@@ -56,7 +56,7 @@ from custom_components.raritan_px.coordinator import (
     RaritanPduData,
 )
 from custom_components.raritan_px.firmware import FirmwareCatalogueManager
-from custom_components.raritan_px.firmware.const import CATALOGUE_STORE, STORAGE_KEY, STORAGE_VERSION
+from custom_components.raritan_px.firmware.const import CATALOGUE_MANAGER, CATALOGUE_STORE, STORAGE_KEY, STORAGE_VERSION
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -74,6 +74,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
     hass.data.setdefault(DOMAIN, {})
 
     hass.data[CATALOGUE_STORE] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+    hass.data[CATALOGUE_MANAGER] = FirmwareCatalogueManager(hass)
 
     return True
 
@@ -180,7 +181,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         config_entry=entry,
         client=client,
         client_lock=lock,
-        manager=FirmwareCatalogueManager(hass),
+        manager=hass.data[CATALOGUE_MANAGER],
         pdu=pdu,
         update_interval=DEFAULT_FIRMWARE_UPDATE_INTERVAL,
     )
