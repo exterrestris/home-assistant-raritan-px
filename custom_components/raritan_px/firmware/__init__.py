@@ -73,9 +73,9 @@ class FirmwareCatalogueManager:
 
                 return catalogue
         except ValidationError:
-            self._logger.warning("Unable to parse saved firmware catalogue data")
+            self._logger.warning("Unable to parse saved firmware catalogue data", exc_info=True)
         except HomeAssistantError:
-            self._logger.warning("Unable to load saved firmware catalogue data")
+            self._logger.warning("Unable to load saved firmware catalogue data", exc_info=True)
 
         return None
 
