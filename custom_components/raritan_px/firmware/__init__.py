@@ -101,7 +101,7 @@ class FirmwareCatalogueManager:
             async with session.get(CATALOGUE_URL) as response:
                 release = await response.json()
 
-                if not release.get("tag_name"):
+                if release.get("tag_name"):
                     return (release.get("tag_name"), release)
         except ClientError as err:
             raise GitHubApiHttpError from err
