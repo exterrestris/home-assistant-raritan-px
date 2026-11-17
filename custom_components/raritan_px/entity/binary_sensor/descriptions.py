@@ -3,9 +3,10 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from homeassistant.components.binary_sensor import BinarySensorEntityDescription
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntityDescription
 from homeassistant.const import EntityCategory
 
+from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
 from custom_components.raritan_px.entity.descriptions import (
     RaritanDeviceEntityDescription,
     RaritanPduEntityDescription,
@@ -59,5 +60,20 @@ PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduBinarySensorEntityDesc
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_has_metered_outlets",
         entity_registry_enabled_default=False,
+    ),
+)
+
+OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletBinarySensorEntityDescription, ...] = (
+    RaritanPduOutletBinarySensorEntityDescription(
+        key="state.power_state",
+        device_class=BinarySensorDeviceClass.POWER,
+        on_value=OutletPowerState.ON,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_power_state",
+    ),
+    RaritanPduOutletBinarySensorEntityDescription(
+        key="state.is_load_shed",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="outlet_load_shed",
     ),
 )

@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING
 
 from custom_components.raritan_px.entity.binary_sensor import (
     RaritanPduAttributeBackedBinarySensorEntity,
+    RaritanPduOutletAttributeBackedBinarySensorEntity,
 )
 from custom_components.raritan_px.entity.binary_sensor.descriptions import (
+    OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
 )
 
@@ -37,4 +39,16 @@ async def async_setup_entry(
             device=data.pdu,
         )
         for desc in PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
+    )
+
+    async_add_entities(
+        RaritanPduOutletAttributeBackedBinarySensorEntity(
+            data.api_coordinator,
+            device=outlet,
+            hub=data.hub,
+            description=desc
+        )
+        for (_, outlet) in data.pdu.outlets.items()
+        for desc in OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
+        if desc.is_available_for(outlet)
     )

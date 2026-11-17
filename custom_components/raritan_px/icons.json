@@ -1,6 +1,13 @@
 {
   "entity": {
     "binary_sensor": {
+      "outlet_load_shed": {
+        "default": "mdi:power-plug-outline",
+        "state": {
+          "off": "mdi:power-plug",
+          "on": "mdi:power-plug-off"
+        }
+      },
       "pdu_has_metered_outlets": {
         "default": "mdi:meter-electric-outline"
       },

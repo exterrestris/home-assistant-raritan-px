@@ -82,6 +82,16 @@
   },
   "entity": {
     "binary_sensor": {
+      "outlet_power_state": {
+        "name": "Power State"
+      },
+      "outlet_load_shed": {
+        "name": "Load Shedding",
+        "state": {
+          "off": "No",
+          "on": "Yes"
+        }
+      },
       "pdu_has_metered_outlets": {
         "name": "Metered Outlets",
         "state": {
