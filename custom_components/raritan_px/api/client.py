@@ -20,7 +20,7 @@ from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 
 from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
-from custom_components.raritan_px.api.mappings import STATE_TO_API_MAPPING
+from custom_components.raritan_px.api.mappings import API_TO_STATE_MAPPING, STATE_TO_API_MAPPING
 from custom_components.raritan_px.api.model import RaritanUpdateOptions
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
@@ -34,6 +34,7 @@ from custom_components.raritan_px.api.model.device.pdu.ocp import (
 from custom_components.raritan_px.api.model.device.pdu.outlet import (
     RaritanPduOutlet,
     RaritanPduOutletSensors,
+    RaritanPduOutletState,
 )
 from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
 from custom_components.raritan_px.api.model.network import (
@@ -487,6 +488,7 @@ class RaritanClient:
                 interleave(
                     [(outlet.getMetaData, []) for outlet in pdu_outlets],
                     [(outlet.getSettings, []) for outlet in pdu_outlets],
+                    [(outlet.getState, []) for outlet in pdu_outlets],
                     [(outlet.getSensors, []) for outlet in pdu_outlets],
                     [(outlet.getIOP, []) for outlet in pdu_outlets],
                 ),
@@ -497,6 +499,7 @@ class RaritanClient:
 
             outlet_metadata: Outlet.MetaData
             outlet_settings: Outlet.Settings
+            outlet_state: Outlet.State
             outlet_sensors: Outlet.Sensors
             inlet: Inlet | None
             ocp: OverCurrentProtector | None
@@ -504,9 +507,10 @@ class RaritanClient:
             for outlet_idx, (
                 outlet_metadata,
                 outlet_settings,
+                outlet_state,
                 outlet_sensors,
                 (inlet, ocp, _),
-            ) in enumerate(grouper(responses, 4)):  # pyright: ignore[reportGeneralTypeIssues, reportAssignmentType]
+            ) in enumerate(grouper(responses, 5)):  # pyright: ignore[reportGeneralTypeIssues, reportAssignmentType]
                 outlet = RaritanPduOutlet(
                     device_id=f"{pdu_serial}:/model/pdu/{pdu.id}/outlet/{outlet_idx}",
                     rid=pdu_outlets[outlet_idx].target,
@@ -538,6 +542,16 @@ class RaritanClient:
                             "inrush_current": outlet_sensors.inrushCurrent,
                             "outlet_state": outlet_sensors.outletState,
                         }
+                    ),
+                    state=RaritanPduOutletState(
+                        is_available=outlet_state.available,
+                        power_state=API_TO_STATE_MAPPING[OutletPowerState][outlet_state.powerState.val],  # pyright: ignore[reportArgumentType]
+                        switch_on_in_progress=outlet_state.switchOnInProgress,
+                        cycle_in_progress=outlet_state.cycleInProgress,
+                        is_load_shed=outlet_state.isLoadShed,
+                        is_suspended=outlet_state.isSuspended,
+                        in_service_mode=outlet_state.inServiceMode,
+                        last_power_state_change=outlet_state.lastPowerStateChange,  # pyright: ignore[reportArgumentType]
                     ),
                 )
 

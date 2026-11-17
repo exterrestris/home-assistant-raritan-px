@@ -1,9 +1,12 @@
 """Raritan PDU API PDU outlet models."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
+from custom_components.raritan_px.api.model import RaritanModel, RaritanUpdatable
 from custom_components.raritan_px.api.model.device import RaritanDeviceSensors, RaritanEnergyDevice
+from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
 from custom_components.raritan_px.api.model.sensor import RaritanAccumulatingSensor, RaritanNumericSensor, RaritanSwitch
 
 if TYPE_CHECKING:
@@ -20,6 +23,7 @@ class RaritanPduOutlet(RaritanEnergyDevice):
     inlet_rid: str | None
     ocp_rid: str | None
     sensors: RaritanPduOutletSensors
+    state: RaritanPduOutletState
 
     @property
     def device_type(self) -> str:
@@ -35,6 +39,20 @@ class RaritanPduOutlet(RaritanEnergyDevice):
     def ocp(self) -> RaritanPduOverCurrentProtector | None:
         """Return the overcurrent protector supplying power to this device."""
         return self.pdu.ocps.get(self.ocp_rid) if self.pdu and self.ocp_rid else None
+
+
+@dataclass(kw_only=True)
+class RaritanPduOutletState(RaritanModel, RaritanUpdatable):
+    """Representation of the outlet state information."""
+
+    is_available: bool
+    power_state: OutletPowerState
+    switch_on_in_progress: bool
+    cycle_in_progress: bool
+    is_load_shed: bool
+    is_suspended: bool
+    in_service_mode: bool
+    last_power_state_change: datetime
 
 
 @dataclass(kw_only=True)
