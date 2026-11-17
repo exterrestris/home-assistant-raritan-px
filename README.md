@@ -4,9 +4,9 @@
 [![version](https://shields.io/github/v/release/exterrestris/home-assistant-raritan-px?style=for-the-badge)](https://github.com/exterrestris/home-assistant-raritan-px)
 
 
-A custom integration to expose and control your Raritan PX-Series PDUs within Home Assistant, using the built-in local [Xerus™ JSON-RPC API](https://help.raritan.com/json-rpc/4.3.15/index.html) - no Internet access required
+A custom integration to expose and control your Raritan PX-Series Xerus™ PDUs within Home Assistant, using the built-in local [Xerus™ JSON-RPC API](https://help.raritan.com/json-rpc/4.3.15/index.html) - no Internet access required
 
-This is an **unofficial** integration that is in **no way affiliated, endorsed or supported** by Raritan or Legrand
+This is an **unofficial** integration that is in **no way affiliated, endorsed or supported** by [Raritan](https://www.raritan.com) or [Legrand](https://www.legrand.com/en)
 
 ## Features
 
@@ -18,12 +18,12 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
 
 [^1]: Current, Voltage, Line Frequency, Power, Energy, etc.
 
-> [!NOTE]
+> [!TIP]
 > The specific features and sensors exposed to Home Assistant depend on the functionality supported by your PDU.
 > * Outlet level switching requires a 2000 or 5000 Series PDU.
 > * Outlet level metering requires a 4000 or 5000 Series PDU
 >
-> For the exact features supported by your PDU, refer to Raritan's [PDU Product Selector](https://www.raritan.com/product-selector) 
+> For the exact features supported by your PDU, refer to Raritan's [PDU Product Selector](https://www.raritan.com/product-selector) for your model
 
 ## Supported Devices
 
@@ -32,9 +32,12 @@ Any PX-Series (PX2/PX3/PX4/PXO/PXC) PDU running Xerus 4.3.11 or greater
 > [!NOTE]
 > Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
 >
-> PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
->
-> PDUs running Xerus 3.6.xx and earlier will **not** work
+> PX-Series PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
+> 
+> PDUs made by other brands that also run Xerus 4.3.0 or greater (such as [Server Technology](https://www.servertech.com/) PRO4X PDUs) _may_ also work but are untested
+
+> [!WARNING]
+> PX-Series PDUs running Xerus 3.6.xx and earlier will **not** work
 
 ### Known working Devices
 - [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8) (@exterrestris)
