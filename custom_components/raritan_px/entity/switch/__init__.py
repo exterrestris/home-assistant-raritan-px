@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.sensor import RaritanSwitch
-    from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+    from custom_components.raritan_px.coordinator import RaritanApiDataUpdateCoordinator
     from custom_components.raritan_px.entity.descriptions import (
         RaritanDeviceEntityDescription,
     )
@@ -33,19 +33,21 @@ class RaritanDeviceSwitchEntity(CoordinatedRaritanDeviceEntity, SwitchEntity):
 
     _switch: RaritanSwitch
     entity_description: RaritanDeviceSwitchEntityDescription
+    coordinator: RaritanApiDataUpdateCoordinator
 
     def __init__(
         self,
+        coordinator: RaritanApiDataUpdateCoordinator,
+        *,
+        description: RaritanDeviceEntityDescription,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
-        description: RaritanDeviceEntityDescription,
         switch: RaritanSwitch,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, hub, coordinator, description)
-
         self._switch = switch
+
+        super().__init__(coordinator, device=device, hub=hub, description=description)
 
     @classmethod
     def _entity_type(cls) -> str:

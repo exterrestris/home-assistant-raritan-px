@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription, SensorStateClass
-from homeassistant.const import DEGREE, EntityCategory
+from homeassistant.const import DEGREE, EntityCategory, UnitOfEnergy
 
 from custom_components.raritan_px.api.model.network import NetworkInterface, NetworkInterfaceState, NetworkInterfaceType
 from custom_components.raritan_px.api.model.sensor.state import (
@@ -68,11 +68,15 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         key="active_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
     ),
     RaritanPduSensorEntityDescription(
         key="apparent_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
         name="Apparent Energy",
     ),
     # endregion
@@ -135,11 +139,15 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         key="active_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
     ),
     RaritanPduOutletSensorEntityDescription(
         key="apparent_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
         name="Apparent Energy",
     ),
     RaritanPduOutletSensorEntityDescription(
@@ -241,11 +249,15 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         key="active_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
     ),
     RaritanPduInletSensorEntityDescription(
         key="apparent_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
         name="Apparent Energy",
     ),
     RaritanPduInletSensorEntityDescription(
@@ -381,11 +393,15 @@ SENSOR_BACKED_SENSOR_DESCRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, .
         key="active_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
     ),
     RaritanPduOverCurrentProtectorSensorEntityDescription(
         key="apparent_energy",
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
         name="Apparent Energy",
     ),
     RaritanPduOverCurrentProtectorSensorEntityDescription(
@@ -532,6 +548,14 @@ OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="ocp_inlet",
         is_available_for=lambda x: x.inlet is not None,
+    ),
+)
+
+INTEGRATION_COORDINATOR_ENTITY_DESCPRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
+    RaritanDeviceSensorEntityDescription(
+        key="catalogue.version",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="raritan_px_firmware_catalogue_version",
     ),
 )
 

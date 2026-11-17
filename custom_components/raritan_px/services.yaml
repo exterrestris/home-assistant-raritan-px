@@ -1,0 +1,3 @@
+update_firmware_catalogue:
+  name: Update Xerus firmware catalogue
+  description: Updates the firmware catalogue used to determine if firmware updates are available for Raritan PDUs
