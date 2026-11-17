@@ -10,15 +10,50 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
 
 ## Features
 
-* PDU energy usage
-* Outlet enegy usage *(PDU support required)*
-* Outlet switching *(PDU support required)*
+* Power & Energy sensors[^1]
+  * Supported at PDU, inlet, outlet and overcurrent protector levels
+* Outlet switching
+* Network status
+* Firmware update checks
+
+[^1]: Current, Voltage, Line Frequency, Power, Energy, etc.
+
+> [!NOTE]
+> The specific features and sensors exposed to Home Assistant depend on the functionality supported by your PDU.
+> * Outlet level switching requires a 2000 or 5000 Series PDU.
+> * Outlet level metering requires a 4000 or 5000 Series PDU
+>
+> For the exact features supported by your PDU, refer to Raritan's [PDU Product Selector](https://www.raritan.com/product-selector) 
+
+## Supported Devices
+
+Any PX-Series (PX2/PX3/PX4/PXO/PXC) PDU running Xerus 4.3.11 or greater
+
+> [!NOTE]
+> Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
+>
+> PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
+>
+> PDUs running Xerus 3.6.xx and earlier will **not** work
+
+### Known working Devices
+- [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8) (@exterrestris)
+- [Raritan PX3-5260R](https://www.raritan.com/product-selector/pdu-detail/px3-5260r)
+- [Raritan PX3-5145R](https://www.raritan.com/product-selector/pdu-detail/px3-5145r)
 
 ## Installation
 
-This integration is included in the default [HACS](https://github.com/hacs/integration) catalogue. Click the button below to open this repository in your Home Assistant instance, then click install
+This integration is included in the default catalogue for [Home Assistant Marketplace](https://www.home-assistant.io/integrations/marketplace/)[^2]. Click the button below to open this repository in your Home Assistant instance, then click install
 
+[^2]: Previously [HACS](https://github.com/hacs/integration) prior to Home Assistant 2026.11
+ 
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=exterrestris&repository=home-assistant-raritan-px&category=integration)
+
+> [!NOTE]
+> If you have not previosly opened the Marketplace, you will be warned that Marketplace content is not supported by the Home Assistant project. Before you can install any Marketplace content, you will need to understand and accept that warning
+
+> [!WARNING] 
+> If you are not comfortable with installing integrations that are not supported by the Home Assistant project, then **do not** install this integration
 
 
 ## Setup
@@ -41,20 +76,6 @@ This integration is included in the default [HACS](https://github.com/hacs/integ
 > By default, the integration will try to connect to your Raritan PDU over HTTPS unless configured otherwise. If your PDU has a self-signed certificate be sure to disable certificate verification in the Advanced connection options.
 >
 > Installing a verifiable certificate on your PDU is recommended, and can be done via the PDUs Web UI
-
-## Supported Devices
-
-Any PX-Series (PX2/PX3/PX4/PXO/PXC) PDU running Xerus 4.3.11 or greater
-
-> [!NOTE]
-> Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
->
-> PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
->
-> PDUs running Xerus 3.6.xx and earlier will **not** work
-
-### Known working Devices
-- [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8)
 
 
 ## FAQs
