@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
     from custom_components.raritan_px.firmware import FirmwareCatalogueManager
-    from custom_components.raritan_px.firmware.model import Firmware
+    from custom_components.raritan_px.firmware.model import Firmware, FirmwareCatalogue
 
 
 @dataclass(slots=True)
@@ -168,6 +168,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     """DataUpdateCoordinator to gather firmware update data for a specific Raritan PDU."""
 
     _manager: FirmwareCatalogueManager
+    catalogue: FirmwareCatalogue | None = None
     latest_firmware: Firmware | None = None
     catalogue_update_check: bool = False  # Don't check for a catalogue update on first refresh
 
@@ -200,9 +201,9 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     async def _async_update_data(self) -> None:
         """Fetch firmware data."""
         try:
-            catalogue = await self._manager.get_catalogue(update_check=self.catalogue_update_check)
+            self.catalogue = await self._manager.get_catalogue(update_check=self.catalogue_update_check)
 
-            self.latest_firmware = catalogue.get_latest_firmware(self.pdu.model, self.pdu.firmware_version)
+            self.latest_firmware = self.catalogue.get_latest_firmware(self.pdu.model, self.pdu.firmware_version)
 
             # Ensure subsequent data updates check for a catalogue update
             self.catalogue_update_check = True

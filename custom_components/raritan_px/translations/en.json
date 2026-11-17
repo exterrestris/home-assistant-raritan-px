@@ -145,6 +145,9 @@
       },
       "pdu_voltage_rating": {
         "name": "Voltage Rating"
+      },
+      "raritan_px_firmware_catalogue_version": {
+        "name": "Firmware Catalogue"
       }
     }
   },
