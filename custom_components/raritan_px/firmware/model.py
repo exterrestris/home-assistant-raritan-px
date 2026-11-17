@@ -2,26 +2,35 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import StrEnum, unique
 
 from packaging.version import Version
 from pydantic import BaseModel, Field, HttpUrl
 
 
+@unique
 class Product(StrEnum):
     """Product familes."""
 
     PX2 = "PX2"
     PX3 = "PX3"
-    PX4 = "PX4"
     PXC = "PXC"
     PXO = "PXO"
-    PXE = "PXE"
 
     @staticmethod
     def from_model(model: str) -> Product:
         """Get the product from the specifed model string."""
         return Product(model[:3].upper())
+
+    @staticmethod
+    def supported_model(model: str) -> bool:
+        """Check if the model is a supported product."""
+        try:
+            Product.from_model(model)
+        except ValueError:
+            return False
+        else:
+            return True
 
 
 class Firmware(BaseModel):
@@ -85,6 +94,9 @@ class FirmwareCatalogue(BaseModel):
 
     def get_available_firmware(self, model: str, current_version: str) -> list[Firmware]:
         """Get the firmwares for a model that support upgrading from the specified version."""
+        if not self.supports_model(model):
+            return []
+
         firmwares = [firmware for firmware in self.firmwares if firmware.supports(model, current_version)]
         firmwares.sort(key=lambda firmware: Version(firmware.version), reverse=True)
 
@@ -99,3 +111,15 @@ class FirmwareCatalogue(BaseModel):
     def is_out_of_date(self, latest: str) -> bool:
         """Check if the catalogue is older than the specified version."""
         return Version(latest) > Version(self.version)
+
+    def supports_model(self, model: str) -> bool:
+        """Check if the catalogue can provide firmware for the specified model."""
+        try:
+            product = Product.from_model(model)
+
+            if self.products:
+                return product in self.products
+        except ValueError:
+            return False
+        else:
+            return True

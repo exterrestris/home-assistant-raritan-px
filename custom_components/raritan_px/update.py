@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from custom_components.raritan_px.entity.update import PDU_FIRMWARE_UPDATE_DESCRIPTION, RaritanPduFirmwareUpdateEntity
+from custom_components.raritan_px.firmware.model import Product
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -24,13 +25,14 @@ async def async_setup_entry(
     """Set up sensors."""
     data: RaritanPduData = config_entry.runtime_data
 
-    async_add_entities(
-        [
-            RaritanPduFirmwareUpdateEntity(
-                data.firmware_coordinator,
-                device=data.api_coordinator.pdu,
-                hub=data.hub,
-                description=PDU_FIRMWARE_UPDATE_DESCRIPTION,
-            )
-        ]
-    )
+    if Product.supported_model(data.pdu.model):
+        async_add_entities(
+            [
+                RaritanPduFirmwareUpdateEntity(
+                    data.firmware_coordinator,
+                    device=data.api_coordinator.pdu,
+                    hub=data.hub,
+                    description=PDU_FIRMWARE_UPDATE_DESCRIPTION,
+                )
+            ]
+        )
