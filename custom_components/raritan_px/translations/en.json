@@ -145,7 +145,24 @@
       },
       "pdu_voltage_rating": {
         "name": "Voltage Rating"
+      },
+      "raritan_px_firmware_catalogue_version": {
+        "name": "Firmware Catalogue"
       }
+    }
+  },
+  "exceptions": {
+    "api_change_outlet_state_error": {
+      "message": "Unable to change outlet state for {outlet}: {exc}"
+    },
+    "api_error": {
+      "message": "Unable to {func} for {pdu}: {exc}"
+    },
+    "api_update_error": {
+      "message": "Unable to update data for {pdu} from API: {exc}"
+    },
+    "catalogue_error": {
+      "message": "Unable to get firmware information from catalogue: {exc}"
     }
   }
 }

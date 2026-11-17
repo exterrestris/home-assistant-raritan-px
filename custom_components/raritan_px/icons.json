@@ -62,7 +62,13 @@
       },
       "pdu_voltage_rating": {
         "default": "mdi:sine-wave"
+      },
+      "raritan_px_firmware_catalogue_version": {
+        "default": "mdi:book-cog-outline"
       }
     }
+  },
+  "services": {
+    "update_firmware_catalogue": "mdi:book-arrow-down-outline"
   }
 }
