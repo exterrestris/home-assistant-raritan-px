@@ -15,5 +15,5 @@ CATALOGUE_FILE: Final[str] = "catalogue.json"
 CATALOGUE_MANAGER: HassKey[FirmwareCatalogueManager] = HassKey("firmware_catalogue_manager")
 CATALOGUE_STORE: HassKey[Store] = HassKey("firmware_catalogue")
 
-STORAGE_KEY: Final[str] = "raritan_px.firmware_catalogue"
-STORAGE_VERSION: Final[int] = 1
+CATALOGUE_STORE_STORAGE_KEY: Final[str] = "raritan_px.firmware_catalogue"
+CATALOGUE_STORE_STORAGE_VERSION: Final[int] = 1

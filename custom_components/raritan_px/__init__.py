@@ -56,7 +56,12 @@ from custom_components.raritan_px.coordinator import (
     RaritanPduData,
 )
 from custom_components.raritan_px.firmware import FirmwareCatalogueManager
-from custom_components.raritan_px.firmware.const import CATALOGUE_MANAGER, CATALOGUE_STORE, STORAGE_KEY, STORAGE_VERSION
+from custom_components.raritan_px.firmware.const import (
+    CATALOGUE_MANAGER,
+    CATALOGUE_STORE,
+    CATALOGUE_STORE_STORAGE_KEY,
+    CATALOGUE_STORE_STORAGE_VERSION,
+)
 from custom_components.raritan_px.services import async_setup_services
 
 if TYPE_CHECKING:
@@ -74,7 +79,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
     """Set up the Raritan PX component."""
     hass.data.setdefault(DOMAIN, {})
 
-    hass.data[CATALOGUE_STORE] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+    hass.data[CATALOGUE_STORE] = Store(hass, CATALOGUE_STORE_STORAGE_VERSION, CATALOGUE_STORE_STORAGE_KEY)
     hass.data[CATALOGUE_MANAGER] = FirmwareCatalogueManager(hass)
 
     async_setup_services(hass)
