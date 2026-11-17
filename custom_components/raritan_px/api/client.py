@@ -21,6 +21,7 @@ from raritan.rpc.usermgmt import User, UserInfo
 
 from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
 from custom_components.raritan_px.api.mappings import STATE_TO_API_MAPPING
+from custom_components.raritan_px.api.model import RaritanUpdateOptions
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
     RaritanPduInlet,
@@ -83,8 +84,8 @@ class _SensorUpdateMethod:
 
 
 class _SensorUpdate(Enum):
-    INFO = _SensorUpdateMethod(lambda sensor: sensor.update_info())
-    READINGS = _SensorUpdateMethod(lambda sensor: sensor.update_readings())
+    INFO = _SensorUpdateMethod(lambda sensor: sensor.update(RaritanUpdateOptions.METADATA))
+    READINGS = _SensorUpdateMethod(lambda sensor: sensor.update(RaritanUpdateOptions.VALUES))
 
     def get_update_methods(self, sensor: RaritanUpdatable) -> RaritanUpdatableRpcMethodsList:
         return self.value.method(sensor)

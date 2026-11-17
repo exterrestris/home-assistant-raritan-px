@@ -37,6 +37,7 @@ from raritan.rpc.sensors import (
 from custom_components.raritan_px.api.model import (
     RaritanUpdatable,
     RaritanUpdatableRpcMethodsList,
+    RaritanUpdateOptions,
 )
 from custom_components.raritan_px.api.model.sensor.state import (
     NormalAlarmed,
@@ -195,26 +196,26 @@ class RaritanStateSensor(RaritanSensor):
         """Return the current state of the sensor."""
         return self.state
 
-    def update_info(self) -> RaritanUpdatableRpcMethodsList:
+    def _update_metadata(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor information."""
         return [
-            ((self.source.getTypeSpec, []), self.update_type),
+            ((self.source.getTypeSpec, []), self._set_type),
         ]
 
-    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+    def _update_values(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor readings."""
         return [
-            ((self.source.getState, []), self.update_state),
+            ((self.source.getState, []), self._set_state),
         ]
 
-    def update_state(self, state: StateSensor.State) -> None:
+    def _set_state(self, state: StateSensor.State) -> None:
         """Update the current sensor state from API sensor state."""
         if self.type:
             self.state = STATE_SENSOR_TYPE_VALUE_MAPPING[self.type][state.value]
             self.available = state.available
             self.last_sample = state.timestamp
 
-    def update_type(self, spec: StateSensor.TypeSpec) -> None:
+    def _set_type(self, spec: StateSensor.TypeSpec) -> None:
         """Update the current sensor type from API sensor type spec."""
         if spec.type in STATE_SENSOR_TYPE_MAPPING:
             self.type = STATE_SENSOR_TYPE_MAPPING[spec.type]
@@ -250,25 +251,25 @@ class RaritanNumericSensor(RaritanSensor):
         """Return the display precision of the sensor based on it's defined resolution."""
         return round(abs(log10(self.resolution))) if self.resolution is not None else None
 
-    def update_info(self) -> RaritanUpdatableRpcMethodsList:
+    def _update_metadata(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor information."""
         return [
-            ((self.source.getMetaData, []), self.update_metadata),
+            ((self.source.getMetaData, []), self._set_metadata),
         ]
 
-    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+    def _update_values(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor readings."""
         return [
-            ((self.source.getReading, []), self.update_reading),
+            ((self.source.getReading, []), self._set_reading),
         ]
 
-    def update_reading(self, reading: NumericSensor.Reading) -> None:
+    def _set_reading(self, reading: NumericSensor.Reading) -> None:
         """Update the current sensor reading from API sensor reading."""
         # The PDU web UI occasionally displays values with greater precision than defined by the sensor, so to preserve
         # that additional fidelity for display we increase the reported sensor precision before rounding
         self.reading = round(reading.value, self._reading_precision)
 
-    def update_metadata(self, reading: NumericSensor.MetaData) -> None:
+    def _set_metadata(self, reading: NumericSensor.MetaData) -> None:
         """Update the current sensor metadata from API sensor metadata."""
         if reading.type.unit in SENSOR_UNITS_MAPPING:
             self.unit = SENSOR_UNITS_MAPPING[reading.type.unit]
@@ -284,11 +285,11 @@ class RaritanAccumulatingSensor(RaritanNumericSensor):
 
     source: AccumulatingNumericSensor
 
-    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
+    def _update_values(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor readings."""
-        return [*super().update_readings(), ((self.source.getLastResetTime, []), self.update_reset)]
+        return [*super()._update_values(), ((self.source.getLastResetTime, []), self._set_reset)]
 
-    def update_reset(self, last_reset: Time) -> None:
+    def _set_reset(self, last_reset: Time) -> None:
         """Update the last reset time from API time value."""
         self.last_reset = last_reset
 
@@ -317,13 +318,9 @@ class RaritanMultiSensor(RaritanSensor):
         """Return a list of the sensors comprising this sensor."""
         return enumerate(self.children)
 
-    def update_info(self) -> RaritanUpdatableRpcMethodsList:
-        """Return the API methods to update all the child sensor information."""
-        return list(chain.from_iterable([sensor.update_info() for sensor in self.children]))
-
-    def update_readings(self) -> RaritanUpdatableRpcMethodsList:
-        """Return the API methods to update all the child sensor readings."""
-        return list(chain.from_iterable([sensor.update_readings() for sensor in self.children]))
+    def update(self, update: RaritanUpdateOptions) -> RaritanUpdatableRpcMethodsList:
+        """Return the API methods to update the requested information for all child sensors."""
+        return list(chain.from_iterable([child.update(update) for child in self.children]))
 
 
 @dataclass(kw_only=True)
