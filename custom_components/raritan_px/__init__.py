@@ -57,6 +57,7 @@ from custom_components.raritan_px.coordinator import (
 )
 from custom_components.raritan_px.firmware import FirmwareCatalogueManager
 from custom_components.raritan_px.firmware.const import CATALOGUE_MANAGER, CATALOGUE_STORE, STORAGE_KEY, STORAGE_VERSION
+from custom_components.raritan_px.services import async_setup_services
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -75,6 +76,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
 
     hass.data[CATALOGUE_STORE] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
     hass.data[CATALOGUE_MANAGER] = FirmwareCatalogueManager(hass)
+
+    async_setup_services(hass)
 
     return True
 

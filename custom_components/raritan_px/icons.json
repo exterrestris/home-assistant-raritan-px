@@ -67,5 +67,8 @@
         "default": "mdi:book-cog-outline"
       }
     }
+  },
+  "services": {
+    "update_firmware_catalogue": "mdi:book-arrow-down-outline"
   }
 }
