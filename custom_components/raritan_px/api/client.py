@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+from asyncio import Lock
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, Flag, auto
 from ssl import SSLCertVerificationError
 from time import monotonic
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from more_itertools import flatten, grouper, interleave
 from raritan import rpc
@@ -20,7 +21,6 @@ from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 
 from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
-from custom_components.raritan_px.api.mappings import STATE_TO_API_MAPPING
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
     RaritanPduInlet,
@@ -34,7 +34,6 @@ from custom_components.raritan_px.api.model.device.pdu.outlet import (
     RaritanPduOutlet,
     RaritanPduOutletSensors,
 )
-from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
 from custom_components.raritan_px.api.model.network import (
     NETWORK_ENUM_TYPE_VALUE_MAPPING,
     NetworkInterface,
@@ -52,6 +51,7 @@ if TYPE_CHECKING:
         RaritanUpdatableRpcMethodsList,
     )
     from custom_components.raritan_px.api.model.device import RaritanDevice
+    from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -122,6 +122,7 @@ class RaritanClient:
 
     _agent: rpc.Agent
     _hass: HomeAssistant
+    _auth_lock: Lock
     _config: ConnectionDetails
     _session_manager: SessionManager
     _session_token: str | None = None
@@ -148,6 +149,7 @@ class RaritanClient:
             timeout=self._config.timeout,
         )
         self._session_manager = SessionManager("/session", self._agent)
+        self._auth_lock = Lock()
 
         if logger is not None:
             self._logger = logger
@@ -171,11 +173,12 @@ class RaritanClient:
 
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
-        if self._session_token is not None:
-            await self._authenticate_with_token(force_reauth=force_reauth)
+        async with self._auth_lock:
+            if self._session_token is not None:
+                await self._authenticate_with_token(force_reauth=force_reauth)
 
-        if self._session_token is None:
-            await self._authenticate_with_credentials()
+            if self._session_token is None:
+                await self._authenticate_with_credentials()
 
     async def _authenticate_with_token(self, *, force_reauth: bool = False) -> None:
         if self._config.auth is None:
@@ -185,7 +188,7 @@ class RaritanClient:
         try:
             self._agent.set_auth_token(self._session_token)
 
-            session_details: Session = await self._hass.async_add_executor_job(self._session_manager.getCurrentSession)
+            session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
 
             if session_details.username != self._config.auth.user:
                 force_reauth = True
@@ -214,10 +217,7 @@ class RaritanClient:
                 finally:
                     self._clear_session_data()
             else:
-                await self._hass.async_add_executor_job(
-                    self._session_manager.touchCurrentSession,
-                    True,  # noqa: FBT003
-                )
+                await self._execute_request(self._session_manager.touchCurrentSession, True)  # noqa: FBT003
 
                 self._logger.debug(
                     "Authenticated with %s using session token for %s, session created at %s",
@@ -244,7 +244,7 @@ class RaritanClient:
             self._agent.set_auth_basic(self._config.auth.user, self._config.auth.passwd)
 
             user = User("/auth/currentUser", self._agent)
-            user_info: UserInfo = await self._hass.async_add_executor_job(user.getInfo)
+            user_info: UserInfo = await self._execute_request(user.getInfo)
 
             self._logger.info(
                 "Authenticated with %s as %s (%s)",
@@ -259,7 +259,7 @@ class RaritanClient:
                 response,
                 session_details,
                 self._session_token,
-            ) = await self._hass.async_add_executor_job(self._session_manager.newSession)
+            ) = await self._execute_request(self._session_manager.newSession)
 
             if response == SessionManager.ERR_ACTIVE_SESSION_EXCLUSIVE_FOR_USER:
                 message: str = (
@@ -306,7 +306,7 @@ class RaritanClient:
                 self._session_created,
             )
 
-            await self._hass.async_add_executor_job(self._session_manager.closeCurrentSession, reason)
+            await self._execute_request(self._session_manager.closeCurrentSession, reason)
         except rpc.HttpException as err:
             self._logger.warning(
                 "Failed to close existing session for %s on %s",
@@ -334,14 +334,15 @@ class RaritanClient:
             return False
 
         try:
-            self._agent.set_auth_token(self._session_token)
+            async with self._auth_lock:
+                self._agent.set_auth_token(self._session_token)
 
-            session_details: Session = await self._hass.async_add_executor_job(self._session_manager.getCurrentSession)
+                session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
 
-            return await self._close_session(
-                session_details,
-                SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
-            )
+                return await self._close_session(
+                    session_details,
+                    SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
+                )
         except rpc.HttpException:
             self._logger.debug("Session expired before close request")
         finally:
@@ -350,7 +351,7 @@ class RaritanClient:
         return True
 
     async def _execute_bulk_requests(
-        self, requests: Iterable, data_name: str | Callable[[], str] | None = None
+        self, requests: Iterable[tuple[rpc.Interface.Method, Any]], data_name: str | Callable[[], str] | None = None
     ) -> list[Structure]:
         if log_timing := self._logger.isEnabledFor(logging.DEBUG):
             start = monotonic()
@@ -369,6 +370,28 @@ class RaritanClient:
             )
 
         return responses  # pyright: ignore[reportReturnType]
+
+    async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
+        if timed and (log_timing := self._logger.isEnabledFor(logging.DEBUG)):
+            start = monotonic()
+
+        try:
+            response = await self._hass.async_add_executor_job(request, *args)
+        except rpc.JsonRpcErrorException as err:
+            if "code = -32001" in str(err):
+                raise InsufficientPrivilegesError from err
+
+            raise
+
+        if timed and log_timing:
+            self._logger.debug(
+                "Executed '%s' request against '%s' in %.3f seconds",
+                request.name,  # pyright: ignore[reportAttributeAccessIssue]
+                request.parent.target,  # pyright: ignore[reportAttributeAccessIssue]
+                monotonic() - start,
+            )
+
+        return response
 
     async def get_pdu_info(
         self,
@@ -748,40 +771,33 @@ class RaritanClient:
         """Update all sensor readings for PDU."""
         return await self.update_all_sensor_readings_for_device(pdu)
 
-    async def set_outlet_power_state(
-        self,
-        pdu_idx: int = 0,
-        outlet_idx: int = 0,
-        state: OutletPowerState = OutletPowerState.ON,
-    ) -> OutletPowerState:
+    async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> OutletPowerState:
         """Get the power state for a specific Raritan PDU outlet."""
         await self.authenticate()
 
         try:
-            outlet = Outlet(f"/model/pdu/{pdu_idx}/outlet/{outlet_idx}", self._agent)
+            proxy = Outlet(outlet.rid, self._agent)
 
-            status: int = await self._hass.async_add_executor_job(
-                outlet.setPowerState, STATE_TO_API_MAPPING[OutletPowerState][state]
-            )
+            status: int = await self._execute_request(proxy.setPowerState, state.to_api())
 
-            self._logger.debug("Changed PDU %s outlet %s state to %s", pdu_idx, outlet_idx, state.name)
+            self._logger.debug("Changed PDU %s outlet %s state to %s", outlet.pdu.id, outlet.id, state.name)
         except rpc.HttpException as e:
-            self._logger.exception("Error setting PDU %s outlet %s power state", pdu_idx, outlet_idx)
+            self._logger.exception("Error setting PDU %s outlet %s power state", outlet.pdu.id, outlet.id)
 
-            msg: str = f"Failed to set PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+            msg: str = f"Failed to set PDU {outlet.pdu.id} outlet {outlet.id} power state for {self._config.host}"
             raise RaritanClientError(msg) from e
         else:
             match status:
                 case 0:  # OK
                     return state
                 case Outlet.ERR_OUTLET_NOT_SWITCHABLE:
-                    msg = f"PDU {pdu_idx} outlet {outlet_idx} not switchable for {self._config.host}"
+                    msg = f"PDU {outlet.pdu.id} outlet {outlet.id} not switchable for {self._config.host}"
                 case Outlet.ERR_OUTLET_DISABLED:
-                    msg = f"PDU {pdu_idx} outlet {outlet_idx} disabled for {self._config.host}"
+                    msg = f"PDU {outlet.pdu.id} outlet {outlet.id} disabled for {self._config.host}"
                 case Outlet.ERR_RELAY_CONTROL_DISABLED:
-                    msg = f"PDU {pdu_idx} outlet {outlet_idx} relay control disabled for {self._config.host}"
+                    msg = f"PDU {outlet.pdu.id} outlet {outlet.id} relay control disabled for {self._config.host}"
                 case _:
-                    msg = f"Unexpected response setting PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"  # noqa: E501
+                    msg = f"Unexpected response setting PDU {outlet.pdu.id} outlet {outlet.id} power state for {self._config.host}"  # noqa: E501
 
             raise RaritanClientError(msg)
 
@@ -804,6 +820,10 @@ class CertificateVerificationError(CommunicationError):
 
 class AuthenticationError(CommunicationError):
     """Raised when authentication fails."""
+
+
+class InsufficientPrivilegesError(CommunicationError):
+    """Raised when a request fails due to insufficient user privileges."""
 
 
 class SessionError(CommunicationError):

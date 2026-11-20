@@ -1,12 +1,21 @@
 """Raritan PDU API device sensor state enums."""
 
 from enum import IntEnum
+from typing import TYPE_CHECKING, Self
 
 from custom_components.raritan_px.api import RaritanEnum
 
+if TYPE_CHECKING:
+    from raritan.rpc import Enumeration
 
-class RaritanSensorState(RaritanEnum):
+
+class RaritanSensorState(RaritanEnum, IntEnum):
     """Generic sensor state enum."""
+
+    @classmethod
+    def from_api(cls, value: Enumeration) -> Self:
+        """Convert from API 'enum'."""
+        return cls(value.val)
 
 
 class OnOff(RaritanSensorState, IntEnum):
