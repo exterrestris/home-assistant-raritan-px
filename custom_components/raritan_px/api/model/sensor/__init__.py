@@ -124,9 +124,10 @@ STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
     StateSensor.SMOKE_DETECTOR: NormalAlarmed,
     StateSensor.OCCUPANCY: NormalAlarmed,
     StateSensor.TAMPER: NormalAlarmed,
-    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
-    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
-    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
+    StateSensor.DOOR_LOCK_STATE: NormalAlarmed,
+    StateSensor.DOOR_HANDLE_LOCK: NormalAlarmed,
+    # Fault State State Sensors
+    StateSensor.FAULT_STATE: OkFaulted,
     # Normal/Alarmed State Sensors if Discrete
     StateSensor.MAGNETIC_FIELD_STRENGTH: NormalAlarmed,
     StateSensor.FAULT_STATE: NormalAlarmed,
