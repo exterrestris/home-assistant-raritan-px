@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from asyncio import Lock
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, Flag, auto
@@ -122,6 +123,7 @@ class RaritanClient:
 
     _agent: rpc.Agent
     _hass: HomeAssistant
+    _auth_lock: Lock
     _config: ConnectionDetails
     _session_manager: SessionManager
     _session_token: str | None = None
@@ -148,6 +150,7 @@ class RaritanClient:
             timeout=self._config.timeout,
         )
         self._session_manager = SessionManager("/session", self._agent)
+        self._auth_lock = Lock()
 
         if logger is not None:
             self._logger = logger
@@ -171,11 +174,12 @@ class RaritanClient:
 
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
-        if self._session_token is not None:
-            await self._authenticate_with_token(force_reauth=force_reauth)
+        async with self._auth_lock:
+            if self._session_token is not None:
+                await self._authenticate_with_token(force_reauth=force_reauth)
 
-        if self._session_token is None:
-            await self._authenticate_with_credentials()
+            if self._session_token is None:
+                await self._authenticate_with_credentials()
 
     async def _authenticate_with_token(self, *, force_reauth: bool = False) -> None:
         if self._config.auth is None:
@@ -331,14 +335,15 @@ class RaritanClient:
             return False
 
         try:
-            self._agent.set_auth_token(self._session_token)
+            async with self._auth_lock:
+                self._agent.set_auth_token(self._session_token)
 
-            session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
+                session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
 
-            return await self._close_session(
-                session_details,
-                SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
-            )
+                return await self._close_session(
+                    session_details,
+                    SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
+                )
         except rpc.HttpException:
             self._logger.debug("Session expired before close request")
         finally:
