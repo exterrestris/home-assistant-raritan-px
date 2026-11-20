@@ -145,11 +145,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         """Set the state of an outlet."""
         async with self._client_lock:
             try:
-                updated = await self._client.set_outlet_power_state(
-                    outlet.pdu.id,
-                    outlet.id,
-                    state,
-                )
+                updated = await self._client.set_outlet_power_state(outlet, state)
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,

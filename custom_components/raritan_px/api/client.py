@@ -774,38 +774,37 @@ class RaritanClient:
 
     async def set_outlet_power_state(
         self,
-        pdu_idx: int = 0,
-        outlet_idx: int = 0,
+        outlet: RaritanPduOutlet,
         state: OutletPowerState = OutletPowerState.ON,
     ) -> OutletPowerState:
         """Get the power state for a specific Raritan PDU outlet."""
         await self.authenticate()
 
         try:
-            outlet = Outlet(f"/model/pdu/{pdu_idx}/outlet/{outlet_idx}", self._agent)
+            proxy = Outlet(outlet.rid, self._agent)
 
             status: int = await self._execute_request(
-                outlet.setPowerState, STATE_TO_API_MAPPING[OutletPowerState][state]
+                proxy.setPowerState, STATE_TO_API_MAPPING[OutletPowerState][state]
             )
 
-            self._logger.debug("Changed PDU %s outlet %s state to %s", pdu_idx, outlet_idx, state.name)
+            self._logger.debug("Changed PDU %s outlet %s state to %s", outlet.pdu.id, outlet.id, state.name)
         except rpc.HttpException as e:
-            self._logger.exception("Error setting PDU %s outlet %s power state", pdu_idx, outlet_idx)
+            self._logger.exception("Error setting PDU %s outlet %s power state", outlet.pdu.id, outlet.id)
 
-            msg: str = f"Failed to set PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"
+            msg: str = f"Failed to set PDU {outlet.pdu.id} outlet {outlet.id} power state for {self._config.host}"
             raise RaritanClientError(msg) from e
         else:
             match status:
                 case 0:  # OK
                     return state
                 case Outlet.ERR_OUTLET_NOT_SWITCHABLE:
-                    msg = f"PDU {pdu_idx} outlet {outlet_idx} not switchable for {self._config.host}"
+                    msg = f"PDU {outlet.pdu.id} outlet {outlet.id} not switchable for {self._config.host}"
                 case Outlet.ERR_OUTLET_DISABLED:
-                    msg = f"PDU {pdu_idx} outlet {outlet_idx} disabled for {self._config.host}"
+                    msg = f"PDU {outlet.pdu.id} outlet {outlet.id} disabled for {self._config.host}"
                 case Outlet.ERR_RELAY_CONTROL_DISABLED:
-                    msg = f"PDU {pdu_idx} outlet {outlet_idx} relay control disabled for {self._config.host}"
+                    msg = f"PDU {outlet.pdu.id} outlet {outlet.id} relay control disabled for {self._config.host}"
                 case _:
-                    msg = f"Unexpected response setting PDU {pdu_idx} outlet {outlet_idx} power state for {self._config.host}"  # noqa: E501
+                    msg = f"Unexpected response setting PDU {outlet.pdu.id} outlet {outlet.id} power state for {self._config.host}"  # noqa: E501
 
             raise RaritanClientError(msg)
 
