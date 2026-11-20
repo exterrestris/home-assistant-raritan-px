@@ -21,7 +21,6 @@ from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 
 from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
-from custom_components.raritan_px.api.mappings import STATE_TO_API_MAPPING
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
     RaritanPduInlet,
@@ -35,7 +34,6 @@ from custom_components.raritan_px.api.model.device.pdu.outlet import (
     RaritanPduOutlet,
     RaritanPduOutletSensors,
 )
-from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
 from custom_components.raritan_px.api.model.network import (
     NETWORK_ENUM_TYPE_VALUE_MAPPING,
     NetworkInterface,
@@ -53,6 +51,7 @@ if TYPE_CHECKING:
         RaritanUpdatableRpcMethodsList,
     )
     from custom_components.raritan_px.api.model.device import RaritanDevice
+    from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -772,20 +771,14 @@ class RaritanClient:
         """Update all sensor readings for PDU."""
         return await self.update_all_sensor_readings_for_device(pdu)
 
-    async def set_outlet_power_state(
-        self,
-        outlet: RaritanPduOutlet,
-        state: OutletPowerState = OutletPowerState.ON,
-    ) -> OutletPowerState:
+    async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> OutletPowerState:
         """Get the power state for a specific Raritan PDU outlet."""
         await self.authenticate()
 
         try:
             proxy = Outlet(outlet.rid, self._agent)
 
-            status: int = await self._execute_request(
-                proxy.setPowerState, STATE_TO_API_MAPPING[OutletPowerState][state]
-            )
+            status: int = await self._execute_request(proxy.setPowerState, state.to_api())
 
             self._logger.debug("Changed PDU %s outlet %s state to %s", outlet.pdu.id, outlet.id, state.name)
         except rpc.HttpException as e:

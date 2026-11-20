@@ -107,25 +107,6 @@ SENSOR_UNITS_MAPPING: dict[int, str | None] = {
     Sensor.UG_PER_CUBIC_METER: "μg/m³",
 }
 
-STATE_SENSOR_TYPE_VALUE_MAPPING: dict[type[RaritanSensorState], dict[int, RaritanSensorState]] = {
-    OnOff: {
-        Sensor.OnOffState.ON.val: OnOff.ON,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OnOffState.OFF.val: OnOff.OFF,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-    OpenClosed: {
-        Sensor.OpenClosedState.OPEN.val: OpenClosed.OPEN,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OpenClosedState.CLOSED.val: OpenClosed.CLOSED,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-    NormalAlarmed: {
-        Sensor.NormalAlarmedState.NORMAL.val: NormalAlarmed.NORMAL,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.NormalAlarmedState.ALARMED.val: NormalAlarmed.ALARMED,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-    OkFaulted: {
-        Sensor.OkFaultState.OK.val: OkFaulted.OK,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OkFaultState.FAULT.val: OkFaulted.FAULT,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-}
-
 STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
     # On/Off State Sensors
     StateSensor.ON_OFF_SENSOR: OnOff,
@@ -188,7 +169,7 @@ class RaritanStateSensor(RaritanSensor):
     last_reset: None = None
     unit: None = None
     resolution: None = None
-    type: Any = None
+    _type: type[RaritanSensorState] | None = None
 
     @property
     def value(self) -> RaritanSensorState | None:
@@ -209,15 +190,15 @@ class RaritanStateSensor(RaritanSensor):
 
     def update_state(self, state: StateSensor.State) -> None:
         """Update the current sensor state from API sensor state."""
-        if self.type:
-            self.state = STATE_SENSOR_TYPE_VALUE_MAPPING[self.type][state.value]
+        if self._type:
+            self.state = self._type(state.value)
             self.available = state.available
             self.last_sample = state.timestamp
 
     def update_type(self, spec: StateSensor.TypeSpec) -> None:
         """Update the current sensor type from API sensor type spec."""
         if spec.type in STATE_SENSOR_TYPE_MAPPING:
-            self.type = STATE_SENSOR_TYPE_MAPPING[spec.type]
+            self._type = STATE_SENSOR_TYPE_MAPPING[spec.type]
 
 
 @dataclass(kw_only=True)
