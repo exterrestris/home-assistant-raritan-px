@@ -59,6 +59,9 @@ class RaritanDeviceBinarySensorEntity(CoordinatedRaritanDeviceEntity, BinarySens
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
+        if self.entity_description.is_dynamic and self.coordinator.firmware_update_in_progress:
+            return False
+
         value = self._get_value()
 
         if value is not None:
