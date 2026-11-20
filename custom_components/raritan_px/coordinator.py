@@ -120,37 +120,32 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
     async def _async_update_data(self) -> RaritanPdu:
         """Fetch all device and sensor data from api."""
-        async with self._client_lock:
-            try:
-                device_ids = {device_id for device_id, _ in self.async_contexts()}
+        try:
+            device_ids = {device_id for device_id, _ in self.async_contexts()}
 
-                if device_ids:
-                    await self._client.update_sensor_readings_for_devices(
-                        self.pdu, [self._devices[device_id] for device_id in device_ids]
-                    )
-                else:
-                    await self._client.update_sensor_readings_for_pdu(self.pdu)
-            except Exception as ex:
-                raise UpdateFailed(
-                    translation_domain=DOMAIN,
-                    translation_key="api_update_error",
-                    translation_placeholders={
-                        "pdu": self.pdu.device_name,
-                        "exc": str(ex),
-                    },
-                ) from ex
+            if device_ids:
+                await self._client.update_sensor_readings_for_devices(
+                    self.pdu, [self._devices[device_id] for device_id in device_ids]
+                )
             else:
-                return self.pdu
+                await self._client.update_sensor_readings_for_pdu(self.pdu)
+        except Exception as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_update_error",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                    "exc": str(ex),
+                },
+            ) from ex
+        else:
+            return self.pdu
 
     async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> bool:
         """Set the state of an outlet."""
         async with self._client_lock:
             try:
-                updated = await self._client.set_outlet_power_state(
-                    outlet.pdu.id,
-                    outlet.id,
-                    state,
-                )
+                updated = await self._client.set_outlet_power_state(outlet, state)
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,
