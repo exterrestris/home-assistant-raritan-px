@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum, Flag, auto
 from ssl import SSLCertVerificationError
 from time import monotonic
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from more_itertools import flatten, grouper, interleave
 from raritan import rpc
@@ -185,7 +185,7 @@ class RaritanClient:
         try:
             self._agent.set_auth_token(self._session_token)
 
-            session_details: Session = await self._hass.async_add_executor_job(self._session_manager.getCurrentSession)
+            session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
 
             if session_details.username != self._config.auth.user:
                 force_reauth = True
@@ -214,10 +214,7 @@ class RaritanClient:
                 finally:
                     self._clear_session_data()
             else:
-                await self._hass.async_add_executor_job(
-                    self._session_manager.touchCurrentSession,
-                    True,  # noqa: FBT003
-                )
+                await self._execute_request(self._session_manager.touchCurrentSession, True)  # noqa: FBT003
 
                 self._logger.debug(
                     "Authenticated with %s using session token for %s, session created at %s",
@@ -244,7 +241,7 @@ class RaritanClient:
             self._agent.set_auth_basic(self._config.auth.user, self._config.auth.passwd)
 
             user = User("/auth/currentUser", self._agent)
-            user_info: UserInfo = await self._hass.async_add_executor_job(user.getInfo)
+            user_info: UserInfo = await self._execute_request(user.getInfo)
 
             self._logger.info(
                 "Authenticated with %s as %s (%s)",
@@ -259,7 +256,7 @@ class RaritanClient:
                 response,
                 session_details,
                 self._session_token,
-            ) = await self._hass.async_add_executor_job(self._session_manager.newSession)
+            ) = await self._execute_request(self._session_manager.newSession)
 
             if response == SessionManager.ERR_ACTIVE_SESSION_EXCLUSIVE_FOR_USER:
                 message: str = (
@@ -306,7 +303,7 @@ class RaritanClient:
                 self._session_created,
             )
 
-            await self._hass.async_add_executor_job(self._session_manager.closeCurrentSession, reason)
+            await self._execute_request(self._session_manager.closeCurrentSession, reason)
         except rpc.HttpException as err:
             self._logger.warning(
                 "Failed to close existing session for %s on %s",
@@ -336,7 +333,7 @@ class RaritanClient:
         try:
             self._agent.set_auth_token(self._session_token)
 
-            session_details: Session = await self._hass.async_add_executor_job(self._session_manager.getCurrentSession)
+            session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
 
             return await self._close_session(
                 session_details,
@@ -350,7 +347,7 @@ class RaritanClient:
         return True
 
     async def _execute_bulk_requests(
-        self, requests: Iterable, data_name: str | Callable[[], str] | None = None
+        self, requests: Iterable[tuple[rpc.Interface.Method, Any]], data_name: str | Callable[[], str] | None = None
     ) -> list[Structure]:
         if log_timing := self._logger.isEnabledFor(logging.DEBUG):
             start = monotonic()
@@ -369,6 +366,28 @@ class RaritanClient:
             )
 
         return responses  # pyright: ignore[reportReturnType]
+
+    async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
+        if timed and (log_timing := self._logger.isEnabledFor(logging.DEBUG)):
+            start = monotonic()
+
+        try:
+            response = await self._hass.async_add_executor_job(request, *args)
+        except rpc.JsonRpcErrorException as err:
+            if "code = -32001" in str(err):
+                raise InsufficientPrivilegesError from err
+
+            raise
+
+        if timed and log_timing:
+            self._logger.debug(
+                "Executed '%s' request against '%s' in %.3f seconds",
+                request.name,  # pyright: ignore[reportAttributeAccessIssue]
+                request.parent.target,  # pyright: ignore[reportAttributeAccessIssue]
+                monotonic() - start,
+            )
+
+        return response
 
     async def get_pdu_info(
         self,
@@ -760,7 +779,7 @@ class RaritanClient:
         try:
             outlet = Outlet(f"/model/pdu/{pdu_idx}/outlet/{outlet_idx}", self._agent)
 
-            status: int = await self._hass.async_add_executor_job(
+            status: int = await self._execute_request(
                 outlet.setPowerState, STATE_TO_API_MAPPING[OutletPowerState][state]
             )
 
@@ -804,6 +823,10 @@ class CertificateVerificationError(CommunicationError):
 
 class AuthenticationError(CommunicationError):
     """Raised when authentication fails."""
+
+
+class InsufficientPrivilegesError(CommunicationError):
+    """Raised when a request fails due to insufficient user privileges."""
 
 
 class SessionError(CommunicationError):
