@@ -316,7 +316,7 @@ class FirmwareManager:
                 fw_info = _validate_zip(zip_file)
                 fw_bin = extract_to / fw_info.filename
 
-                zip_file.extract(fw_info, fw_bin)
+                zip_file.extract(fw_info, extract_to)
 
                 self._logger.info("Extracted %s from firmware zip", fw_bin.name)
 
