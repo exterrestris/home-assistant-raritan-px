@@ -12,6 +12,7 @@ from more_itertools import flatten, grouper, interleave
 from raritan import rpc
 from raritan.rpc import Structure, Time, perform_bulk
 from raritan.rpc.cascading import CascadeManager
+from raritan.rpc.firmware import Firmware
 from raritan.rpc.net import Info, InterfaceInfo, Net
 from raritan.rpc.pdumodel import Inlet, Outlet, OverCurrentProtector, Pdu
 from raritan.rpc.session import Session, SessionManager
@@ -372,6 +373,7 @@ class RaritanClient:
 
         try:
             pdu: Pdu = Pdu(f"/model/pdu/{pdu_idx}", self._agent)
+            firmware: Firmware = Firmware("/firmware", self._agent)
             cascade = CascadeManager("/cascade", self._agent)
             net = Net("/net", self._agent)
 
@@ -385,6 +387,7 @@ class RaritanClient:
                     (pdu.getSensors, []),
                     (cascade.getStatus, []),
                     (net.getInfo, []),
+                    (firmware.getInfo, []),
                 ],
                 f"PDU {pdu_idx} information",
             )
@@ -397,6 +400,7 @@ class RaritanClient:
             pdu_sensors: Pdu.Sensors = responses[5]  # pyright: ignore[reportAssignmentType]
             status: CascadeManager.Status = responses[6]  # pyright: ignore[reportAssignmentType]
             net_info: Info = responses[7]  # pyright: ignore[reportAssignmentType]
+            firmware_info: Firmware.Info = responses[8]  # pyright: ignore[reportAssignmentType]
         except rpc.HttpException as e:
             self._logger.exception("Error fetching PDU %s information", pdu_idx)
 
@@ -426,7 +430,7 @@ class RaritanClient:
                 manufacturer=pdu_metadata.nameplate.manufacturer,
                 model=pdu_metadata.nameplate.model,
                 serial_number=pdu_metadata.nameplate.serialNumber,
-                firmware_version=pdu_metadata.fwRevision,
+                firmware_version=firmware_info.version,
                 hardware_version=pdu_metadata.hwRevision,
                 mac_address=pdu_metadata.macAddress,
                 has_switchable_outlets=pdu_metadata.hasSwitchableOutlets,
