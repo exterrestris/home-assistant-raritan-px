@@ -160,17 +160,6 @@ class RaritanClient:
 
         return self._HTTP
 
-    def _extract_original_exception(self, e: rpc.HttpException) -> None:
-        try:
-            previous = e.args[1]
-        except IndexError:
-            return
-        else:
-            if not isinstance(e.args[1], Exception):
-                return
-
-        raise previous
-
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
         async with self._auth_lock:
@@ -225,7 +214,7 @@ class RaritanClient:
                     session_details.username,
                     self._session_created,
                 )
-        except rpc.HttpException:
+        except HttpError:
             self._clear_session_data()
 
             self._logger.debug(
@@ -280,16 +269,14 @@ class RaritanClient:
                 self._config.host,
                 self._session_created,
             )
-        except rpc.HttpException as e:
-            try:
-                self._extract_original_exception(e)
-            except SSLCertVerificationError as e:
-                raise CertificateVerificationError from e
-            else:
-                self._logger.exception("Authentication Error")
+        except CertificateVerificationError:
+            self._logger.exception("Authentication Error")
+            raise
+        except HttpError as e:
+            self._logger.exception("Authentication Error")
 
-                message: str = f"Failed to authenticate as {self._config.auth.user} on {self._config.host}"
-                raise AuthenticationError(message) from e
+            message: str = f"Failed to authenticate as {self._config.auth.user} on {self._config.host}"
+            raise AuthenticationError(message) from e
 
     def _clear_session_data(self) -> None:
         self._session_token = None
@@ -350,13 +337,45 @@ class RaritanClient:
 
         return True
 
+    async def _execute_json_rpc_call(self, *args: Any) -> Any:
+        def raise_original_exception(e: rpc.HttpException) -> None:
+            try:
+                previous = e.args[1]
+            except IndexError:
+                return
+            else:
+                if not isinstance(e.args[1], Exception):
+                    return
+
+            raise previous
+
+        try:
+            response = await self._hass.async_add_executor_job(*args)
+        except rpc.HttpException as err:
+            try:
+                raise_original_exception(err)
+            except SSLCertVerificationError as e:
+                raise CertificateVerificationError from e
+
+            raise HttpError from err
+        except rpc.JsonRpcErrorException as err:
+            if "code = -32001" in str(err):
+                raise InsufficientPrivilegesError from err
+
+            raise JsonRpcError from err
+        except rpc.JsonRpcSyntaxException as err:
+            raise CommunicationError from err
+        except rpc.DecodeException as err:
+            raise JsonRpcDecodeError from err
+        return response
+
     async def _execute_bulk_requests(
         self, requests: Iterable[tuple[rpc.Interface.Method, Any]], data_name: str | Callable[[], str] | None = None
     ) -> list[Structure]:
         if log_timing := self._logger.isEnabledFor(logging.DEBUG):
             start = monotonic()
 
-        responses = await self._hass.async_add_executor_job(perform_bulk, self._agent, requests)
+        responses = await self._execute_json_rpc_call(perform_bulk, self._agent, requests)
 
         if log_timing:
             if callable(data_name):
@@ -375,13 +394,7 @@ class RaritanClient:
         if timed and (log_timing := self._logger.isEnabledFor(logging.DEBUG)):
             start = monotonic()
 
-        try:
-            response = await self._hass.async_add_executor_job(request, *args)
-        except rpc.JsonRpcErrorException as err:
-            if "code = -32001" in str(err):
-                raise InsufficientPrivilegesError from err
-
-            raise
+        response = await self._execute_json_rpc_call(request, *args)
 
         if timed and log_timing:
             self._logger.debug(
@@ -814,7 +827,11 @@ class CommunicationError(RaritanClientError):
     """Raised when a generic error occurs while communicating with the Raritan API."""
 
 
-class CertificateVerificationError(CommunicationError):
+class HttpError(CommunicationError):
+    """Raised when a generic HTTP error occurs while communicating with the Raritan API."""
+
+
+class CertificateVerificationError(HttpError):
     """Raised when SSL certificate verification fails."""
 
 
@@ -822,7 +839,19 @@ class AuthenticationError(CommunicationError):
     """Raised when authentication fails."""
 
 
-class InsufficientPrivilegesError(CommunicationError):
+class JsonRpcError(CommunicationError):
+    """Raised when a generic JSON-RPC error occurs communicating with the Raritan API."""
+
+
+class JsonRpcSyntaxError(JsonRpcError):
+    """Raised when a JSON-RPC repsonse from the Raritan API has syntax errors."""
+
+
+class JsonRpcDecodeError(JsonRpcError):
+    """Raised when a JSON-RPC from the Raritan API cannot be decoded."""
+
+
+class InsufficientPrivilegesError(JsonRpcError):
     """Raised when a request fails due to insufficient user privileges."""
 
 
