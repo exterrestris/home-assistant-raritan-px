@@ -227,10 +227,14 @@ class FirmwareManager:
             raise CatalogueParseError from err
 
     async def download_firmware(
-        self, firmware: Firmware, *, callback: DownloadProgress | None = None
+        self, firmware: Firmware, *, callback: DownloadProgress | None = None, force_download: bool = False
     ) -> tuple[Path, int]:
         """Download the specified firmware and return the path to the file."""
-        fw_zip = await self._download_firmware(firmware, callback)
+        fw_zip = self._get_tmp_zip(firmware)
+
+        if force_download or not await self._hass.async_add_executor_job(fw_zip.exists):
+            fw_zip = await self._download_firmware(firmware, callback)
+
         return await self._extract_firmware(fw_zip, self._get_tmp_dir(firmware))
 
     def _get_path(self, firmware: Firmware) -> PurePath:
@@ -315,6 +319,9 @@ class FirmwareManager:
             with ZipFile(fw_zip) as zip_file:
                 fw_info = _validate_zip(zip_file)
                 fw_bin = extract_to / fw_info.filename
+
+                if fw_bin.exists():
+                    fw_bin.unlink()
 
                 zip_file.extract(fw_info, extract_to)
 
