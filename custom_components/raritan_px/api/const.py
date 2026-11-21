@@ -7,3 +7,6 @@ API_TIMEOUT: Final = 10
 DEFAULT_PORT: Final = 443
 DEFAULT_USERNAME: Final = "admin"
 DEFAULT_PASSWORD: Final = "raritan"  # noqa: S105  # This is the default factory password for Raritan PDUs
+
+FIRMWARE_UPGRADE_WAIT_INTERVAL: Final[float] = 10
+FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS: Final[int] = 6
