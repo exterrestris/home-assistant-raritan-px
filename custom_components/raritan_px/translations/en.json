@@ -137,6 +137,9 @@
       "pdu_network_wlan_state": {
         "name": "Network - {if_name}"
       },
+      "pdu_platform": {
+        "name": "Platform"
+      },
       "pdu_power_rating": {
         "name": "Power Rating"
       },

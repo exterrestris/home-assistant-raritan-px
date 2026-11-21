@@ -27,6 +27,7 @@ class RaritanPdu(RaritanDevice):
     host: str
     manufacturer: str
     model: str
+    platform: str
     serial_number: str
     firmware_version: str
     hardware_version: str
