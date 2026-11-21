@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, Flag, auto
 from ssl import SSLCertVerificationError
-from time import monotonic
 from typing import TYPE_CHECKING, Any, Final
 
 from more_itertools import flatten, grouper, interleave
@@ -40,9 +39,10 @@ from custom_components.raritan_px.api.model.network import (
     NetworkInterfaceState,
     NetworkInterfaceType,
 )
+from custom_components.raritan_px.utils.decorators import LogExecutionTime
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable
 
     from homeassistant.core import HomeAssistant
 
@@ -370,41 +370,22 @@ class RaritanClient:
         return response
 
     async def _execute_bulk_requests(
-        self, requests: Iterable[tuple[rpc.Interface.Method, Any]], data_name: str | Callable[[], str] | None = None
+        self, requests: list[tuple[rpc.Interface.Method, list[Any]]], data_name: str | Callable[[], str] | None = None
     ) -> list[Structure]:
-        if log_timing := self._logger.isEnabledFor(logging.DEBUG):
-            start = monotonic()
-
-        responses = await self._execute_json_rpc_call(perform_bulk, self._agent, requests)
-
-        if log_timing:
-            if callable(data_name):
-                data_name = data_name()
-
-            self._logger.debug(
-                "Fetched %s %s requests in %.3f seconds",
-                f"{data_name} via" if data_name else "",
-                len(responses),
-                monotonic() - start,
-            )
-
-        return responses  # pyright: ignore[reportReturnType]
+        let = LogExecutionTime(
+            f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
+            logger=self._logger,
+        )
+        return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._agent, requests))
 
     async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
-        if timed and (log_timing := self._logger.isEnabledFor(logging.DEBUG)):
-            start = monotonic()
-
-        response = await self._execute_json_rpc_call(request, *args)
-
-        if timed and log_timing:
-            self._logger.debug(
-                "Executed '%s' request against '%s' in %.3f seconds",
-                request.name,  # pyright: ignore[reportAttributeAccessIssue]
-                request.parent.target,  # pyright: ignore[reportAttributeAccessIssue]
-                monotonic() - start,
+        if timed:
+            let = LogExecutionTime(
+                f"Executed '{request.name}' request against '{request.parent.target}'"  # pyright: ignore[reportAttributeAccessIssue]
             )
+            return await let.wrap(self._execute_json_rpc_call(request, *args))
 
-        return response
+        return await self._execute_json_rpc_call(request, *args)
 
     async def get_pdu_info(
         self,
@@ -519,11 +500,13 @@ class RaritanClient:
 
         try:
             responses = await self._execute_bulk_requests(
-                interleave(
-                    [(outlet.getMetaData, []) for outlet in pdu_outlets],
-                    [(outlet.getSettings, []) for outlet in pdu_outlets],
-                    [(outlet.getSensors, []) for outlet in pdu_outlets],
-                    [(outlet.getIOP, []) for outlet in pdu_outlets],
+                list(
+                    interleave(
+                        [(outlet.getMetaData, []) for outlet in pdu_outlets],
+                        [(outlet.getSettings, []) for outlet in pdu_outlets],
+                        [(outlet.getSensors, []) for outlet in pdu_outlets],
+                        [(outlet.getIOP, []) for outlet in pdu_outlets],
+                    )
                 ),
                 f"outlet data for PDU {pdu.id}",
             )
@@ -593,10 +576,12 @@ class RaritanClient:
 
         try:
             responses = await self._execute_bulk_requests(
-                interleave(
-                    [(inlet.getMetaData, []) for inlet in pdu_inlets],
-                    [(inlet.getSettings, []) for inlet in pdu_inlets],
-                    [(inlet.getSensors, []) for inlet in pdu_inlets],
+                list(
+                    interleave(
+                        [(inlet.getMetaData, []) for inlet in pdu_inlets],
+                        [(inlet.getSettings, []) for inlet in pdu_inlets],
+                        [(inlet.getSensors, []) for inlet in pdu_inlets],
+                    )
                 ),
                 f"inlet data for PDU {pdu.id}",
             )
@@ -663,11 +648,13 @@ class RaritanClient:
 
         try:
             responses = await self._execute_bulk_requests(
-                interleave(
-                    [(ocp.getMetaData, []) for ocp in pdu_ocps],
-                    [(ocp.getSettings, []) for ocp in pdu_ocps],
-                    [(ocp.getSensors, []) for ocp in pdu_ocps],
-                    [(ocp.getInlet, []) for ocp in pdu_ocps],
+                list(
+                    interleave(
+                        [(ocp.getMetaData, []) for ocp in pdu_ocps],
+                        [(ocp.getSettings, []) for ocp in pdu_ocps],
+                        [(ocp.getSensors, []) for ocp in pdu_ocps],
+                        [(ocp.getInlet, []) for ocp in pdu_ocps],
+                    )
                 ),
                 f"ocp data for PDU {pdu.id}",
             )
@@ -733,7 +720,7 @@ class RaritanClient:
         devices, sensors, requests, update_methods = [list(tup) for tup in zip(*update_requests, strict=True)]
 
         responses = await self._execute_bulk_requests(
-            interleave(requests),
+            list(interleave(requests)),
             update_type.fetch_msg(device, len(set(devices)), len(set(sensors))),
         )
 
