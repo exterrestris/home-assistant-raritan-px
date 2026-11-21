@@ -11,12 +11,12 @@ from homeassistant.core import (
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.raritan_px.const import DOMAIN
-from custom_components.raritan_px.firmware import FirmwareCatalogueManagerError
+from custom_components.raritan_px.firmware import FirmwareCatalogueError
 from custom_components.raritan_px.firmware.const import CATALOGUE_MANAGER
 
 if TYPE_CHECKING:
     from custom_components.raritan_px.coordinator import RaritanPduConfigEntry
-    from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+    from custom_components.raritan_px.firmware import FirmwareManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
     async def async_update_catalogue(call: ServiceCall) -> None:  # noqa: ARG001
         """Return the forecast for the coming days."""
-        manager: FirmwareCatalogueManager = hass.data[CATALOGUE_MANAGER]
+        manager: FirmwareManager = hass.data[CATALOGUE_MANAGER]
 
         try:
             await manager.get_catalogue(force_update=True)
@@ -46,7 +46,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
                     # Reenable the catalogue update check for future refreshes
                     config_entry.runtime_data.firmware_coordinator.catalogue_update_check = True
-        except FirmwareCatalogueManagerError:
+        except FirmwareCatalogueError:
             _LOGGER.exception("Unable to update firmware catalogue")
 
     hass.services.async_register(

@@ -462,24 +462,36 @@ PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescriptio
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_voltage_rating",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
     ),
     RaritanPduSensorEntityDescription(
         key="current_rating",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_current_rating",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
     ),
     RaritanPduSensorEntityDescription(
         key="frequency_rating",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_frequency_rating",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
     ),
     RaritanPduSensorEntityDescription(
         key="power_rating",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_power_rating",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
+    ),
+    RaritanPduSensorEntityDescription(
+        key="platform",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_platform",
+        entity_registry_enabled_default=False,
+        convert_fn=lambda x: str(x).upper(),
+        is_dynamic=False,
     ),
 )
 
@@ -500,24 +512,28 @@ OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduOutletSensorEntityD
         key="label",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="outlet_label",
+        is_dynamic=False,
     ),
     RaritanPduOutletSensorEntityDescription(
         key="receptacle_type",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="outlet_receptacle_type",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
     ),
     RaritanPduOutletSensorEntityDescription(
         key="inlet.short_device_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="outlet_inlet",
         is_available_for=lambda x: x.inlet is not None,
+        is_dynamic=False,
     ),
     RaritanPduOutletSensorEntityDescription(
         key="ocp.short_device_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="outlet_ocp",
         is_available_for=lambda x: x.ocp is not None,
+        is_dynamic=False,
     ),
 )
 
@@ -526,12 +542,14 @@ INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduInletSensorEntityDes
         key="label",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="inlet_label",
+        is_dynamic=False,
     ),
     RaritanPduInletSensorEntityDescription(
         key="plug_type",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="inlet_plug_type",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
     ),
 )
 
@@ -542,12 +560,14 @@ OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
         key="label",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="ocp_label",
+        is_dynamic=False,
     ),
     RaritanPduOverCurrentProtectorSensorEntityDescription(
         key="inlet.short_device_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="ocp_inlet",
         is_available_for=lambda x: x.inlet is not None,
+        is_dynamic=False,
     ),
 )
 
@@ -556,6 +576,7 @@ INTEGRATION_COORDINATOR_ENTITY_DESCPRIPTIONS: tuple[RaritanDeviceSensorEntityDes
         key="catalogue.version",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="raritan_px_firmware_catalogue_version",
+        is_dynamic=False,
     ),
 )
 

@@ -34,6 +34,7 @@ from custom_components.raritan_px.api.client import (
     AuthenticationError,
     CertificateVerificationError,
     ConnectionDetails,
+    FirmwareUpgradeInProgressError,
     RaritanClient,
     RaritanClientError,
 )
@@ -55,7 +56,7 @@ from custom_components.raritan_px.coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
 )
-from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+from custom_components.raritan_px.firmware import FirmwareManager
 from custom_components.raritan_px.firmware.const import (
     CATALOGUE_MANAGER,
     CATALOGUE_STORE,
@@ -80,7 +81,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
     hass.data.setdefault(DOMAIN, {})
 
     hass.data[CATALOGUE_STORE] = Store(hass, CATALOGUE_STORE_STORAGE_VERSION, CATALOGUE_STORE_STORAGE_KEY)
-    hass.data[CATALOGUE_MANAGER] = FirmwareCatalogueManager(hass)
+    hass.data[CATALOGUE_MANAGER] = FirmwareManager(hass)
 
     async_setup_services(hass)
 
@@ -111,6 +112,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             translation_placeholders={
                 "func": "connect",
                 "exc": str(ex),
+            },
+        ) from ex
+    except FirmwareUpgradeInProgressError as ex:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="firmware_update_in_progress",
+            translation_placeholders={
+                "state": ex.state,
+                "elapsed": str(ex.elapsed),
+                "remaining": str(ex.estimated - ex.elapsed),
             },
         ) from ex
     except RaritanClientError as ex:
