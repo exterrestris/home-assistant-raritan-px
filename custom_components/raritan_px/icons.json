@@ -72,6 +72,7 @@
     }
   },
   "services": {
+    "download_latest_firmware": "mdi:package-variant-plus",
     "update_firmware_catalogue": "mdi:book-arrow-down-outline"
   }
 }
