@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import logging
 from asyncio import Lock
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from enum import Enum, Flag, auto
 from ssl import SSLCertVerificationError
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any
 
 from more_itertools import flatten, grouper, interleave
 from raritan import rpc
@@ -19,7 +17,25 @@ from raritan.rpc.pdumodel import Inlet, Outlet, OverCurrentProtector, Pdu
 from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 
-from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
+from custom_components.raritan_px.api.client.const import (
+    PduDevices,
+    SensorUpdate,
+    UpdateSensors,
+)
+from custom_components.raritan_px.api.client.errors import (
+    AuthenticationError,
+    CertificateVerificationError,
+    CommunicationError,
+    ConcurrentLoginError,
+    ConfigError,
+    HttpError,
+    InsufficientPrivilegesError,
+    JsonRpcDecodeError,
+    JsonRpcError,
+    RaritanClientError,
+    RequestTimeoutError,
+    SessionCloseError,
+)
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
     RaritanPduInlet,
@@ -46,10 +62,7 @@ if TYPE_CHECKING:
 
     from homeassistant.core import HomeAssistant
 
-    from custom_components.raritan_px.api.model import (
-        RaritanUpdatable,
-        RaritanUpdatableRpcMethodsList,
-    )
+    from custom_components.raritan_px.api.client.struct import ConnectionDetails
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
@@ -57,73 +70,17 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class ConnectionDetails:
-    """Connection information for Raritan API."""
-
-    host: str
-    auth: AuthenticationDetails | None = None
-    port: int = DEFAULT_PORT
-    use_ssl: bool = True
-    verify_ssl: bool = True
-    timeout: int = API_TIMEOUT
-
-
-@dataclass(frozen=True)
-class AuthenticationDetails:
-    """Authentication information for Raritan API."""
-
-    user: str
-    passwd: str
-
-
-@dataclass(frozen=True)
-class _SensorUpdateMethod:
-    method: Callable[[RaritanUpdatable], RaritanUpdatableRpcMethodsList]
-
-
-class _SensorUpdate(Enum):
-    INFO = _SensorUpdateMethod(lambda sensor: sensor.update_info())
-    READINGS = _SensorUpdateMethod(lambda sensor: sensor.update_readings())
-
-    def get_update_methods(self, sensor: RaritanUpdatable) -> RaritanUpdatableRpcMethodsList:
-        return self.value.method(sensor)
-
-    def fetch_msg(self, device: RaritanDevice, device_count: int, sensor_count: int) -> Callable[[], str]:
-        return lambda: (
-            f"sensor {self.name.lower()} from {device.device_id} for {sensor_count} sensors across {device_count} devices"  # noqa: E501
-        )
-
-
-class PduDevices(Flag):
-    """Flag to specify what sensor information to update."""
-
-    NONE = 0
-    INLETS = auto()
-    OUTLETS = auto()
-    OCPS = auto()
-    ALL = INLETS | OUTLETS | OCPS
-
-
-class UpdateSensors(Flag):
-    """Flag to specify what sensor information to update."""
-
-    NONE = 0
-    INFO = auto()
-    READINGS = auto()
-    ALL = INFO | READINGS
-
-
 class RaritanClient:
     """Client for Raritan API."""
 
-    _HTTPS: Final = "https"
-    _HTTP: Final = "http"
+    _REQUEST = "request"
+    _FIRMWARE_STATUS = "fw_status"
+    _FIRMWARE_UPLOAD = "fw_upload"
+    _AUTH_LOCK = "auth"
 
-    _agent: rpc.Agent
     _hass: HomeAssistant
-    _auth_lock: Lock
-    _request_lock: Lock
+    _agents: dict[str, rpc.Agent]
+    _locks: dict[str, Lock]
     _config: ConnectionDetails
     _session_manager: SessionManager
     _session_token: str | None = None
@@ -143,28 +100,93 @@ class RaritanClient:
 
         self._hass = hass
         self._config = config
-        self._agent = rpc.Agent(
-            self._get_protocol(),
-            f"{self._config.host}:{self._config.port}",
-            disable_certificate_verification=not self._config.verify_ssl,
-            timeout=self._config.timeout,
-        )
+        self._agents = {}
+        self._locks = {}
         self._session_manager = SessionManager("/session", self._agent)
-        self._auth_lock = Lock()
-        self._request_lock = Lock()
 
         if logger is not None:
             self._logger = logger
 
-    def _get_protocol(self) -> str:
-        if self._config.use_ssl:
-            return self._HTTPS
+    @property
+    def _agent(self) -> rpc.Agent:
+        return self._get_agent(self._REQUEST)
 
-        return self._HTTP
+    def _get_agent(self, name: str, timeout: int | None = None) -> rpc.Agent:
+        if name not in self._agents:
+            self._agents[name] = rpc.Agent(
+                self._config.protocol,
+                f"{self._config.host}:{self._config.port}",
+                disable_certificate_verification=not self._config.verify_ssl,
+                timeout=timeout or self._config.timeout,
+            )
+
+        return self._agents[name]
+
+    def _get_lock(self, name: str) -> Lock:
+        if name not in self._locks:
+            self._locks[name] = Lock()
+
+        return self._locks[name]
+
+    async def _execute_json_rpc_call(self, *args: Any) -> Any:
+        def raise_original_exception(e: rpc.HttpException) -> None:
+            try:
+                previous = e.args[1]
+            except IndexError:
+                return
+            else:
+                if not isinstance(e.args[1], Exception):
+                    return
+
+            raise previous
+
+        try:
+            response = await self._hass.async_add_executor_job(*args)
+        except rpc.HttpException as err:
+            try:
+                raise_original_exception(err)
+            except SSLCertVerificationError as e:
+                raise CertificateVerificationError from e
+            except TimeoutError as e:
+                raise RequestTimeoutError from e
+            except Exception as e:
+                raise HttpError from e
+            else:
+                raise HttpError from err
+        except rpc.JsonRpcErrorException as err:
+            if "code = -32001" in str(err):
+                raise InsufficientPrivilegesError from err
+
+            raise JsonRpcError from err
+        except rpc.JsonRpcSyntaxException as err:
+            raise CommunicationError from err
+        except rpc.DecodeException as err:
+            raise JsonRpcDecodeError from err
+        return response
+
+    async def _execute_bulk_requests(
+        self, requests: list[tuple[rpc.Interface.Method, list[Any]]], data_name: str | Callable[[], str] | None = None
+    ) -> list[Structure]:
+        async with self._get_lock(self._REQUEST):
+            let = LogExecutionTime(
+                f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
+                logger=self._logger,
+            )
+            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._agent, requests))
+
+    async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
+        async with self._get_lock(self._REQUEST):
+            if timed:
+                let = LogExecutionTime(
+                    f"Executed '{request.name}' request against '{request.parent.target}'"  # pyright: ignore[reportAttributeAccessIssue]
+                )
+                return await let.wrap(self._execute_json_rpc_call(request, *args))
+
+            return await self._execute_json_rpc_call(request, *args)
 
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
-        async with self._auth_lock:
+        async with self._get_lock(self._AUTH_LOCK):
             if self._session_token is not None:
                 await self._authenticate_with_token(force_reauth=force_reauth)
 
@@ -323,7 +345,7 @@ class RaritanClient:
             return False
 
         try:
-            async with self._auth_lock:
+            async with self._get_lock(self._AUTH_LOCK):
                 self._agent.set_auth_token(self._session_token)
 
                 session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
@@ -333,62 +355,11 @@ class RaritanClient:
                     SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
                 )
         except rpc.HttpException:
-            self._logger.debug("Session expired before close request")
+            self._logger.debug("Session expired before close request", exc_info=True)
         finally:
             self._clear_session_data()
 
         return True
-
-    async def _execute_json_rpc_call(self, *args: Any) -> Any:
-        def raise_original_exception(e: rpc.HttpException) -> None:
-            try:
-                previous = e.args[1]
-            except IndexError:
-                return
-            else:
-                if not isinstance(e.args[1], Exception):
-                    return
-
-            raise previous
-
-        try:
-            async with self._request_lock:
-                response = await self._hass.async_add_executor_job(*args)
-        except rpc.HttpException as err:
-            try:
-                raise_original_exception(err)
-            except SSLCertVerificationError as e:
-                raise CertificateVerificationError from e
-
-            raise HttpError from err
-        except rpc.JsonRpcErrorException as err:
-            if "code = -32001" in str(err):
-                raise InsufficientPrivilegesError from err
-
-            raise JsonRpcError from err
-        except rpc.JsonRpcSyntaxException as err:
-            raise CommunicationError from err
-        except rpc.DecodeException as err:
-            raise JsonRpcDecodeError from err
-        return response
-
-    async def _execute_bulk_requests(
-        self, requests: list[tuple[rpc.Interface.Method, list[Any]]], data_name: str | Callable[[], str] | None = None
-    ) -> list[Structure]:
-        let = LogExecutionTime(
-            f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
-            logger=self._logger,
-        )
-        return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._agent, requests))
-
-    async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
-        if timed:
-            let = LogExecutionTime(
-                f"Executed '{request.name}' request against '{request.parent.target}'"  # pyright: ignore[reportAttributeAccessIssue]
-            )
-            return await let.wrap(self._execute_json_rpc_call(request, *args))
-
-        return await self._execute_json_rpc_call(request, *args)
 
     async def get_pdu_info(
         self,
@@ -451,7 +422,7 @@ class RaritanClient:
                 rid=pdu.target,
                 id=pdu_idx,
                 host=self._config.host,
-                url=f"{self._get_protocol()}://{self._config.host}/",
+                url=f"{self._config.protocol}://{self._config.host}/",
                 name=psu_settings.name,
                 manufacturer=pdu_metadata.nameplate.manufacturer,
                 model=pdu_metadata.nameplate.model,
@@ -712,7 +683,7 @@ class RaritanClient:
             return ocps
 
     async def _update_sensors_for_device(
-        self, device: RaritanDevice, device_sensors: list[tuple[str, str, RaritanSensor]], update_type: _SensorUpdate
+        self, device: RaritanDevice, device_sensors: list[tuple[str, str, RaritanSensor]], update_type: SensorUpdate
     ) -> None:
         update_requests = [
             (device_name, (device_name, sensor_name), request, update)
@@ -731,12 +702,12 @@ class RaritanClient:
             method(response)
 
     async def _update_sensor_info_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
-        await self._update_sensors_for_device(device, device.updatable_sensors, _SensorUpdate.INFO)
+        await self._update_sensors_for_device(device, device.updatable_sensors, SensorUpdate.INFO)
 
         return device
 
     async def _update_all_sensor_info_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
-        await self._update_sensors_for_device(device, device.all_updatable_sensors, _SensorUpdate.INFO)
+        await self._update_sensors_for_device(device, device.all_updatable_sensors, SensorUpdate.INFO)
 
         return device
 
@@ -744,7 +715,7 @@ class RaritanClient:
         """Update sensor readings for device."""
         await self.authenticate()
 
-        await self._update_sensors_for_device(device, device.updatable_sensors, _SensorUpdate.READINGS)
+        await self._update_sensors_for_device(device, device.updatable_sensors, SensorUpdate.READINGS)
 
         return device
 
@@ -757,7 +728,7 @@ class RaritanClient:
         await self._update_sensors_for_device(
             pdu,
             list(flatten([device.updatable_sensors for device in devices])),
-            _SensorUpdate.READINGS,
+            SensorUpdate.READINGS,
         )
 
         return devices
@@ -766,7 +737,7 @@ class RaritanClient:
         """Update all sensor readings for device."""
         await self.authenticate()
 
-        await self._update_sensors_for_device(device, device.all_updatable_sensors, _SensorUpdate.READINGS)
+        await self._update_sensors_for_device(device, device.all_updatable_sensors, SensorUpdate.READINGS)
 
         return device
 
@@ -803,55 +774,3 @@ class RaritanClient:
                     msg = f"Unexpected response setting PDU {outlet.pdu.id} outlet {outlet.id} power state for {self._config.host}"  # noqa: E501
 
             raise RaritanClientError(msg)
-
-
-class RaritanClientError(Exception):
-    """Base exception for all client exceptions."""
-
-
-class ConfigError(RaritanClientError):
-    """Raised when configuration is invalid."""
-
-
-class CommunicationError(RaritanClientError):
-    """Raised when a generic error occurs while communicating with the Raritan API."""
-
-
-class HttpError(CommunicationError):
-    """Raised when a generic HTTP error occurs while communicating with the Raritan API."""
-
-
-class CertificateVerificationError(HttpError):
-    """Raised when SSL certificate verification fails."""
-
-
-class AuthenticationError(CommunicationError):
-    """Raised when authentication fails."""
-
-
-class JsonRpcError(CommunicationError):
-    """Raised when a generic JSON-RPC error occurs communicating with the Raritan API."""
-
-
-class JsonRpcSyntaxError(JsonRpcError):
-    """Raised when a JSON-RPC repsonse from the Raritan API has syntax errors."""
-
-
-class JsonRpcDecodeError(JsonRpcError):
-    """Raised when a JSON-RPC from the Raritan API cannot be decoded."""
-
-
-class InsufficientPrivilegesError(JsonRpcError):
-    """Raised when a request fails due to insufficient user privileges."""
-
-
-class SessionError(CommunicationError):
-    """Raised when session operations fail."""
-
-
-class ConcurrentLoginError(AuthenticationError, SessionError):
-    """Raised when creation of a new session fails due single login limitation."""
-
-
-class SessionCloseError(SessionError):
-    """Raised when closing the current session."""

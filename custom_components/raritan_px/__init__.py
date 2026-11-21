@@ -30,13 +30,12 @@ from homeassistant.helpers import (
 from homeassistant.helpers.storage import Store
 
 from custom_components.raritan_px.api.client import (
-    AuthenticationDetails,
     AuthenticationError,
     CertificateVerificationError,
-    ConnectionDetails,
     RaritanClient,
-    RaritanClientError,
 )
+from custom_components.raritan_px.api.client.errors import RaritanClientError
+from custom_components.raritan_px.api.client.struct import AuthenticationDetails, ConnectionDetails
 from custom_components.raritan_px.api.const import (
     DEFAULT_PASSWORD,
     DEFAULT_PORT,
