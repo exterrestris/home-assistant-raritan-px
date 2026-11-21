@@ -1,4 +1,4 @@
-"""Firmware catalogue management."""
+"""Firmware management."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-class FirmwareCatalogueManager:
-    """Firmware catalogue manager."""
+class FirmwareManager:
+    """Firmware manager."""
 
     _hass: HomeAssistant
     _store: Store
@@ -36,7 +36,7 @@ class FirmwareCatalogueManager:
         hass: HomeAssistant,
         logger: logging.Logger | None = None,
     ) -> None:
-        """Init catalogue manager."""
+        """Init firmware manager."""
         self._hass = hass
         self._store = hass.data[CATALOGUE_STORE]
 
@@ -143,11 +143,15 @@ class FirmwareCatalogueManager:
             raise CatalogueParseError from err
 
 
-class FirmwareCatalogueManagerError(Exception):
+class FirmwareManagerError(Exception):
+    """Base exception for all exceptions."""
+
+
+class FirmwareCatalogueError(FirmwareManagerError):
     """Base exception for all client exceptions."""
 
 
-class ParseError(FirmwareCatalogueManagerError):
+class ParseError(FirmwareCatalogueError):
     """Generic parsing exception."""
 
 
@@ -159,11 +163,11 @@ class CatalogueParseError(ParseError):
     """Raised when catalogue cannot be parsed."""
 
 
-class HttpClientError(FirmwareCatalogueManagerError):
+class HttpClientError(FirmwareManagerError):
     """Raised when a generic error occurs handling an HTTP request."""
 
 
-class GitHubApiError(FirmwareCatalogueManagerError):
+class GitHubApiError(FirmwareCatalogueError):
     """Raised when a generic error occurs communicating with or handling response data from the GitHub API."""
 
 

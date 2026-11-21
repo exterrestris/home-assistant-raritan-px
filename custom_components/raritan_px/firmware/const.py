@@ -7,12 +7,12 @@ from homeassistant.util.hass_dict import HassKey
 if TYPE_CHECKING:
     from homeassistant.helpers.storage import Store
 
-    from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+    from custom_components.raritan_px.firmware import FirmwareManager
 
 CATALOGUE_URL: Final[str] = "https://api.github.com/repos/exterrestris/ha-raritan-px-firmware/releases/latest"
 CATALOGUE_FILE: Final[str] = "catalogue.json"
 
-CATALOGUE_MANAGER: HassKey[FirmwareCatalogueManager] = HassKey("firmware_catalogue_manager")
+CATALOGUE_MANAGER: HassKey[FirmwareManager] = HassKey("firmware_catalogue_manager")
 CATALOGUE_STORE: HassKey[Store] = HassKey("firmware_catalogue")
 
 CATALOGUE_STORE_STORAGE_KEY: Final[str] = "raritan_px.firmware_catalogue"
