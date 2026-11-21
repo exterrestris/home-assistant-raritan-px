@@ -166,6 +166,9 @@
     },
     "catalogue_error": {
       "message": "Unable to get firmware information from catalogue: {exc}"
+    },
+    "firmware_update_in_progress": {
+      "message": "API unavailable due to in-progress firmware update: {state} ({elapsed})"
     }
   }
 }
