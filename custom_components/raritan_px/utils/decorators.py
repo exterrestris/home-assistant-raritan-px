@@ -4,16 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from abc import ABC, abstractmethod
 from datetime import timedelta
 from functools import wraps
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, cast, overload, override
+
+from custom_components.raritan_px.utils import CorountineWrapper
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
 # @todo Change to sentinel (requires Python 3.15+)
 MISSING = object()
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class BaseDecorator[**F, R](ABC):
@@ -151,3 +157,80 @@ class Sleep[**F, R](AsyncDecorator[F, R]):
             await asyncio.sleep(self._seconds(self._after))
 
         return result
+
+
+class LogExecutionTime[**F, R](AsyncDecorator[F, R], CorountineWrapper[R]):
+    """Log function execution time when DEBUG logging is enabled."""
+
+    def __init__(
+        self, message: str | Callable[..., str] | None = None, *, logger: logging.Logger | None = None
+    ) -> None:
+        """Initialise the decorator."""
+        self._message = message
+        self._logger = logger
+
+    def _get_logger(self, args: tuple[object, ...] | None = None) -> logging.Logger:
+        if self._logger:
+            return self._logger
+
+        if args:
+            instance_logger = getattr(args[0], "_logger", None)
+
+            if isinstance(instance_logger, logging.Logger):
+                return instance_logger
+
+        return _LOGGER
+
+    def _build_message(self, func: Callable[..., Any], args: tuple[object, ...], kwargs: dict[str, Any]) -> str:
+        if self._message is None:
+            return f"{func.__qualname__} executed"
+
+        if isinstance(self._message, str):
+            return self._message
+
+        return self._message(*args, **kwargs)
+
+    def _log_execution_time(self, logger: logging.Logger, msg: str, elapsed: float) -> None:
+        logger.debug("%s in %.6f seconds", msg, elapsed)
+
+    def _sync_impl(self, func: Callable[F, R], *args: F.args, **kwargs: F.kwargs) -> R:
+        logger = self._get_logger(args)
+
+        if not logger.isEnabledFor(logging.DEBUG):
+            return func(*args, **kwargs)
+
+        start = perf_counter()
+
+        try:
+            return func(*args, **kwargs)
+        finally:
+            msg = self._build_message(cast("Callable[..., object]", func), args, kwargs)
+            self._log_execution_time(logger, msg, perf_counter() - start)
+
+    async def _async_impl(self, func: Callable[F, Coroutine[None, None, R]], *args: F.args, **kwargs: F.kwargs) -> R:
+        logger = self._get_logger(args)
+
+        if not logger.isEnabledFor(logging.DEBUG):
+            return await func(*args, **kwargs)
+
+        start = perf_counter()
+
+        try:
+            return await func(*args, **kwargs)
+        finally:
+            msg = self._build_message(cast("Callable[..., object]", func), args, kwargs)
+            self._log_execution_time(logger, msg, perf_counter() - start)
+
+    async def _async_object_impl(self, coro: Coroutine[None, None, R]) -> R:
+        logger = self._get_logger()
+
+        if not logger.isEnabledFor(logging.DEBUG):
+            return await coro
+
+        start = perf_counter()
+
+        try:
+            return await coro
+        finally:
+            msg = self._message if isinstance(self._message, str) else "Coroutine executed"
+            self._log_execution_time(logger, msg, perf_counter() - start)
