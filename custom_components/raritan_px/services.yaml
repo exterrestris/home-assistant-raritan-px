@@ -5,3 +5,7 @@ update_firmware_catalogue:
 download_latest_firmware:
   name: Downloaded latest Xerus firmware
   description: Downloads the latest suitable firmware for each configured Raritan PDU for later installation
+
+clear_downloaded_firmware:
+  name: Clear downloaded Xerus firmware
+  description: Remove all downloaded Xerus firmware files
