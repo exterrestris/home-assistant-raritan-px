@@ -123,6 +123,7 @@ class RaritanClient:
     _agent: rpc.Agent
     _hass: HomeAssistant
     _auth_lock: Lock
+    _request_lock: Lock
     _config: ConnectionDetails
     _session_manager: SessionManager
     _session_token: str | None = None
@@ -150,6 +151,7 @@ class RaritanClient:
         )
         self._session_manager = SessionManager("/session", self._agent)
         self._auth_lock = Lock()
+        self._request_lock = Lock()
 
         if logger is not None:
             self._logger = logger
@@ -350,7 +352,8 @@ class RaritanClient:
             raise previous
 
         try:
-            response = await self._hass.async_add_executor_job(*args)
+            async with self._request_lock:
+                response = await self._hass.async_add_executor_job(*args)
         except rpc.HttpException as err:
             try:
                 raise_original_exception(err)
