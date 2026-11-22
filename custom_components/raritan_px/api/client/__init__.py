@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import logging
-from asyncio import Lock
 from datetime import UTC, datetime, timedelta
 from ssl import SSLCertVerificationError
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from more_itertools import flatten, grouper, interleave
 from raritan import rpc
@@ -18,6 +17,7 @@ from raritan.rpc.pdumodel import Inlet, Outlet, OverCurrentProtector, Pdu
 from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 
+from custom_components.raritan_px.api.client.connections import Connection, ConnectionManager
 from custom_components.raritan_px.api.client.const import (
     PduDevices,
     SensorUpdate,
@@ -55,6 +55,7 @@ from custom_components.raritan_px.api.model.network import (
     NetworkInterfaceState,
     NetworkInterfaceType,
 )
+from custom_components.raritan_px.utils import LockManager
 from custom_components.raritan_px.utils.decorators import LogExecutionTime
 
 if TYPE_CHECKING:
@@ -73,19 +74,13 @@ _LOGGER = logging.getLogger(__name__)
 class RaritanClient:
     """Client for Raritan API."""
 
-    _REQUEST = "request"
-    _FIRMWARE_STATUS = "fw_status"
-    _FIRMWARE_UPLOAD = "fw_upload"
-    _AUTH_LOCK = "auth"
+    _REQUEST: Final[str] = "request"
+    _AUTH_LOCK: Final[str] = "auth"
 
     _hass: HomeAssistant
-    _agents: dict[str, rpc.Agent]
-    _locks: dict[str, Lock]
+    _connections: ConnectionManager
+    _locks: LockManager
     _config: ConnectionDetails
-    _session_manager: SessionManager
-    _session_token: str | None = None
-    _session_created: datetime | None = None
-    _logger: logging.Logger = _LOGGER
 
     def __init__(
         self,
@@ -100,33 +95,13 @@ class RaritanClient:
 
         self._hass = hass
         self._config = config
-        self._agents = {}
-        self._locks = {}
-        self._session_manager = SessionManager("/session", self._agent)
-
-        if logger is not None:
-            self._logger = logger
+        self._logger = logger = logger or _LOGGER
+        self._locks = LockManager()
+        self._connections = ConnectionManager(config=config, lock_manager=self._locks, logger=self._logger)
 
     @property
-    def _agent(self) -> rpc.Agent:
-        return self._get_agent(self._REQUEST)
-
-    def _get_agent(self, name: str, timeout: int | None = None) -> rpc.Agent:
-        if name not in self._agents:
-            self._agents[name] = rpc.Agent(
-                self._config.protocol,
-                f"{self._config.host}:{self._config.port}",
-                disable_certificate_verification=not self._config.verify_ssl,
-                timeout=timeout or self._config.timeout,
-            )
-
-        return self._agents[name]
-
-    def _get_lock(self, name: str) -> Lock:
-        if name not in self._locks:
-            self._locks[name] = Lock()
-
-        return self._locks[name]
+    def _connection(self) -> Connection:
+        return self._connections.get(self._REQUEST)
 
     async def _execute_json_rpc_call(self, *args: Any) -> Any:
         def raise_original_exception(e: rpc.HttpException) -> None:
@@ -167,15 +142,15 @@ class RaritanClient:
     async def _execute_bulk_requests(
         self, requests: list[tuple[rpc.Interface.Method, list[Any]]], data_name: str | Callable[[], str] | None = None
     ) -> list[Structure]:
-        async with self._get_lock(self._REQUEST):
+        async with self._connection.lock:
             let = LogExecutionTime(
                 f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
                 logger=self._logger,
             )
-            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._agent, requests))
+            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._connection.agent, requests))
 
     async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
-        async with self._get_lock(self._REQUEST):
+        async with self._connection.lock:
             if timed:
                 let = LogExecutionTime(
                     f"Executed '{request.name}' request against '{request.parent.target}'"  # pyright: ignore[reportAttributeAccessIssue]
@@ -186,41 +161,45 @@ class RaritanClient:
 
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
-        async with self._get_lock(self._AUTH_LOCK):
-            if self._session_token is not None:
-                await self._authenticate_with_token(force_reauth=force_reauth)
+        await self._authenticate(self._connection, force_reauth=force_reauth)
 
-            if self._session_token is None:
-                await self._authenticate_with_credentials()
+    async def _authenticate(self, connection: Connection, *, force_reauth: bool = False) -> None:
+        async with self._locks.get(self._AUTH_LOCK):
+            if connection.session_token is not None:
+                await self._authenticate_with_token(connection, force_reauth=force_reauth)
 
-    async def _authenticate_with_token(self, *, force_reauth: bool = False) -> None:
-        if self._config.auth is None:
-            message: str = f"No authentication information provided for {self._config.host}"
+            if connection.session_token is None:
+                await self._authenticate_with_credentials(connection)
+
+    async def _authenticate_with_token(self, connection: Connection, *, force_reauth: bool = False) -> None:
+        if connection.config.auth is None:
+            message: str = f"No authentication information provided for {connection.config.host}"
             raise AuthenticationError(message)
 
         try:
-            self._agent.set_auth_token(self._session_token)
+            connection.set_auth_from_token()
 
-            session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
+            session_details: Session = await self._execute_request(connection.session_manager.getCurrentSession)
 
-            if session_details.username != self._config.auth.user:
+            if session_details.username != connection.config.auth.user:
                 force_reauth = True
 
                 self._logger.warning(
                     "User %s attempting to use session token for user %s to authenticate with %s",
-                    self._config.auth.user,
+                    connection.config.auth.user,
                     session_details.username,
-                    self._config.host,
+                    connection.config.host,
                 )
 
             if force_reauth:
                 try:
                     self._logger.info(
                         "Closing existing session on %s and forcing re-authentication",
-                        self._config.host,
+                        connection.config.host,
                     )
 
-                    await self._close_session(
+                    await self._close_connection_session(
+                        connection,
                         session_details,
                         SessionManager.CloseReason.CLOSE_REASON_FORCED_DISCONNECT,  # pyright: ignore[reportAttributeAccessIssue]
                     )
@@ -228,41 +207,41 @@ class RaritanClient:
                     # This has already been logged
                     pass
                 finally:
-                    self._clear_session_data()
+                    connection.clear_session_data()
             else:
-                await self._execute_request(self._session_manager.touchCurrentSession, True)  # noqa: FBT003
+                await self._execute_request(connection.session_manager.touchCurrentSession, True)  # noqa: FBT003
 
                 self._logger.debug(
                     "Authenticated with %s using session token for %s, session created at %s",
-                    self._config.host,
+                    connection.config.host,
                     session_details.username,
-                    self._session_created,
+                    connection.session_created,
                 )
         except HttpError:
-            self._clear_session_data()
+            connection.clear_session_data()
 
             self._logger.debug(
                 "Session token for %s has expired, will attempt to authenticate using credentials",
-                self._config.host,
+                connection.config.host,
             )
 
-    async def _authenticate_with_credentials(self) -> None:
-        if self._config.auth is None:
-            message: str = f"No authentication information provided for {self._config.host}"
-            raise AuthenticationError(message)
+    async def _authenticate_with_credentials(self, connection: Connection) -> None:
+        if connection.config.auth is None:
+            msg: str = f"No authentication information provided for {connection.config.host}"
+            raise AuthenticationError(msg)
 
         try:
             response: int
 
-            self._agent.set_auth_basic(self._config.auth.user, self._config.auth.passwd)
+            connection.set_auth_from_credentials()
 
-            user = User("/auth/currentUser", self._agent)
+            user = connection.proxy(User, "/auth/currentUser")
             user_info: UserInfo = await self._execute_request(user.getInfo)
 
             self._logger.info(
                 "Authenticated with %s as %s (%s)",
-                self._config.host,
-                self._config.auth.user,
+                connection.config.host,
+                connection.config.auth.user,
                 user_info.auxInfo.fullname,
             )
 
@@ -271,27 +250,27 @@ class RaritanClient:
             (
                 response,
                 session_details,
-                self._session_token,
-            ) = await self._execute_request(self._session_manager.newSession)
+                connection.session_token,
+            ) = await self._execute_request(connection.session_manager.newSession)
 
             if response == SessionManager.ERR_ACTIVE_SESSION_EXCLUSIVE_FOR_USER:
-                message: str = (
-                    f"Failed to create new session on {self._config.host} for logged-in user {self._config.auth.user}"
+                msg: str = (
+                    f"Failed to create new session on {connection.config.host}"
+                    f"for logged-in user {connection.config.auth.user}"
                 )
-                raise ConcurrentLoginError(message)
+                raise ConcurrentLoginError(msg)
 
             # The Raritan JSON-RPC API returns the session created time as a timestamp in microseconds relative to
             # system boot, however the Raritan Python SDK creates a datetime instance from that value as if it were
             # a POSIX timestamp. To get an accurate creation time, we need to undo this
-
             session_creation: Time = session_details.creationTime  # pyright: ignore[reportAssignmentType]
-            self._session_created = datetime.now(UTC) - timedelta(microseconds=session_creation.timestamp())
+            connection.session_created = datetime.now(UTC) - timedelta(microseconds=session_creation.timestamp())
 
             self._logger.debug(
                 "Session created for %s on %s at %s",
                 session_details.username,
-                self._config.host,
-                self._session_created,
+                connection.config.host,
+                connection.session_created,
             )
         except CertificateVerificationError:
             self._logger.exception("Authentication Error")
@@ -299,30 +278,28 @@ class RaritanClient:
         except HttpError as e:
             self._logger.exception("Authentication Error")
 
-            message: str = f"Failed to authenticate as {self._config.auth.user} on {self._config.host}"
-            raise AuthenticationError(message) from e
+            msg: str = f"Failed to authenticate as {connection.config.auth.user} on {connection.config.host}"
+            raise AuthenticationError(msg) from e
 
-    def _clear_session_data(self) -> None:
-        self._session_token = None
-        self._session_created = None
-
-    async def _close_session(self, session_details: Session, reason: SessionManager.CloseReason) -> bool:
+    async def _close_connection_session(
+        self, connection: Connection, session_details: Session, reason: SessionManager.CloseReason
+    ) -> bool:
         try:
-            self._agent.set_auth_token(self._session_token)
+            connection.set_auth_from_token()
 
             self._logger.debug(
                 "Closing session for %s on %s created at %s",
                 session_details.username,
-                self._config.host,
-                self._session_created,
+                connection.config.host,
+                connection.session_created,
             )
 
-            await self._execute_request(self._session_manager.closeCurrentSession, reason)
+            await self._execute_request(connection.session_manager.closeCurrentSession, reason)
         except rpc.HttpException as err:
             self._logger.warning(
                 "Failed to close existing session for %s on %s",
                 session_details.username,
-                self._config.host,
+                connection.config.host,
                 exc_info=True,
             )
 
@@ -331,35 +308,39 @@ class RaritanClient:
             self._logger.info(
                 "Session closed for %s on %s",
                 session_details.username,
-                self._config.host,
+                connection.config.host,
             )
         finally:
-            self._clear_session_data()
+            connection.clear_session_data()
 
         return True
 
-    async def close_session(self) -> bool:
-        """Close the current session and clear any stored session information."""
-        if self._session_token is None:
+    async def _close_session(self, connection: Connection) -> bool:
+        if connection.session_token is None:
             self._logger.debug("No active session to close")
             return False
 
         try:
-            async with self._get_lock(self._AUTH_LOCK):
-                self._agent.set_auth_token(self._session_token)
+            async with self._locks.get(self._AUTH_LOCK):
+                connection.set_auth_from_token()
 
-                session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
+                session_details: Session = await self._execute_request(connection.session_manager.getCurrentSession)
 
-                return await self._close_session(
+                return await self._close_connection_session(
+                    connection,
                     session_details,
                     SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
                 )
         except rpc.HttpException:
             self._logger.debug("Session expired before close request", exc_info=True)
         finally:
-            self._clear_session_data()
+            connection.clear_session_data()
 
         return True
+
+    async def close_session(self) -> bool:
+        """Close the current session and clear any stored session information."""
+        return await self._close_session(self._connection)
 
     async def get_pdu_info(
         self,
@@ -372,10 +353,10 @@ class RaritanClient:
         await self.authenticate()
 
         try:
-            pdu: Pdu = Pdu(f"/model/pdu/{pdu_idx}", self._agent)
-            firmware: Firmware = Firmware("/firmware", self._agent)
-            cascade = CascadeManager("/cascade", self._agent)
-            net = Net("/net", self._agent)
+            pdu: Pdu = self._connection.proxy(Pdu, f"/model/pdu/{pdu_idx}")
+            firmware: Firmware = self._connection.proxy(Firmware, "/firmware")
+            cascade = self._connection.proxy(CascadeManager, "/cascade")
+            net = self._connection.proxy(Net, "/net")
 
             responses = await self._execute_bulk_requests(
                 [
@@ -753,7 +734,7 @@ class RaritanClient:
         await self.authenticate()
 
         try:
-            proxy = Outlet(outlet.rid, self._agent)
+            proxy = self._connection.proxy(Outlet, outlet.rid)
 
             status: int = await self._execute_request(proxy.setPowerState, state.to_api())
 
