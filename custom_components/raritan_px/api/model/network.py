@@ -1,12 +1,9 @@
 """Raritan PDU API network models."""
 
 from dataclasses import dataclass
-from enum import IntEnum
 
-from raritan.rpc.net import InterfaceOpState, InterfaceType
-
-from custom_components.raritan_px.api import RaritanEnum
 from custom_components.raritan_px.api.model import RaritanModel
+from custom_components.raritan_px.api.model.state import RaritanEnumState
 
 
 @dataclass(kw_only=True)
@@ -21,11 +18,7 @@ class NetworkInterface(RaritanModel):
     mac_address: str
 
 
-class NetworkEnum(RaritanEnum):
-    """Base network enum."""
-
-
-class NetworkInterfaceType(NetworkEnum, IntEnum):
+class NetworkInterfaceType(RaritanEnumState):
     """Network interface type enum."""
 
     ETHERNET = 0
@@ -33,25 +26,10 @@ class NetworkInterfaceType(NetworkEnum, IntEnum):
     BRIDGE = 2
 
 
-class NetworkInterfaceState(NetworkEnum, IntEnum):
+class NetworkInterfaceState(RaritanEnumState):
     """Network interface type enum."""
 
     NOT_PRESENT = 0
     DOWN = 1
     NO_LINK = 2
     UP = 3
-
-
-NETWORK_ENUM_TYPE_VALUE_MAPPING: dict[type[NetworkEnum], dict[int, NetworkEnum]] = {
-    NetworkInterfaceType: {
-        InterfaceType.ETHERNET: NetworkInterfaceType.ETHERNET,  # pyright: ignore[reportAttributeAccessIssue]
-        InterfaceType.WLAN: NetworkInterfaceType.WLAN,  # pyright: ignore[reportAttributeAccessIssue]
-        InterfaceType.BRIDGE: NetworkInterfaceType.BRIDGE,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-    NetworkInterfaceState: {
-        InterfaceOpState.NOT_PRESENT: NetworkInterfaceState.NOT_PRESENT,  # pyright: ignore[reportAttributeAccessIssue]
-        InterfaceOpState.DOWN: NetworkInterfaceState.DOWN,  # pyright: ignore[reportAttributeAccessIssue]
-        InterfaceOpState.NO_LINK: NetworkInterfaceState.NO_LINK,  # pyright: ignore[reportAttributeAccessIssue]
-        InterfaceOpState.UP: NetworkInterfaceState.UP,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-}

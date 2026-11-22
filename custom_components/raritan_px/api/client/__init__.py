@@ -50,7 +50,6 @@ from custom_components.raritan_px.api.model.device.pdu.outlet import (
     RaritanPduOutletSensors,
 )
 from custom_components.raritan_px.api.model.network import (
-    NETWORK_ENUM_TYPE_VALUE_MAPPING,
     NetworkInterface,
     NetworkInterfaceState,
     NetworkInterfaceType,
@@ -409,9 +408,9 @@ class RaritanClient:
                 key: NetworkInterface(
                     name=interface.name,
                     label=interface.label,
-                    type=NETWORK_ENUM_TYPE_VALUE_MAPPING[NetworkInterfaceType][interface.type],  # pyright: ignore[reportArgumentType]
+                    type=NetworkInterfaceType.from_api(interface.type),
                     enabled=interface.enabled,
-                    state=NETWORK_ENUM_TYPE_VALUE_MAPPING[NetworkInterfaceState][interface.state],  # pyright: ignore[reportArgumentType],
+                    state=NetworkInterfaceState.from_api(interface.state),
                     mac_address=interface.macAddr,
                 )
                 for key, interface in interfaces.items()
