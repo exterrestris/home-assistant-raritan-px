@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import logging
-from asyncio import Lock
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from enum import Enum, Flag, auto
 from ssl import SSLCertVerificationError
 from typing import TYPE_CHECKING, Any, Final
 
@@ -14,12 +11,32 @@ from more_itertools import flatten, grouper, interleave
 from raritan import rpc
 from raritan.rpc import Structure, Time, perform_bulk
 from raritan.rpc.cascading import CascadeManager
+from raritan.rpc.firmware import Firmware
 from raritan.rpc.net import Info, InterfaceInfo, Net
 from raritan.rpc.pdumodel import Inlet, Outlet, OverCurrentProtector, Pdu
 from raritan.rpc.session import Session, SessionManager
 from raritan.rpc.usermgmt import User, UserInfo
 
-from custom_components.raritan_px.api.const import API_TIMEOUT, DEFAULT_PORT
+from custom_components.raritan_px.api.client.connections import Connection, ConnectionManager
+from custom_components.raritan_px.api.client.const import (
+    PduDevices,
+    SensorUpdate,
+    UpdateSensors,
+)
+from custom_components.raritan_px.api.client.errors import (
+    AuthenticationError,
+    CertificateVerificationError,
+    CommunicationError,
+    ConcurrentLoginError,
+    ConfigError,
+    HttpError,
+    InsufficientPrivilegesError,
+    JsonRpcDecodeError,
+    JsonRpcError,
+    RaritanClientError,
+    RequestTimeoutError,
+    SessionCloseError,
+)
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
     RaritanPduInlet,
@@ -34,11 +51,11 @@ from custom_components.raritan_px.api.model.device.pdu.outlet import (
     RaritanPduOutletSensors,
 )
 from custom_components.raritan_px.api.model.network import (
-    NETWORK_ENUM_TYPE_VALUE_MAPPING,
     NetworkInterface,
     NetworkInterfaceState,
     NetworkInterfaceType,
 )
+from custom_components.raritan_px.utils import LockManager
 from custom_components.raritan_px.utils.decorators import LogExecutionTime
 
 if TYPE_CHECKING:
@@ -46,10 +63,7 @@ if TYPE_CHECKING:
 
     from homeassistant.core import HomeAssistant
 
-    from custom_components.raritan_px.api.model import (
-        RaritanUpdatable,
-        RaritanUpdatableRpcMethodsList,
-    )
+    from custom_components.raritan_px.api.client.struct import ConnectionDetails
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
@@ -57,77 +71,16 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class ConnectionDetails:
-    """Connection information for Raritan API."""
-
-    host: str
-    auth: AuthenticationDetails | None = None
-    port: int = DEFAULT_PORT
-    use_ssl: bool = True
-    verify_ssl: bool = True
-    timeout: int = API_TIMEOUT
-
-
-@dataclass(frozen=True)
-class AuthenticationDetails:
-    """Authentication information for Raritan API."""
-
-    user: str
-    passwd: str
-
-
-@dataclass(frozen=True)
-class _SensorUpdateMethod:
-    method: Callable[[RaritanUpdatable], RaritanUpdatableRpcMethodsList]
-
-
-class _SensorUpdate(Enum):
-    INFO = _SensorUpdateMethod(lambda sensor: sensor.update_info())
-    READINGS = _SensorUpdateMethod(lambda sensor: sensor.update_readings())
-
-    def get_update_methods(self, sensor: RaritanUpdatable) -> RaritanUpdatableRpcMethodsList:
-        return self.value.method(sensor)
-
-    def fetch_msg(self, device: RaritanDevice, device_count: int, sensor_count: int) -> Callable[[], str]:
-        return lambda: (
-            f"sensor {self.name.lower()} from {device.device_id} for {sensor_count} sensors across {device_count} devices"  # noqa: E501
-        )
-
-
-class PduDevices(Flag):
-    """Flag to specify what sensor information to update."""
-
-    NONE = 0
-    INLETS = auto()
-    OUTLETS = auto()
-    OCPS = auto()
-    ALL = INLETS | OUTLETS | OCPS
-
-
-class UpdateSensors(Flag):
-    """Flag to specify what sensor information to update."""
-
-    NONE = 0
-    INFO = auto()
-    READINGS = auto()
-    ALL = INFO | READINGS
-
-
 class RaritanClient:
     """Client for Raritan API."""
 
-    _HTTPS: Final = "https"
-    _HTTP: Final = "http"
+    _REQUEST: Final[str] = "request"
+    _AUTH_LOCK: Final[str] = "auth"
 
-    _agent: rpc.Agent
     _hass: HomeAssistant
-    _auth_lock: Lock
+    _connections: ConnectionManager
+    _locks: LockManager
     _config: ConnectionDetails
-    _session_manager: SessionManager
-    _session_token: str | None = None
-    _session_created: datetime | None = None
-    _logger: logging.Logger = _LOGGER
 
     def __init__(
         self,
@@ -142,200 +95,13 @@ class RaritanClient:
 
         self._hass = hass
         self._config = config
-        self._agent = rpc.Agent(
-            self._get_protocol(),
-            f"{self._config.host}:{self._config.port}",
-            disable_certificate_verification=not self._config.verify_ssl,
-            timeout=self._config.timeout,
-        )
-        self._session_manager = SessionManager("/session", self._agent)
-        self._auth_lock = Lock()
+        self._logger = logger = logger or _LOGGER
+        self._locks = LockManager()
+        self._connections = ConnectionManager(config=config, lock_manager=self._locks, logger=self._logger)
 
-        if logger is not None:
-            self._logger = logger
-
-    def _get_protocol(self) -> str:
-        if self._config.use_ssl:
-            return self._HTTPS
-
-        return self._HTTP
-
-    async def authenticate(self, *, force_reauth: bool = False) -> None:
-        """Authenticate with the Raritan API, using either an existing session token or username/password."""
-        async with self._auth_lock:
-            if self._session_token is not None:
-                await self._authenticate_with_token(force_reauth=force_reauth)
-
-            if self._session_token is None:
-                await self._authenticate_with_credentials()
-
-    async def _authenticate_with_token(self, *, force_reauth: bool = False) -> None:
-        if self._config.auth is None:
-            message: str = f"No authentication information provided for {self._config.host}"
-            raise AuthenticationError(message)
-
-        try:
-            self._agent.set_auth_token(self._session_token)
-
-            session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
-
-            if session_details.username != self._config.auth.user:
-                force_reauth = True
-
-                self._logger.warning(
-                    "User %s attempting to use session token for user %s to authenticate with %s",
-                    self._config.auth.user,
-                    session_details.username,
-                    self._config.host,
-                )
-
-            if force_reauth:
-                try:
-                    self._logger.info(
-                        "Closing existing session on %s and forcing re-authentication",
-                        self._config.host,
-                    )
-
-                    await self._close_session(
-                        session_details,
-                        SessionManager.CloseReason.CLOSE_REASON_FORCED_DISCONNECT,  # pyright: ignore[reportAttributeAccessIssue]
-                    )
-                except SessionCloseError:
-                    # This has already been logged
-                    pass
-                finally:
-                    self._clear_session_data()
-            else:
-                await self._execute_request(self._session_manager.touchCurrentSession, True)  # noqa: FBT003
-
-                self._logger.debug(
-                    "Authenticated with %s using session token for %s, session created at %s",
-                    self._config.host,
-                    session_details.username,
-                    self._session_created,
-                )
-        except HttpError:
-            self._clear_session_data()
-
-            self._logger.debug(
-                "Session token for %s has expired, will attempt to authenticate using credentials",
-                self._config.host,
-            )
-
-    async def _authenticate_with_credentials(self) -> None:
-        if self._config.auth is None:
-            message: str = f"No authentication information provided for {self._config.host}"
-            raise AuthenticationError(message)
-
-        try:
-            response: int
-
-            self._agent.set_auth_basic(self._config.auth.user, self._config.auth.passwd)
-
-            user = User("/auth/currentUser", self._agent)
-            user_info: UserInfo = await self._execute_request(user.getInfo)
-
-            self._logger.info(
-                "Authenticated with %s as %s (%s)",
-                self._config.host,
-                self._config.auth.user,
-                user_info.auxInfo.fullname,
-            )
-
-            session_details: Session
-
-            (
-                response,
-                session_details,
-                self._session_token,
-            ) = await self._execute_request(self._session_manager.newSession)
-
-            if response == SessionManager.ERR_ACTIVE_SESSION_EXCLUSIVE_FOR_USER:
-                message: str = (
-                    f"Failed to create new session on {self._config.host} for logged-in user {self._config.auth.user}"
-                )
-                raise ConcurrentLoginError(message)
-
-            # The Raritan JSON-RPC API returns the session created time as a timestamp in microseconds relative to
-            # system boot, however the Raritan Python SDK creates a datetime instance from that value as if it were
-            # a POSIX timestamp. To get an accurate creation time, we need to undo this
-
-            session_creation: Time = session_details.creationTime  # pyright: ignore[reportAssignmentType]
-            self._session_created = datetime.now(UTC) - timedelta(microseconds=session_creation.timestamp())
-
-            self._logger.debug(
-                "Session created for %s on %s at %s",
-                session_details.username,
-                self._config.host,
-                self._session_created,
-            )
-        except CertificateVerificationError:
-            self._logger.exception("Authentication Error")
-            raise
-        except HttpError as e:
-            self._logger.exception("Authentication Error")
-
-            message: str = f"Failed to authenticate as {self._config.auth.user} on {self._config.host}"
-            raise AuthenticationError(message) from e
-
-    def _clear_session_data(self) -> None:
-        self._session_token = None
-        self._session_created = None
-
-    async def _close_session(self, session_details: Session, reason: SessionManager.CloseReason) -> bool:
-        try:
-            self._agent.set_auth_token(self._session_token)
-
-            self._logger.debug(
-                "Closing session for %s on %s created at %s",
-                session_details.username,
-                self._config.host,
-                self._session_created,
-            )
-
-            await self._execute_request(self._session_manager.closeCurrentSession, reason)
-        except rpc.HttpException as err:
-            self._logger.warning(
-                "Failed to close existing session for %s on %s",
-                session_details.username,
-                self._config.host,
-                exc_info=True,
-            )
-
-            raise SessionCloseError from err
-        else:
-            self._logger.info(
-                "Session closed for %s on %s",
-                session_details.username,
-                self._config.host,
-            )
-        finally:
-            self._clear_session_data()
-
-        return True
-
-    async def close_session(self) -> bool:
-        """Close the current session and clear any stored session information."""
-        if self._session_token is None:
-            self._logger.debug("No active session to close")
-            return False
-
-        try:
-            async with self._auth_lock:
-                self._agent.set_auth_token(self._session_token)
-
-                session_details: Session = await self._execute_request(self._session_manager.getCurrentSession)
-
-                return await self._close_session(
-                    session_details,
-                    SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
-                )
-        except rpc.HttpException:
-            self._logger.debug("Session expired before close request")
-        finally:
-            self._clear_session_data()
-
-        return True
+    @property
+    def _connection(self) -> Connection:
+        return self._connections.get(self._REQUEST)
 
     async def _execute_json_rpc_call(self, *args: Any) -> Any:
         def raise_original_exception(e: rpc.HttpException) -> None:
@@ -356,8 +122,12 @@ class RaritanClient:
                 raise_original_exception(err)
             except SSLCertVerificationError as e:
                 raise CertificateVerificationError from e
-
-            raise HttpError from err
+            except TimeoutError as e:
+                raise RequestTimeoutError from e
+            except Exception as e:
+                raise HttpError from e
+            else:
+                raise HttpError from err
         except rpc.JsonRpcErrorException as err:
             if "code = -32001" in str(err):
                 raise InsufficientPrivilegesError from err
@@ -372,20 +142,205 @@ class RaritanClient:
     async def _execute_bulk_requests(
         self, requests: list[tuple[rpc.Interface.Method, list[Any]]], data_name: str | Callable[[], str] | None = None
     ) -> list[Structure]:
-        let = LogExecutionTime(
-            f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
-            logger=self._logger,
-        )
-        return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._agent, requests))
+        async with self._connection.lock:
+            let = LogExecutionTime(
+                f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
+                logger=self._logger,
+            )
+            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._connection.agent, requests))
 
     async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
-        if timed:
-            let = LogExecutionTime(
-                f"Executed '{request.name}' request against '{request.parent.target}'"  # pyright: ignore[reportAttributeAccessIssue]
-            )
-            return await let.wrap(self._execute_json_rpc_call(request, *args))
+        async with self._connection.lock:
+            if timed:
+                let = LogExecutionTime(
+                    f"Executed '{request.name}' request against '{request.parent.target}'"  # pyright: ignore[reportAttributeAccessIssue]
+                )
+                return await let.wrap(self._execute_json_rpc_call(request, *args))
 
-        return await self._execute_json_rpc_call(request, *args)
+            return await self._execute_json_rpc_call(request, *args)
+
+    async def authenticate(self, *, force_reauth: bool = False) -> None:
+        """Authenticate with the Raritan API, using either an existing session token or username/password."""
+        await self._authenticate(self._connection, force_reauth=force_reauth)
+
+    async def _authenticate(self, connection: Connection, *, force_reauth: bool = False) -> None:
+        async with self._locks.get(self._AUTH_LOCK):
+            if connection.session_token is not None:
+                await self._authenticate_with_token(connection, force_reauth=force_reauth)
+
+            if connection.session_token is None:
+                await self._authenticate_with_credentials(connection)
+
+    async def _authenticate_with_token(self, connection: Connection, *, force_reauth: bool = False) -> None:
+        if connection.config.auth is None:
+            message: str = f"No authentication information provided for {connection.config.host}"
+            raise AuthenticationError(message)
+
+        try:
+            connection.set_auth_from_token()
+
+            session_details: Session = await self._execute_request(connection.session_manager.getCurrentSession)
+
+            if session_details.username != connection.config.auth.user:
+                force_reauth = True
+
+                self._logger.warning(
+                    "User %s attempting to use session token for user %s to authenticate with %s",
+                    connection.config.auth.user,
+                    session_details.username,
+                    connection.config.host,
+                )
+
+            if force_reauth:
+                try:
+                    self._logger.info(
+                        "Closing existing session on %s and forcing re-authentication",
+                        connection.config.host,
+                    )
+
+                    await self._close_connection_session(
+                        connection,
+                        session_details,
+                        SessionManager.CloseReason.CLOSE_REASON_FORCED_DISCONNECT,  # pyright: ignore[reportAttributeAccessIssue]
+                    )
+                except SessionCloseError:
+                    # This has already been logged
+                    pass
+                finally:
+                    connection.clear_session_data()
+            else:
+                await self._execute_request(connection.session_manager.touchCurrentSession, True)  # noqa: FBT003
+
+                self._logger.debug(
+                    "Authenticated with %s using session token for %s, session created at %s",
+                    connection.config.host,
+                    session_details.username,
+                    connection.session_created,
+                )
+        except HttpError:
+            connection.clear_session_data()
+
+            self._logger.debug(
+                "Session token for %s has expired, will attempt to authenticate using credentials",
+                connection.config.host,
+            )
+
+    async def _authenticate_with_credentials(self, connection: Connection) -> None:
+        if connection.config.auth is None:
+            msg: str = f"No authentication information provided for {connection.config.host}"
+            raise AuthenticationError(msg)
+
+        try:
+            response: int
+
+            connection.set_auth_from_credentials()
+
+            user = connection.proxy(User, "/auth/currentUser")
+            user_info: UserInfo = await self._execute_request(user.getInfo)
+
+            self._logger.info(
+                "Authenticated with %s as %s (%s)",
+                connection.config.host,
+                connection.config.auth.user,
+                user_info.auxInfo.fullname,
+            )
+
+            session_details: Session
+
+            (
+                response,
+                session_details,
+                connection.session_token,
+            ) = await self._execute_request(connection.session_manager.newSession)
+
+            if response == SessionManager.ERR_ACTIVE_SESSION_EXCLUSIVE_FOR_USER:
+                msg: str = (
+                    f"Failed to create new session on {connection.config.host}"
+                    f"for logged-in user {connection.config.auth.user}"
+                )
+                raise ConcurrentLoginError(msg)
+
+            # The Raritan JSON-RPC API returns the session created time as a timestamp in microseconds relative to
+            # system boot, however the Raritan Python SDK creates a datetime instance from that value as if it were
+            # a POSIX timestamp. To get an accurate creation time, we need to undo this
+            session_creation: Time = session_details.creationTime  # pyright: ignore[reportAssignmentType]
+            connection.session_created = datetime.now(UTC) - timedelta(microseconds=session_creation.timestamp())
+
+            self._logger.debug(
+                "Session created for %s on %s at %s",
+                session_details.username,
+                connection.config.host,
+                connection.session_created,
+            )
+        except CertificateVerificationError:
+            self._logger.exception("Authentication Error")
+            raise
+        except HttpError as e:
+            self._logger.exception("Authentication Error")
+
+            msg: str = f"Failed to authenticate as {connection.config.auth.user} on {connection.config.host}"
+            raise AuthenticationError(msg) from e
+
+    async def _close_connection_session(
+        self, connection: Connection, session_details: Session, reason: SessionManager.CloseReason
+    ) -> bool:
+        try:
+            connection.set_auth_from_token()
+
+            self._logger.debug(
+                "Closing session for %s on %s created at %s",
+                session_details.username,
+                connection.config.host,
+                connection.session_created,
+            )
+
+            await self._execute_request(connection.session_manager.closeCurrentSession, reason)
+        except rpc.HttpException as err:
+            self._logger.warning(
+                "Failed to close existing session for %s on %s",
+                session_details.username,
+                connection.config.host,
+                exc_info=True,
+            )
+
+            raise SessionCloseError from err
+        else:
+            self._logger.info(
+                "Session closed for %s on %s",
+                session_details.username,
+                connection.config.host,
+            )
+        finally:
+            connection.clear_session_data()
+
+        return True
+
+    async def _close_session(self, connection: Connection) -> bool:
+        if connection.session_token is None:
+            self._logger.debug("No active session to close")
+            return False
+
+        try:
+            async with self._locks.get(self._AUTH_LOCK):
+                connection.set_auth_from_token()
+
+                session_details: Session = await self._execute_request(connection.session_manager.getCurrentSession)
+
+                return await self._close_connection_session(
+                    connection,
+                    session_details,
+                    SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
+                )
+        except rpc.HttpException:
+            self._logger.debug("Session expired before close request", exc_info=True)
+        finally:
+            connection.clear_session_data()
+
+        return True
+
+    async def close_session(self) -> bool:
+        """Close the current session and clear any stored session information."""
+        return await self._close_session(self._connection)
 
     async def get_pdu_info(
         self,
@@ -398,9 +353,10 @@ class RaritanClient:
         await self.authenticate()
 
         try:
-            pdu: Pdu = Pdu(f"/model/pdu/{pdu_idx}", self._agent)
-            cascade = CascadeManager("/cascade", self._agent)
-            net = Net("/net", self._agent)
+            pdu: Pdu = self._connection.proxy(Pdu, f"/model/pdu/{pdu_idx}")
+            firmware: Firmware = self._connection.proxy(Firmware, "/firmware")
+            cascade = self._connection.proxy(CascadeManager, "/cascade")
+            net = self._connection.proxy(Net, "/net")
 
             responses = await self._execute_bulk_requests(
                 [
@@ -412,6 +368,7 @@ class RaritanClient:
                     (pdu.getSensors, []),
                     (cascade.getStatus, []),
                     (net.getInfo, []),
+                    (firmware.getInfo, []),
                 ],
                 f"PDU {pdu_idx} information",
             )
@@ -424,6 +381,7 @@ class RaritanClient:
             pdu_sensors: Pdu.Sensors = responses[5]  # pyright: ignore[reportAssignmentType]
             status: CascadeManager.Status = responses[6]  # pyright: ignore[reportAssignmentType]
             net_info: Info = responses[7]  # pyright: ignore[reportAssignmentType]
+            firmware_info: Firmware.Info = responses[8]  # pyright: ignore[reportAssignmentType]
         except rpc.HttpException as e:
             self._logger.exception("Error fetching PDU %s information", pdu_idx)
 
@@ -435,9 +393,9 @@ class RaritanClient:
                 key: NetworkInterface(
                     name=interface.name,
                     label=interface.label,
-                    type=NETWORK_ENUM_TYPE_VALUE_MAPPING[NetworkInterfaceType][interface.type],  # pyright: ignore[reportArgumentType]
+                    type=NetworkInterfaceType.from_api(interface.type),
                     enabled=interface.enabled,
-                    state=NETWORK_ENUM_TYPE_VALUE_MAPPING[NetworkInterfaceState][interface.state],  # pyright: ignore[reportArgumentType],
+                    state=NetworkInterfaceState.from_api(interface.state),
                     mac_address=interface.macAddr,
                 )
                 for key, interface in interfaces.items()
@@ -448,12 +406,12 @@ class RaritanClient:
                 rid=pdu.target,
                 id=pdu_idx,
                 host=self._config.host,
-                url=f"{self._get_protocol()}://{self._config.host}/",
+                url=f"{self._config.protocol}://{self._config.host}/",
                 name=psu_settings.name,
                 manufacturer=pdu_metadata.nameplate.manufacturer,
                 model=pdu_metadata.nameplate.model,
                 serial_number=pdu_metadata.nameplate.serialNumber,
-                firmware_version=pdu_metadata.fwRevision,
+                firmware_version=firmware_info.version,
                 hardware_version=pdu_metadata.hwRevision,
                 mac_address=pdu_metadata.macAddress,
                 has_switchable_outlets=pdu_metadata.hasSwitchableOutlets,
@@ -709,7 +667,7 @@ class RaritanClient:
             return ocps
 
     async def _update_sensors_for_device(
-        self, device: RaritanDevice, device_sensors: list[tuple[str, str, RaritanSensor]], update_type: _SensorUpdate
+        self, device: RaritanDevice, device_sensors: list[tuple[str, str, RaritanSensor]], update_type: SensorUpdate
     ) -> None:
         update_requests = [
             (device_name, (device_name, sensor_name), request, update)
@@ -728,12 +686,12 @@ class RaritanClient:
             method(response)
 
     async def _update_sensor_info_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
-        await self._update_sensors_for_device(device, device.updatable_sensors, _SensorUpdate.INFO)
+        await self._update_sensors_for_device(device, device.updatable_sensors, SensorUpdate.INFO)
 
         return device
 
     async def _update_all_sensor_info_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
-        await self._update_sensors_for_device(device, device.all_updatable_sensors, _SensorUpdate.INFO)
+        await self._update_sensors_for_device(device, device.all_updatable_sensors, SensorUpdate.INFO)
 
         return device
 
@@ -741,7 +699,7 @@ class RaritanClient:
         """Update sensor readings for device."""
         await self.authenticate()
 
-        await self._update_sensors_for_device(device, device.updatable_sensors, _SensorUpdate.READINGS)
+        await self._update_sensors_for_device(device, device.updatable_sensors, SensorUpdate.READINGS)
 
         return device
 
@@ -754,7 +712,7 @@ class RaritanClient:
         await self._update_sensors_for_device(
             pdu,
             list(flatten([device.updatable_sensors for device in devices])),
-            _SensorUpdate.READINGS,
+            SensorUpdate.READINGS,
         )
 
         return devices
@@ -763,7 +721,7 @@ class RaritanClient:
         """Update all sensor readings for device."""
         await self.authenticate()
 
-        await self._update_sensors_for_device(device, device.all_updatable_sensors, _SensorUpdate.READINGS)
+        await self._update_sensors_for_device(device, device.all_updatable_sensors, SensorUpdate.READINGS)
 
         return device
 
@@ -776,7 +734,7 @@ class RaritanClient:
         await self.authenticate()
 
         try:
-            proxy = Outlet(outlet.rid, self._agent)
+            proxy = self._connection.proxy(Outlet, outlet.rid)
 
             status: int = await self._execute_request(proxy.setPowerState, state.to_api())
 
@@ -800,55 +758,3 @@ class RaritanClient:
                     msg = f"Unexpected response setting PDU {outlet.pdu.id} outlet {outlet.id} power state for {self._config.host}"  # noqa: E501
 
             raise RaritanClientError(msg)
-
-
-class RaritanClientError(Exception):
-    """Base exception for all client exceptions."""
-
-
-class ConfigError(RaritanClientError):
-    """Raised when configuration is invalid."""
-
-
-class CommunicationError(RaritanClientError):
-    """Raised when a generic error occurs while communicating with the Raritan API."""
-
-
-class HttpError(CommunicationError):
-    """Raised when a generic HTTP error occurs while communicating with the Raritan API."""
-
-
-class CertificateVerificationError(HttpError):
-    """Raised when SSL certificate verification fails."""
-
-
-class AuthenticationError(CommunicationError):
-    """Raised when authentication fails."""
-
-
-class JsonRpcError(CommunicationError):
-    """Raised when a generic JSON-RPC error occurs communicating with the Raritan API."""
-
-
-class JsonRpcSyntaxError(JsonRpcError):
-    """Raised when a JSON-RPC repsonse from the Raritan API has syntax errors."""
-
-
-class JsonRpcDecodeError(JsonRpcError):
-    """Raised when a JSON-RPC from the Raritan API cannot be decoded."""
-
-
-class InsufficientPrivilegesError(JsonRpcError):
-    """Raised when a request fails due to insufficient user privileges."""
-
-
-class SessionError(CommunicationError):
-    """Raised when session operations fail."""
-
-
-class ConcurrentLoginError(AuthenticationError, SessionError):
-    """Raised when creation of a new session fails due single login limitation."""
-
-
-class SessionCloseError(SessionError):
-    """Raised when closing the current session."""
