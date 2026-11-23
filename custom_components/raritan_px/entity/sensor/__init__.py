@@ -144,13 +144,13 @@ class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBacked
         sensor: RaritanSensor,
     ) -> None:
         """Initialise the entity."""
+        if isinstance(sensor, RaritanNumericSensor) and description.suggested_display_precision is None:
+            self._attr_suggested_display_precision = sensor.display_precision
+
+        if sensor.unit is not None:
+            self._attr_native_unit_of_measurement = sensor.unit
+
         super().__init__(coordinator, device=device, hub=hub, description=description, sensor=sensor)
-
-        if isinstance(self._sensor, RaritanNumericSensor) and description.suggested_display_precision is None:
-            self._attr_suggested_display_precision = self._sensor.display_precision
-
-        if self._sensor.unit is not None:
-            self._attr_native_unit_of_measurement = self._sensor.unit
 
     def _get_value(self) -> EntityValue:
         return self._get_sensor_value()
