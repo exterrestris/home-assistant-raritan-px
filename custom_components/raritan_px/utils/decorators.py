@@ -7,6 +7,7 @@ import inspect
 import logging
 from abc import ABC, abstractmethod
 from datetime import timedelta
+from enum import Enum, auto
 from functools import wraps
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, cast, overload, override
@@ -162,24 +163,39 @@ class Sleep[**F, R](AsyncDecorator[F, R]):
 class LogExecutionTime[**F, R](AsyncDecorator[F, R], CorountineWrapper[R]):
     """Log function execution time when DEBUG logging is enabled."""
 
+    class _When(Enum):
+        ALWAYS = auto()
+        ON_SUCCESS = auto()
+
+    ALWAYS = _When.ALWAYS
+    ON_SUCCESS = _When.ON_SUCCESS
+
     def __init__(
-        self, message: str | Callable[..., str] | None = None, *, logger: logging.Logger | None = None
+        self,
+        message: str | Callable[..., str] | None = None,
+        *,
+        logger: logging.Logger | None = None,
+        log_level: int = logging.DEBUG,
+        log_when: _When = ALWAYS,
     ) -> None:
         """Initialise the decorator."""
         self._message = message
         self._logger = logger
+        self._log_level = log_level
+        self._when = log_when
 
-    def _get_logger(self, args: tuple[object, ...] | None = None) -> logging.Logger:
+    def _get_logger(self, args: tuple[object, ...] | None = None) -> logging.Logger | None:
+        logger = _LOGGER
+
         if self._logger:
-            return self._logger
-
-        if args:
+            logger = self._logger
+        elif args:
             instance_logger = getattr(args[0], "_logger", None)
 
             if isinstance(instance_logger, logging.Logger):
-                return instance_logger
+                logger = instance_logger
 
-        return _LOGGER
+        return logger if logger.isEnabledFor(logging.DEBUG) else None
 
     def _build_message(self, func: Callable[..., Any], args: tuple[object, ...], kwargs: dict[str, Any]) -> str:
         if self._message is None:
@@ -191,46 +207,55 @@ class LogExecutionTime[**F, R](AsyncDecorator[F, R], CorountineWrapper[R]):
         return self._message(*args, **kwargs)
 
     def _log_execution_time(self, logger: logging.Logger, msg: str, elapsed: float) -> None:
-        logger.debug("%s in %.6f seconds", msg, elapsed)
+        logger.log(self._log_level, "%s in %.6f seconds", msg, elapsed)
 
     def _sync_impl(self, func: Callable[F, R], *args: F.args, **kwargs: F.kwargs) -> R:
-        logger = self._get_logger(args)
-
-        if not logger.isEnabledFor(logging.DEBUG):
+        if not (logger := self._get_logger(args)):
             return func(*args, **kwargs)
 
         start = perf_counter()
 
         try:
+            success = True
             return func(*args, **kwargs)
+        except:
+            success = False
+            raise
         finally:
-            msg = self._build_message(cast("Callable[..., object]", func), args, kwargs)
-            self._log_execution_time(logger, msg, perf_counter() - start)
+            if self._when == self.ALWAYS or success:
+                msg = self._build_message(cast("Callable[..., object]", func), args, kwargs)
+                self._log_execution_time(logger, msg, perf_counter() - start)
 
     async def _async_impl(self, func: Callable[F, Coroutine[None, None, R]], *args: F.args, **kwargs: F.kwargs) -> R:
-        logger = self._get_logger(args)
-
-        if not logger.isEnabledFor(logging.DEBUG):
+        if not (logger := self._get_logger(args)):
             return await func(*args, **kwargs)
 
         start = perf_counter()
 
         try:
+            success = True
             return await func(*args, **kwargs)
+        except:
+            success = False
+            raise
         finally:
-            msg = self._build_message(cast("Callable[..., object]", func), args, kwargs)
-            self._log_execution_time(logger, msg, perf_counter() - start)
+            if self._when == self.ALWAYS or success:
+                msg = self._build_message(cast("Callable[..., object]", func), args, kwargs)
+                self._log_execution_time(logger, msg, perf_counter() - start)
 
     async def _async_object_impl(self, coro: Coroutine[None, None, R]) -> R:
-        logger = self._get_logger()
-
-        if not logger.isEnabledFor(logging.DEBUG):
+        if not (logger := self._get_logger()):
             return await coro
 
         start = perf_counter()
 
         try:
+            success = True
             return await coro
+        except:
+            success = False
+            raise
         finally:
-            msg = self._message if isinstance(self._message, str) else "Coroutine executed"
-            self._log_execution_time(logger, msg, perf_counter() - start)
+            if self._when == self.ALWAYS or success:
+                msg = self._message if isinstance(self._message, str) else "Coroutine executed"
+                self._log_execution_time(logger, msg, perf_counter() - start)

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
-    from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+    from custom_components.raritan_px.firmware import FirmwareManager
     from custom_components.raritan_px.firmware.model import Firmware, FirmwareCatalogue
 
 
@@ -162,7 +162,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     """DataUpdateCoordinator to gather firmware update data for a specific Raritan PDU."""
 
-    _manager: FirmwareCatalogueManager
+    _manager: FirmwareManager
     catalogue: FirmwareCatalogue | None = None
     latest_firmware: Firmware | None = None
     catalogue_update_check: bool = False  # Don't check for a catalogue update on first refresh
@@ -176,7 +176,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         config_entry: RaritanPduConfigEntry,
         client: RaritanClient,
         client_lock: Lock,
-        manager: FirmwareCatalogueManager,
+        manager: FirmwareManager,
         pdu: RaritanPdu,
         update_interval: timedelta,
     ) -> None:
