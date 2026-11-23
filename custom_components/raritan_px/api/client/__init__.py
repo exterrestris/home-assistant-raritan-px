@@ -868,15 +868,11 @@ class RaritanClient:
     async def upload_firmware(self, firmware: Path) -> None:
         """Upload firmware to the PDU."""
 
-        @LogExecutionTime("Uploaded firmware", logger=self._logger)
+        @LogExecutionTime("Uploaded firmware", logger=self._logger, log_level=logging.INFO)
         def _upload_firmware(agent: rpc.Agent, firmware: Path) -> None:
             firmware_upload(agent, firmware.read_bytes())
 
-        proxy = self._connection.proxy(Firmware, "/firmware")
-        status: ImageStatus = await self._execute_request(proxy.getImageStatus)
-
-        if status.state != ImageState.NONE:  # pyright: ignore[reportAttributeAccessIssue]
-            await self._execute_request(proxy.discardImage)
+        await self.clear_uploaded_firmware()
 
         try:
             # Firmware uploads take longer to complete that the default request timeout
@@ -887,12 +883,12 @@ class RaritanClient:
             connection.set_auth_from_token()
 
             async with connection.lock:
+                self._logger.info("Uploading firmware...")
                 await self._execute_json_rpc_call(_upload_firmware, connection.agent, firmware)
 
             await self._verify_firmware()
         except:
-            await self._execute_request(proxy.discardImage)
-
+            await self.clear_uploaded_firmware()
             raise
 
     async def _verify_firmware(self) -> None:
@@ -940,11 +936,16 @@ class RaritanClient:
         return image_info
 
     @Authenticate()
-    async def cancel_firmware_update(self) -> None:
-        """Start the firmaware update on the PDU."""
+    async def clear_uploaded_firmware(self) -> None:
+        """Cancel the firmaware update on the PDU."""
         proxy = self._connection.proxy(Firmware, "/firmware")
 
-        await self._execute_request(proxy.discardImage)
+        await self.authenticate()
+        status: ImageStatus = await self._execute_request(proxy.getImageStatus)
+
+        if status.state != ImageState.NONE:  # pyright: ignore[reportAttributeAccessIssue]
+            await self._execute_request(proxy.discardImage)
+            self._logger.info("Cleared existing firmware upload")
 
         self._update_firmware_update_in_progress(status=False)
 
@@ -960,6 +961,8 @@ class RaritanClient:
             raise
         else:
             await self._execute_request(proxy.startUpdate, [])
+
+            self._logger.info("Started firmware update")
 
             self._update_firmware_update_in_progress(
                 status=True, cache_for=FIRMWARE_UPDATE_PREVENT_CHECKS_AFTER_START_FOR
