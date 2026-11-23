@@ -31,6 +31,8 @@ from raritan.rpc.usermgmt import Role, RoleManager, User, UserInfo
 
 from custom_components.raritan_px.api.client.connections import Connection, ConnectionManager
 from custom_components.raritan_px.api.client.const import (
+    FIRMWARE_UPDATE_CHECK_CACHE_RESULT_FOR,
+    FIRMWARE_UPDATE_PREVENT_CHECKS_AFTER_START_FOR,
     FIRMWARE_UPGRADE_WAIT_INTERVAL,
     FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS,
     PduDevices,
@@ -113,6 +115,7 @@ class RaritanClient:
     _locks: LockManager
     _config: ConnectionDetails
     _firmware_update_in_progress: bool | None = None
+    _firmware_update_recheck_after: datetime | None = None
 
     def __init__(
         self,
@@ -936,7 +939,7 @@ class RaritanClient:
         await self.authenticate()
         await self._execute_request(proxy.discardImage)
 
-        self._firmware_update_in_progress = False
+        self._update_firmware_update_in_progress(status=False)
 
     async def start_firmware_update(self) -> None:
         """Start the firmaware update on the PDU."""
@@ -952,7 +955,9 @@ class RaritanClient:
         else:
             await self._execute_request(proxy.startUpdate, [])
 
-            self._firmware_update_in_progress = True
+            self._update_firmware_update_in_progress(
+                status=True, cache_for=FIRMWARE_UPDATE_PREVENT_CHECKS_AFTER_START_FOR
+            )
 
     async def get_firmware_update_status(self) -> UpdateStatus:
         """Get the current firmware update status."""
@@ -980,24 +985,43 @@ class RaritanClient:
                 raise FirmwareUpgradeInProgressError(status.state, status.elapsed, status.estimated)
 
     async def _check_if_firmware_update_in_progress(
-        self, *, force_check: bool = False, wait_for: float = 0, raise_in_progress: bool = True
+        self,
+        *,
+        force_check: bool = False,
+        wait_for: float = 0,
+        raise_in_progress: bool = True,
     ) -> bool:
-        if self._firmware_update_in_progress is None or force_check:
-            self._logger.debug("Checking firmware update progress")
+        async with self._locks.get(self._FW_STATUS):
+            if self._firmware_update_recheck_after is None or self._firmware_update_recheck_after < datetime.now(UTC):
+                force_check = True
 
-            try:
-                self._firmware_update_in_progress = await self._check_firmware_update_progress()
-            except FirmwareUpgradeFailedError:
-                self._firmware_update_in_progress = False
-            except FirmwareUpgradeInProgressError:
-                self._firmware_update_in_progress = True
+            if self._firmware_update_in_progress is None or force_check:
+                self._logger.debug("Checking firmware update progress")
 
-                if wait_for:
-                    await asyncio.sleep(wait_for)
-                    return await self._check_if_firmware_update_in_progress()
+                try:
+                    status = await self._check_firmware_update_progress()
+                    return self._update_firmware_update_in_progress(status=status)
+                except FirmwareUpgradeFailedError:
+                    return self._update_firmware_update_in_progress(status=False)
+                except FirmwareUpgradeInProgressError:
+                    self._update_firmware_update_in_progress(status=True)
 
-                if raise_in_progress:
-                    raise
+                    if wait_for:
+                        await asyncio.sleep(wait_for)
+                        return await self._check_if_firmware_update_in_progress(force_check=True)
+
+                    if raise_in_progress:
+                        raise
+
+                    return True
+
+            return self._firmware_update_in_progress
+
+    def _update_firmware_update_in_progress(
+        self, *, status: bool, cache_for: timedelta = FIRMWARE_UPDATE_CHECK_CACHE_RESULT_FOR
+    ) -> bool:
+        self._firmware_update_in_progress = status
+        self._firmware_update_recheck_after = datetime.now(UTC) + cache_for
 
         return self._firmware_update_in_progress
 
