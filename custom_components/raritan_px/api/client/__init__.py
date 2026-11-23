@@ -167,7 +167,7 @@ class RaritanClient:
                 f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
                 logger=self._logger,
             )
-            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._connection.agent, requests))
+            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._connection.agent, requests, True))  # noqa: FBT003
 
     async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
         async with self._connection.lock:
