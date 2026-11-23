@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import UTC, datetime, timedelta
@@ -12,7 +13,17 @@ from more_itertools import flatten, grouper, interleave
 from raritan import rpc
 from raritan.rpc import Structure, Time, perform_bulk
 from raritan.rpc.cascading import CascadeManager
-from raritan.rpc.firmware import Firmware
+from raritan.rpc.firmware import (
+    Firmware,
+    FirmwareUpdateStatus,
+    ImageInfo,
+    ImageState,
+    ImageStatus,
+    UpdateStatus,
+)
+from raritan.rpc.firmware import (
+    upload as firmware_upload,
+)
 from raritan.rpc.net import Info, InterfaceInfo, Net
 from raritan.rpc.pdumodel import Inlet, Outlet, OverCurrentProtector, Pdu
 from raritan.rpc.session import Session, SessionManager
@@ -20,6 +31,8 @@ from raritan.rpc.usermgmt import User, UserInfo
 
 from custom_components.raritan_px.api.client.connections import Connection, ConnectionManager
 from custom_components.raritan_px.api.client.const import (
+    FIRMWARE_UPGRADE_WAIT_INTERVAL,
+    FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS,
     PduDevices,
     SensorUpdate,
     UpdateSensors,
@@ -30,17 +43,25 @@ from custom_components.raritan_px.api.client.errors import (
     CommunicationError,
     ConcurrentLoginError,
     ConfigError,
+    FirmwareUpgradeFailedError,
+    FirmwareUpgradeInProgressError,
+    FirmwareVerificationError,
     ForbiddenError,
     HttpError,
+    IncompatibleFirmwareError,
     InsufficientPrivilegesError,
+    InvalidFirmwareError,
     JsonRpcDecodeError,
     JsonRpcError,
+    NoFirmwareUpgradeInProgressError,
+    NoUploadedFirmwareError,
     RaritanClientError,
     RequestError,
     RequestRefusedError,
     RequestTimeoutError,
     SessionCloseError,
     UnauthorizedError,
+    UnsupportedModelFirmwareError,
 )
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
@@ -65,6 +86,7 @@ from custom_components.raritan_px.utils.decorators import LogExecutionTime
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     from homeassistant.core import HomeAssistant
 
@@ -86,6 +108,7 @@ class RaritanClient:
     _connections: ConnectionManager
     _locks: LockManager
     _config: ConnectionDetails
+    _firmware_update_in_progress: bool | None = None
 
     def __init__(
         self,
@@ -181,6 +204,8 @@ class RaritanClient:
 
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
+        await self._check_if_firmware_update_in_progress()
+
         await self._authenticate(self._connection, force_reauth=force_reauth)
 
     async def _authenticate(self, connection: Connection, *, force_reauth: bool = False) -> None:
@@ -341,6 +366,8 @@ class RaritanClient:
             return False
 
         try:
+            await self._check_if_firmware_update_in_progress()
+
             async with self._locks.get(self._AUTH_LOCK):
                 connection.set_auth_from_token()
 
@@ -351,6 +378,10 @@ class RaritanClient:
                     session_details,
                     SessionManager.CloseReason.CLOSE_REASON_LOGOUT,  # pyright: ignore[reportAttributeAccessIssue]
                 )
+        except FirmwareUpgradeInProgressError:
+            self._logger.debug("Session closed by firmware update", exc_info=True)
+
+            return False
         except rpc.HttpException:
             self._logger.debug("Session expired before close request", exc_info=True)
         finally:
@@ -750,6 +781,17 @@ class RaritanClient:
         """Update all sensor readings for PDU."""
         return await self.update_all_sensor_readings_for_device(pdu)
 
+    async def refresh_pdu_firmware_version(self, pdu: RaritanPdu) -> RaritanPdu:
+        """Update the PDU model with the current firmware version."""
+        await self.authenticate()
+
+        proxy: Firmware = self._connection.proxy(Firmware, "/firmware")
+        firmware_info: Firmware.Info = await self._execute_request(proxy.getInfo)
+
+        pdu.firmware_version = firmware_info.version
+
+        return pdu
+
     async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> OutletPowerState:
         """Get the power state for a specific Raritan PDU outlet."""
         await self.authenticate()
@@ -779,3 +821,162 @@ class RaritanClient:
                     msg = f"Unexpected response setting PDU {outlet.pdu.id} outlet {outlet.id} power state for {self._config.host}"  # noqa: E501
 
             raise RaritanClientError(msg)
+
+    @LogExecutionTime("Uploaded firmware")
+    def _upload_firmware(self, firmware: Path) -> None:
+        firmware_upload(self._connection.agent, firmware.read_bytes())
+
+    async def upload_firmware(self, firmware: Path) -> None:
+        """Upload firmware to the PDU."""
+        await self.authenticate()
+
+        proxy = self._connection.proxy(Firmware, "/firmware")
+        status: ImageStatus = await self._execute_request(proxy.getImageStatus)
+
+        if status.state != ImageState.NONE:  # pyright: ignore[reportAttributeAccessIssue]
+            await self._execute_request(proxy.discardImage)
+
+        try:
+            await self._execute_json_rpc_call(self._upload_firmware, firmware)
+            await self._verify_firmware()
+        except:
+            await self._execute_request(proxy.discardImage)
+
+            raise
+
+    async def _verify_firmware(self) -> None:
+        image_info: ImageInfo | None = await self.get_uploaded_firmware_info()
+
+        if not image_info:
+            raise NoUploadedFirmwareError
+
+        if not image_info.valid:
+            raise InvalidFirmwareError
+
+        if not image_info.compatible:
+            raise IncompatibleFirmwareError
+
+        if image_info.model_list_present and not image_info.model_supported:
+            raise UnsupportedModelFirmwareError
+
+    async def get_firmware_upload_status(self) -> bool | float | str | None:
+        """Get information about the current uploaded firmware."""
+        proxy = self._connection.proxy(Firmware, "/firmware")
+        status: ImageStatus = await self._execute_request(proxy.getImageStatus)
+
+        match status.state:
+            case ImageState.NONE:  # pyright: ignore[reportAttributeAccessIssue]
+                return None
+            case ImageState.UPLOADING, ImageState.DOWNLOADING:  # pyright: ignore[reportAttributeAccessIssue]
+                return status.size_done / status.size_total * 100 if status.size_total else 0
+            case ImageState.UPLOAD_FAILED, ImageState.DOWNLOAD_FAILED:  # pyright: ignore[reportAttributeAccessIssue]
+                return status.error_message or False
+            case ImageState.COMPLETE:  # pyright: ignore[reportAttributeAccessIssue]
+                return True
+
+    async def get_uploaded_firmware_info(self) -> ImageInfo | None:
+        """Get information about the current uploaded firmware."""
+        proxy = self._connection.proxy(Firmware, "/firmware")
+        image_present: bool
+        image_info: ImageInfo
+        (image_present, image_info) = await self._execute_request(proxy.getImageInfo)
+
+        if not image_present:
+            return None
+
+        return image_info
+
+    async def cancel_firmware_update(self) -> None:
+        """Start the firmaware update on the PDU."""
+        proxy = self._connection.proxy(Firmware, "/firmware")
+
+        await self.authenticate()
+        await self._execute_request(proxy.discardImage)
+
+        self._firmware_update_in_progress = False
+
+    async def start_firmware_update(self) -> None:
+        """Start the firmaware update on the PDU."""
+        proxy = self._connection.proxy(Firmware, "/firmware")
+
+        await self.authenticate()
+
+        try:
+            await self._verify_firmware()
+        except FirmwareVerificationError:
+            await self._execute_request(proxy.discardImage)
+            raise
+        else:
+            await self._execute_request(proxy.startUpdate)
+
+            self._firmware_update_in_progress = True
+
+    async def get_firmware_update_status(self) -> UpdateStatus:
+        """Get the current firmware update status."""
+        # Endpoint is always available, and doesn't require authentication
+        proxy: FirmwareUpdateStatus = FirmwareUpdateStatus("/cgi-bin/fwupdate_progress.cgi", self._connection.agent)
+        status: UpdateStatus = await self._execute_request(proxy.getStatus)
+
+        return status
+
+    async def _check_firmware_update_progress(self) -> bool:
+        status: UpdateStatus = await self.get_firmware_update_status()
+
+        match status.state:
+            case "NONE":
+                return False
+            case "SUCCESS":
+                return True
+            case "FAIL":
+                raise FirmwareUpgradeFailedError(status.error_message)
+            case _:
+                raise FirmwareUpgradeInProgressError(status.state, status.elapsed, status.estimated)
+
+    async def _check_if_firmware_update_in_progress(
+        self, *, force_check: bool = False, wait_for: float = 0, raise_in_progress: bool = True
+    ) -> bool:
+        if self._firmware_update_in_progress is None or force_check:
+            self._logger.debug("Checking firmware update progress")
+
+            try:
+                self._firmware_update_in_progress = await self._check_firmware_update_progress()
+            except FirmwareUpgradeFailedError:
+                self._firmware_update_in_progress = False
+            except FirmwareUpgradeInProgressError:
+                self._firmware_update_in_progress = True
+
+                if wait_for:
+                    await asyncio.sleep(wait_for)
+                    return await self._check_if_firmware_update_in_progress()
+
+                if raise_in_progress:
+                    raise
+
+        return self._firmware_update_in_progress
+
+    async def is_firmware_update_in_progress(self, *, force_check: bool = False) -> bool:
+        """Check if a firmware update is in progress."""
+        return await self._check_if_firmware_update_in_progress(force_check=force_check, raise_in_progress=False)
+
+    async def wait_for_firmware_update(self) -> bool:
+        """Wait for the current firmware update to complete."""
+        errors = 0
+
+        while True:
+            try:
+                if (success := await self._check_firmware_update_progress()) is None:
+                    raise NoFirmwareUpgradeInProgressError
+            except FirmwareUpgradeInProgressError as err:
+                wait: float = FIRMWARE_UPGRADE_WAIT_INTERVAL
+
+                if err.estimated and err.elapsed:
+                    wait = err.estimated - err.elapsed
+
+                await asyncio.sleep(wait)
+            except HttpError:
+                if (errors := errors + 1) > FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS:
+                    raise
+
+                await asyncio.sleep(FIRMWARE_UPGRADE_WAIT_INTERVAL)
+            else:
+                return success

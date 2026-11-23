@@ -2,13 +2,16 @@
 
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from custom_components.raritan_px.api.model import RaritanUpdatable, RaritanUpdatableRpcMethodsList
     from custom_components.raritan_px.api.model.device import RaritanDevice
+
+FIRMWARE_UPGRADE_WAIT_INTERVAL: Final[float] = 10
+FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS: Final[int] = 6
 
 
 class PduDevices(Flag):
