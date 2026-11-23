@@ -49,6 +49,7 @@ from custom_components.raritan_px.const import (
     CONF_CONFIG_ENTRY_MINOR_VERSION,
     DEFAULT_API_UPDATE_INTERVAL,
     DEFAULT_FIRMWARE_UPDATE_INTERVAL,
+    DELAY_FIRST_FIRMWARE_CATALOGUE_UPDATE,
     DOMAIN,
     PLATFORMS,
 )
@@ -84,7 +85,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
     hass.data.setdefault(DOMAIN, {})
 
     hass.data[CATALOGUE_STORE] = Store(hass, CATALOGUE_STORE_STORAGE_VERSION, CATALOGUE_STORE_STORAGE_KEY)
-    hass.data[CATALOGUE_MANAGER] = FirmwareManager(hass)
+    hass.data[CATALOGUE_MANAGER] = FirmwareManager(hass, delay_first_check=DELAY_FIRST_FIRMWARE_CATALOGUE_UPDATE)
 
     async_setup_services(hass)
 

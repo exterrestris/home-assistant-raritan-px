@@ -26,6 +26,9 @@ DEFAULT_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(seconds=60)
 IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(seconds=2)
 POST_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(seconds=10)
 DISCOVERY_INTERVAL = dt.timedelta(minutes=15)
+
+DELAY_FIRST_FIRMWARE_CATALOGUE_UPDATE = dt.timedelta(minutes=5)
+
 POST_FIRMWARE_DOWNLOAD_DELAY = dt.timedelta(seconds=5)
 POST_FIRMWARE_UPLOAD_DELAY = dt.timedelta(seconds=5)
 POST_FIRMWARE_START_DELAY = dt.timedelta(seconds=5)
