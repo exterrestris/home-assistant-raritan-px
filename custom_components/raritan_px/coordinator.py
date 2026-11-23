@@ -23,6 +23,7 @@ from custom_components.raritan_px.const import (
     FIRMWARE_UPLOAD_PROGRESS_WEIGHT,
     IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL,
     POST_FIRMWARE_DOWNLOAD_DELAY,
+    POST_FIRMWARE_START_DELAY,
     POST_FIRMWARE_UPDATE_DELAY,
     POST_FIRMWARE_UPLOAD_DELAY,
 )
@@ -318,7 +319,8 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
             fw_bin = await self._download_firmware(firmware)
             await self._upload_firmware(fw_bin)
-            await self._update_firmware()
+            await self._start_update()
+            await self._wait_for_update()
             await self._refresh_pdu_firmware_version()
         except Exception as err:
             if (self._firmware_upload_progress or 0) > 0:
@@ -385,10 +387,14 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     async def _upload_firmware(self, fw_bin: Path) -> None:
         await self._client.upload_firmware(fw_bin)
 
-    @SetProperty("_firmware_update_progress", before=0, after=100)
-    @Sleep(after=POST_FIRMWARE_UPDATE_DELAY)
-    async def _update_firmware(self) -> None:
+    @SetProperty("_firmware_update_progress", before=0)
+    @Sleep(after=POST_FIRMWARE_START_DELAY)
+    async def _start_update(self) -> None:
         await self._client.start_firmware_update()
+
+    @SetProperty("_firmware_update_progress", after=100)
+    @Sleep(after=POST_FIRMWARE_UPDATE_DELAY)
+    async def _wait_for_update(self) -> None:
         await self._client.wait_for_firmware_update()
 
     async def _refresh_pdu_firmware_version(self) -> None:

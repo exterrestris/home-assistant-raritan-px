@@ -27,6 +27,7 @@ IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(seconds=2)
 DISCOVERY_INTERVAL = dt.timedelta(minutes=15)
 POST_FIRMWARE_DOWNLOAD_DELAY = dt.timedelta(seconds=5)
 POST_FIRMWARE_UPLOAD_DELAY = dt.timedelta(seconds=5)
+POST_FIRMWARE_START_DELAY = dt.timedelta(seconds=5)
 POST_FIRMWARE_UPDATE_DELAY = dt.timedelta(seconds=10)
 
 FIRMWARE_DOWNLOAD_PROGRESS_WEIGHT: Final[float] = 0.1
