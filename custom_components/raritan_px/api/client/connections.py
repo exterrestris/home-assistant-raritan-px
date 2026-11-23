@@ -115,6 +115,8 @@ class ConnectionManager(Manager[Connection]):
         self._namespace_locks = namespace_locks
 
     def _create(self, name: str, *, timeout: float | None = None) -> Connection:
+        lock_name: str = f"__{name}__REQUESTS" if self._namespace_locks else name
+
         config = self._config
 
         if timeout is not None:

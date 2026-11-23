@@ -34,10 +34,10 @@ class Manager[T](ABC):
     def _create(self, name: str) -> T:
         raise NotImplementedError
 
-    def get(self, name: str) -> T:
+    def get(self, name: str, *args: Any, **kwargs: Any) -> T:
         """Get a managed item by name, creating it if it doeesn't exist."""
         if name not in self._items:
-            self._items[name] = self._create(name)
+            self._items[name] = self._create(name, *args, **kwargs)
 
         return self._items[name]
 
