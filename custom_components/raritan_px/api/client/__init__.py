@@ -1045,7 +1045,7 @@ class RaritanClient:
                     wait = err.estimated - err.elapsed
 
                 await asyncio.sleep(wait)
-            except HttpError:
+            except RequestError:
                 if (errors := errors + 1) > FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS:
                     raise
 
