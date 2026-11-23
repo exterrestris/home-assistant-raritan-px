@@ -40,6 +40,7 @@ from custom_components.raritan_px.api.client.const import (
     SensorUpdate,
     UpdateSensors,
 )
+from custom_components.raritan_px.api.client.decorators import Retry
 from custom_components.raritan_px.api.client.errors import (
     AuthenticationError,
     CertificateVerificationError,
@@ -960,6 +961,7 @@ class RaritanClient:
                 status=True, cache_for=FIRMWARE_UPDATE_PREVENT_CHECKS_AFTER_START_FOR
             )
 
+    @Retry(catch=RequestRefusedError, max_retries=8)
     async def get_firmware_update_status(self) -> UpdateStatus:
         """Get the current firmware update status."""
         # Endpoint is always available and doesn't require authentication, but
