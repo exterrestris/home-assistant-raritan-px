@@ -33,6 +33,7 @@ from custom_components.raritan_px.api.client.connections import Connection, Conn
 from custom_components.raritan_px.api.client.const import (
     FIRMWARE_UPDATE_CHECK_CACHE_RESULT_FOR,
     FIRMWARE_UPDATE_PREVENT_CHECKS_AFTER_START_FOR,
+    FIRMWARE_UPGRADE_SUCCESS_WAIT_INTERVAL,
     FIRMWARE_UPGRADE_WAIT_INTERVAL,
     FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS,
     PduDevices,
@@ -1050,4 +1051,7 @@ class RaritanClient:
 
                 await asyncio.sleep(FIRMWARE_UPGRADE_WAIT_INTERVAL)
             else:
+                if success:
+                    await asyncio.sleep(FIRMWARE_UPGRADE_SUCCESS_WAIT_INTERVAL)
+
                 return success
