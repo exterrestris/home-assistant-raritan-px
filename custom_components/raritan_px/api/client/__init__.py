@@ -996,11 +996,11 @@ class RaritanClient:
                 force_check = True
 
             if self._firmware_update_in_progress is None or force_check:
-                self._logger.debug("Checking firmware update progress")
+                self._logger.debug("Checking firmware update status for %s", self._config.host)
 
                 try:
-                    status = await self._check_firmware_update_progress()
-                    return self._update_firmware_update_in_progress(status=status)
+                    await self._check_firmware_update_progress()
+                    return self._update_firmware_update_in_progress(status=False)
                 except FirmwareUpgradeFailedError:
                     return self._update_firmware_update_in_progress(status=False)
                 except FirmwareUpgradeInProgressError:
