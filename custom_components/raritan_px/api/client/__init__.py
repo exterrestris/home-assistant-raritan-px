@@ -104,6 +104,7 @@ class RaritanClient:
     """Client for Raritan API."""
 
     _REQUEST: Final[str] = "request"
+    _FW_STATUS: Final[str] = "fw_status"
     _FW_UPLOAD: Final[str] = "fw_upload"
     _AUTH_LOCK: Final[str] = "auth"
 
@@ -128,7 +129,7 @@ class RaritanClient:
         self._config = config
         self._logger = logger = logger or _LOGGER
         self._locks = LockManager()
-        self._connections = ConnectionManager(config=config, lock_manager=self._locks, logger=self._logger)
+        self._connections = ConnectionManager(config=config, logger=self._logger)
 
     @property
     def _connection(self) -> Connection:
@@ -955,9 +956,13 @@ class RaritanClient:
 
     async def get_firmware_update_status(self) -> UpdateStatus:
         """Get the current firmware update status."""
-        # Endpoint is always available, and doesn't require authentication
-        proxy: FirmwareUpdateStatus = FirmwareUpdateStatus("/cgi-bin/fwupdate_progress.cgi", self._connection.agent)
-        status: UpdateStatus = await self._execute_request(proxy.getStatus)
+        # Endpoint is always available and doesn't require authentication, but
+        # if invalid/expired credentials are supplied the request will fail
+        connection = self._connections.get(self._FW_STATUS)
+        proxy: FirmwareUpdateStatus = connection.proxy(FirmwareUpdateStatus, "/cgi-bin/fwupdate_progress.cgi")
+
+        async with connection.lock:
+            status: UpdateStatus = await self._execute_json_rpc_call(proxy.getStatus)
 
         return status
 
