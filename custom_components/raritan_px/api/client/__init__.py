@@ -430,6 +430,7 @@ class RaritanClient:
                 name=psu_settings.name,
                 manufacturer=pdu_metadata.nameplate.manufacturer,
                 model=pdu_metadata.nameplate.model,
+                platform=firmware_info.platform,
                 serial_number=pdu_metadata.nameplate.serialNumber,
                 firmware_version=firmware_info.version,
                 hardware_version=pdu_metadata.hwRevision,

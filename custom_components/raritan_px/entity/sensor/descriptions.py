@@ -481,6 +481,13 @@ PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduSensorEntityDescriptio
         translation_key="pdu_power_rating",
         entity_registry_enabled_default=False,
     ),
+    RaritanPduSensorEntityDescription(
+        key="platform",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        translation_key="pdu_platform",
+        entity_registry_enabled_default=False,
+        convert_fn=lambda x: str(x).upper(),
+    ),
 )
 
 PDU_NETWORK_ENTITY_DESCRIPTIONS: tuple[Callable[[str, NetworkInterface], RaritanPduSensorEntityDescription], ...] = (

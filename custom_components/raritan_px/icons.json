@@ -54,6 +54,9 @@
           "Not Present": "mdi:wifi-off"
         }
       },
+      "pdu_platform": {
+        "default": "mdi:package-variant"
+      },
       "pdu_power_rating": {
         "default": "mdi:flash"
       },
