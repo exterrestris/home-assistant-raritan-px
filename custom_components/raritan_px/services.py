@@ -43,7 +43,8 @@ async def _async_update_catalogue(call: ServiceCall) -> None:
 
         for config_entry in call.hass.config_entries.async_entries(DOMAIN, include_ignore=False):
             if config_entry.runtime_data:
-                # Disable the catalogue update check as we've just updated the catalogue
+                # Get the current catalogue update check setting and then disable it as we've just updated the catalogue
+                catalogue_update_check = config_entry.runtime_data.firmware_coordinator.catalogue_update_check
                 config_entry.runtime_data.firmware_coordinator.catalogue_update_check = False
 
                 try:
@@ -52,7 +53,7 @@ async def _async_update_catalogue(call: ServiceCall) -> None:
                     _LOGGER.warning("Unable to refresh coordinator", exc_info=True)
 
                 # Reenable the catalogue update check for future refreshes
-                config_entry.runtime_data.firmware_coordinator.catalogue_update_check = True
+                config_entry.runtime_data.firmware_coordinator.catalogue_update_check = catalogue_update_check
     except FirmwareCatalogueError:
         _LOGGER.exception("Unable to update firmware catalogue")
 

@@ -30,6 +30,7 @@ from custom_components.raritan_px.const import (
     POST_FIRMWARE_UPDATE_INTERVAL,
     POST_FIRMWARE_UPLOAD_DELAY,
 )
+from custom_components.raritan_px.firmware.const import CATALOGUE_UPDATE_CHECK_AFTER
 from custom_components.raritan_px.utils.decorators import SetProperty, Sleep
 
 if TYPE_CHECKING:
@@ -233,7 +234,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     _manager: FirmwareManager
     catalogue: FirmwareCatalogue | None = None
     latest_firmware: Firmware | None = None
-    catalogue_update_check: bool = False  # Don't check for a catalogue update on first refresh
+    catalogue_update_check: bool | timedelta = False  # Don't check for a catalogue update on first refresh
     _firmware_update_started: bool = False
     _firmware_download_progress: float | None
     _firmware_upload_progress: float | None
@@ -318,7 +319,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
                 self.latest_firmware = self.catalogue.get_latest_firmware(self.pdu.model, self.pdu.firmware_version)
 
                 # Ensure subsequent data updates check for a catalogue update
-                self.catalogue_update_check = True
+                self.catalogue_update_check = CATALOGUE_UPDATE_CHECK_AFTER
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,
