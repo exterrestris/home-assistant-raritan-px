@@ -26,7 +26,6 @@ from custom_components.raritan_px.const import (
     POST_FIRMWARE_UPDATE_DELAY,
     POST_FIRMWARE_UPLOAD_DELAY,
 )
-from custom_components.raritan_px.firmware import FirmwareManagerError
 from custom_components.raritan_px.utils.decorators import SetProperty, Sleep
 
 if TYPE_CHECKING:
@@ -321,7 +320,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             await self._upload_firmware(fw_bin)
             await self._update_firmware()
             await self._refresh_pdu_firmware_version()
-        except (FirmwareManagerError, RaritanClientError) as err:
+        except Exception as err:
             if (self._firmware_upload_progress or 0) > 0:
                 try:
                     await self._client.cancel_firmware_update()
