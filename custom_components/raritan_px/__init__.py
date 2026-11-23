@@ -34,7 +34,7 @@ from custom_components.raritan_px.api.client import (
     CertificateVerificationError,
     RaritanClient,
 )
-from custom_components.raritan_px.api.client.errors import RaritanClientError
+from custom_components.raritan_px.api.client.errors import FirmwareUpgradeInProgressError, RaritanClientError
 from custom_components.raritan_px.api.client.struct import AuthenticationDetails, ConnectionDetails
 from custom_components.raritan_px.api.const import (
     DEFAULT_PASSWORD,
@@ -110,6 +110,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             translation_placeholders={
                 "func": "connect",
                 "exc": str(ex),
+            },
+        ) from ex
+    except FirmwareUpgradeInProgressError as ex:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="firmware_update_in_progress",
+            translation_placeholders={
+                "state": ex.state,
+                "elapsed": str(ex.elapsed),
+                "remaining": str(ex.estimated - ex.elapsed),
             },
         ) from ex
     except RaritanClientError as ex:
