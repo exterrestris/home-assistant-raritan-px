@@ -13,6 +13,10 @@ class CommunicationError(RaritanClientError):
     """Raised when a generic error occurs while communicating with the Raritan API."""
 
 
+class RequestRefusedError(CommunicationError):
+    """Raised when connection is refused."""
+
+
 class HttpError(CommunicationError):
     """Raised when a generic HTTP error occurs while communicating with the Raritan API."""
 

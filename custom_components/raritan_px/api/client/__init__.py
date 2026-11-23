@@ -34,6 +34,7 @@ from custom_components.raritan_px.api.client.errors import (
     JsonRpcDecodeError,
     JsonRpcError,
     RaritanClientError,
+    RequestRefusedError,
     RequestTimeoutError,
     SessionCloseError,
 )
@@ -124,6 +125,8 @@ class RaritanClient:
                 raise CertificateVerificationError from e
             except TimeoutError as e:
                 raise RequestTimeoutError from e
+            except ConnectionRefusedError as e:
+                raise RequestRefusedError from e
             except Exception as e:
                 raise HttpError from e
             else:
