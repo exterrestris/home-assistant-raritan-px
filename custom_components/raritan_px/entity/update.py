@@ -1,12 +1,13 @@
 """Raritan PDU update entities."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
     UpdateEntity,
     UpdateEntityDescription,
+    UpdateEntityFeature,
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import callback
@@ -61,13 +62,6 @@ class RaritanPduUpdateEntity(CoordinatedRaritanPduEntity, RaritanDeviceUpdateEnt
 
     entity_description: RaritanPduUpdateEntityDescription
 
-
-class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
-    """Representation of a Raritan PDU update entity."""
-
-    entity_description: RaritanPduUpdateEntityDescription
-    _attr_device_class = UpdateDeviceClass.FIRMWARE
-
     def __init__(
         self,
         coordinator: RaritanFirmwareDataUpdateCoordinator,
@@ -79,7 +73,15 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
         """Initialise the entity."""
         super().__init__(coordinator, device=device, hub=hub, description=description)
 
-        self._async_update_attrs()
+
+class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
+    """Representation of a Raritan PDU update entity."""
+
+    _attr_device_class = UpdateDeviceClass.FIRMWARE
+    _attr_release_summary = "Device entities will be unavailable while firmware update is in progress"
+    _attr_supported_features = (
+        UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS | UpdateEntityFeature.SPECIFIC_VERSION
+    )
 
     @callback
     def _async_update_attrs(self) -> bool:
@@ -92,7 +94,15 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
             if self.coordinator.latest_firmware.release_notes_url:
                 self._attr_release_url = str(self.coordinator.latest_firmware.release_notes_url)
 
+        self._attr_in_progress = self.coordinator.firmware_update_in_progress
+        self._attr_update_percentage = self.coordinator.firmware_update_percentage
+
         return True
+
+    @override
+    async def async_install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
+        """Install an update."""
+        await self.coordinator.update_firmware(version)
 
 
 @dataclass(frozen=True, kw_only=True)

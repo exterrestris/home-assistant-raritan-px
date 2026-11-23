@@ -68,6 +68,9 @@ class RaritanDeviceSwitchEntity(CoordinatedRaritanDeviceEntity, SwitchEntity):
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
+        if self.entity_description.is_dynamic and self.coordinator.firmware_update_in_progress:
+            return False
+
         self._attr_is_on = self._switch.state == OnOff.ON if self._switch.state is not None else None
 
         return True

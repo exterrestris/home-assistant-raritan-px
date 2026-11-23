@@ -67,6 +67,9 @@ class RaritanSensorEntity(CoordinatedRaritanEntity, SensorEntity):
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
+        if self.entity_description.is_dynamic and self.coordinator.firmware_update_in_progress:
+            return False
+
         self._attr_native_value = self._get_value()
 
         return True
@@ -141,13 +144,13 @@ class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBacked
         sensor: RaritanSensor,
     ) -> None:
         """Initialise the entity."""
+        if isinstance(sensor, RaritanNumericSensor) and description.suggested_display_precision is None:
+            self._attr_suggested_display_precision = sensor.display_precision
+
+        if sensor.unit is not None:
+            self._attr_native_unit_of_measurement = sensor.unit
+
         super().__init__(coordinator, device=device, hub=hub, description=description, sensor=sensor)
-
-        if isinstance(self._sensor, RaritanNumericSensor) and description.suggested_display_precision is None:
-            self._attr_suggested_display_precision = self._sensor.display_precision
-
-        if self._sensor.unit is not None:
-            self._attr_native_unit_of_measurement = self._sensor.unit
 
     def _get_value(self) -> EntityValue:
         return self._get_sensor_value()
@@ -155,7 +158,8 @@ class RaritanDeviceSensorBackedSensorEntity(CoordinatedRaritanDeviceSensorBacked
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
-        super()._async_update_attrs()
+        if not super()._async_update_attrs():
+            return False
 
         # This check is here because Home Assistant only supports last_reset with a state class of TOTAL, however the
         # Raritan JSON-RPC API only supplies a last reset time for accumlating numeric sensors which best map to a state

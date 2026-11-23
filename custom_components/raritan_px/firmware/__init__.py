@@ -20,6 +20,7 @@ from custom_components.raritan_px.const import DOMAIN
 from custom_components.raritan_px.firmware.const import (
     CATALOGUE_FILE,
     CATALOGUE_STORE,
+    CATALOGUE_UPDATE_CHECK_AFTER,
     CATALOGUE_URL,
     DOWNLOAD_CHUNK,
     FIRMWARE_DIR,
@@ -52,46 +53,67 @@ class FirmwareManager:
     _github_api_rate_limit: int | None = None
     _github_api_rate_limit_remaining: int | None = None
     _github_api_wait_until: datetime | None = None
+    _cached_catalogue: FirmwareCatalogue | None = None
+    _last_check: datetime | None = None
 
     def __init__(
         self,
         hass: HomeAssistant,
+        *,
         logger: logging.Logger | None = None,
+        delay_first_check: datetime | timedelta | bool = False,
     ) -> None:
         """Init firmware manager."""
         self._hass = hass
         self._store = hass.data[CATALOGUE_STORE]
         self._tmp_dir = Path(hass.config.cache_path(DOMAIN, FIRMWARE_DIR))
 
+        if delay_first_check:
+            if delay_first_check is True:
+                delay_first_check = CATALOGUE_UPDATE_CHECK_AFTER
+
+            if isinstance(delay_first_check, timedelta):
+                delay_first_check = datetime.now(UTC) + delay_first_check - CATALOGUE_UPDATE_CHECK_AFTER
+
+            self._last_check = delay_first_check
+
         if logger is not None:
             self._logger = logger
 
-    async def get_catalogue(self, *, update_check: bool = False, force_update: bool = False) -> FirmwareCatalogue:
+    async def get_catalogue(
+        self, *, update_check: bool | timedelta = CATALOGUE_UPDATE_CHECK_AFTER, force_update: bool = False
+    ) -> FirmwareCatalogue:
         """Get the firmware catalogue."""
-        catalogue = await self._get_catalogue_from_store()
+        if isinstance(update_check, timedelta):
+            update_check = self._last_check is None or (self._last_check + update_check) < datetime.now(UTC)
+
+        if not self._cached_catalogue:
+            self._cached_catalogue = await self._get_catalogue_from_store()
 
         try:
-            if catalogue and not force_update:
+            if self._cached_catalogue and not force_update:
                 if not update_check:
-                    return catalogue
+                    return self._cached_catalogue
 
                 self._logger.debug("Checking for firmware catalogue update")
 
                 (latest, _) = await self._get_latest_version()
+                self._last_check = datetime.now(UTC)
 
-                if not catalogue.is_out_of_date(latest):
-                    return catalogue
+                if not self._cached_catalogue.is_out_of_date(latest):
+                    return self._cached_catalogue
 
-            catalogue = await self._download_latest_catalogue()
+            self._cached_catalogue = await self._download_latest_catalogue()
+            self._last_check = datetime.now(UTC)
 
-            await self._save_catalogue_to_store(catalogue)
+            await self._save_catalogue_to_store(self._cached_catalogue)
         except GitHubApiRateLimitExceededError:
-            if not catalogue:
+            if not self._cached_catalogue:
                 raise
 
             self._logger.warning("Unable to update firmware catalogue from GitHub due to rate limiting")
 
-        return catalogue
+        return self._cached_catalogue
 
     async def _get_catalogue_from_store(self) -> FirmwareCatalogue | None:
         try:
@@ -196,7 +218,7 @@ class FirmwareManager:
 
         raise ReleaseParseError
 
-    @LogExecutionTime(
+    @LogExecutionTime[Any, FirmwareCatalogue](
         "Downloaded latest firmware catalogue", log_level=logging.INFO, log_when=LogExecutionTime.ON_SUCCESS
     )
     async def _download_latest_catalogue(self) -> FirmwareCatalogue:

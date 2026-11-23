@@ -6,16 +6,16 @@ import asyncio
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from datetime import timedelta
 from enum import Enum, auto
 from functools import wraps
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, cast, overload, override
 
-from custom_components.raritan_px.utils import CorountineWrapper
+from custom_components.raritan_px.utils import CorountineWrapper, seconds
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
+    from datetime import timedelta
 
 # @todo Change to sentinel (requires Python 3.15+)
 MISSING = object()
@@ -92,6 +92,33 @@ class AsyncDecorator[**F, R](BaseDecorator[F, R]):
         raise TypeError(msg)
 
 
+class ExtractLogger[**F, R](BaseDecorator[F, R]):
+    """Decorator mixin to extract a logger instance from the instance a class method belongs to."""
+
+    def __init__(
+        self,
+        *,
+        logger: logging.Logger | None = None,
+        log_level: int = logging.DEBUG,
+    ) -> None:
+        """Initialise the decorator."""
+        self._logger = logger
+        self._log_level = log_level
+
+    def _get_logger(self, args: tuple[object, ...] | None = None) -> logging.Logger | None:
+        logger = _LOGGER
+
+        if self._logger:
+            logger = self._logger
+        elif args:
+            instance_logger = getattr(args[0], "_logger", None)
+
+            if isinstance(instance_logger, logging.Logger):
+                logger = instance_logger
+
+        return logger if logger.isEnabledFor(self._log_level) else None
+
+
 class SetProperty[**F, R](BaseDecorator[F, R]):
     """Decorator to set an instance property before/after executing a class method."""
 
@@ -131,6 +158,9 @@ class SetProperty[**F, R](BaseDecorator[F, R]):
 class Sleep[**F, R](AsyncDecorator[F, R]):
     """Decorator to pause/sleep before/after executing an async function."""
 
+    _before: float | None
+    _after: float | None
+
     def __init__(
         self,
         *,
@@ -138,29 +168,22 @@ class Sleep[**F, R](AsyncDecorator[F, R]):
         after: float | timedelta | None = None,
     ) -> None:
         """Inititalise the decorator."""
-        self._before = before
-        self._after = after
-
-    @staticmethod
-    def _seconds(duration: float | timedelta | None) -> float:
-        if duration is None:
-            return 0
-
-        return duration.total_seconds() if isinstance(duration, timedelta) else duration
+        self._before = seconds(before) if before is not None else None
+        self._after = seconds(after) if after is not None else None
 
     async def _async_impl(self, func: Callable[F, Coroutine[None, None, R]], *args: F.args, **kwargs: F.kwargs) -> R:
         if self._before is not None:
-            await asyncio.sleep(self._seconds(self._before))
+            await asyncio.sleep(self._before)
 
         result = await func(*args, **kwargs)
 
         if self._after is not None:
-            await asyncio.sleep(self._seconds(self._after))
+            await asyncio.sleep(self._after)
 
         return result
 
 
-class LogExecutionTime[**F, R](AsyncDecorator[F, R], CorountineWrapper[R]):
+class LogExecutionTime[**F, R](AsyncDecorator[F, R], ExtractLogger[F, R], CorountineWrapper[R]):
     """Log function execution time when DEBUG logging is enabled."""
 
     class _When(Enum):
@@ -179,23 +202,10 @@ class LogExecutionTime[**F, R](AsyncDecorator[F, R], CorountineWrapper[R]):
         log_when: _When = ALWAYS,
     ) -> None:
         """Initialise the decorator."""
+        super().__init__(logger=logger, log_level=log_level)
+
         self._message = message
-        self._logger = logger
-        self._log_level = log_level
         self._when = log_when
-
-    def _get_logger(self, args: tuple[object, ...] | None = None) -> logging.Logger | None:
-        logger = _LOGGER
-
-        if self._logger:
-            logger = self._logger
-        elif args:
-            instance_logger = getattr(args[0], "_logger", None)
-
-            if isinstance(instance_logger, logging.Logger):
-                logger = instance_logger
-
-        return logger if logger.isEnabledFor(logging.DEBUG) else None
 
     def _build_message(self, func: Callable[..., Any], args: tuple[object, ...], kwargs: dict[str, Any]) -> str:
         if self._message is None:
