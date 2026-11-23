@@ -29,7 +29,7 @@ DISCOVERY_INTERVAL = dt.timedelta(minutes=15)
 
 DELAY_FIRST_FIRMWARE_CATALOGUE_UPDATE = dt.timedelta(minutes=5)
 
-POST_FIRMWARE_DOWNLOAD_DELAY = dt.timedelta(seconds=5)
+POST_FIRMWARE_DOWNLOAD_DELAY = dt.timedelta(seconds=2)
 POST_FIRMWARE_UPLOAD_DELAY = dt.timedelta(seconds=5)
 POST_FIRMWARE_START_DELAY = dt.timedelta(seconds=5)
 POST_FIRMWARE_UPDATE_DELAY = dt.timedelta(seconds=10)
@@ -38,3 +38,4 @@ POST_FIRMWARE_REFRESH_DELAY = dt.timedelta(seconds=5)
 FIRMWARE_DOWNLOAD_PROGRESS_WEIGHT: Final[float] = 0.1
 FIRMWARE_UPLOAD_PROGRESS_WEIGHT: Final[float] = 0.1
 FIRMWARE_UPDATE_PROGRESS_WEIGHT: Final[float] = 0.75
+FIRMWARE_REFRESH_PROGRESS_WEIGHT: Final[float] = 0.05

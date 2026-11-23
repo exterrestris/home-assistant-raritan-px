@@ -20,6 +20,7 @@ from custom_components.raritan_px.api.model.user import Privilege, RaritanUser
 from custom_components.raritan_px.const import (
     DOMAIN,
     FIRMWARE_DOWNLOAD_PROGRESS_WEIGHT,
+    FIRMWARE_REFRESH_PROGRESS_WEIGHT,
     FIRMWARE_UPDATE_PROGRESS_WEIGHT,
     FIRMWARE_UPLOAD_PROGRESS_WEIGHT,
     IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL,
@@ -239,6 +240,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     _firmware_download_progress: float | None
     _firmware_upload_progress: float | None
     _firmware_update_progress: float | None
+    _firmware_refresh_progress: float | None
     firmware_update_percentage: float | None
 
     @override
@@ -275,10 +277,13 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         self._firmware_download_progress = value
         self._firmware_upload_progress = value
         self._firmware_update_progress = value
+        self._firmware_refresh_progress = value
 
     async def _async_update_data(self) -> None:
         """Fetch firmware data."""
-        self.firmware_update_in_progress = self.firmware_update_percentage is not None
+        self.firmware_update_in_progress = (
+            self.firmware_update_percentage is not None and self.update_interval == IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL
+        )
         self._firmware_update_started = await self._async_update_in_progress()
 
         if self.firmware_update_in_progress:
@@ -292,15 +297,18 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
                 else:
                     status = await self._client.get_firmware_upload_status()
 
-                    self._firmware_upload_progress = (
-                        float(status) if status is not None and not isinstance(status, str) else 0
-                    )
+                    if status is not None and not isinstance(status, str):
+                        self._firmware_upload_progress = float(status) if status is not True else 100
+                    else:
+                        self._firmware_upload_progress = 0
 
-                self.firmware_update_percentage = (
+                tmp = (
                     (self._firmware_download_progress or 0) * FIRMWARE_DOWNLOAD_PROGRESS_WEIGHT
                     + (self._firmware_upload_progress or 0) * FIRMWARE_UPLOAD_PROGRESS_WEIGHT
                     + (self._firmware_update_progress or 0) * FIRMWARE_UPDATE_PROGRESS_WEIGHT
+                    + (self._firmware_refresh_progress or 0) * FIRMWARE_REFRESH_PROGRESS_WEIGHT
                 )
+                self.firmware_update_percentage = tmp
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,
@@ -345,6 +353,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
         try:
             firmware = await self._identify_firmware(version)
+            await self._clear_uploaded_firmware(raise_on_error=True)
 
             self._bulk_set_progress(0)
             self._set_update_interval(IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL)
@@ -356,10 +365,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             await self._refresh_pdu_firmware_version()
         except Exception as err:
             if (self._firmware_upload_progress or 0) > 0:
-                try:
-                    await self._client.cancel_firmware_update()
-                except RaritanClientError:
-                    self.logger.warning("Unable to cancel firmare update", exc_info=True)
+                await self._clear_uploaded_firmware()
 
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
@@ -367,9 +373,10 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
                 translation_placeholders={"exc": str(err) or err.__class__.__name__},
             ) from err
         finally:
+            await self._clear_uploaded_firmware()
             self._bulk_set_progress()
-            await self.async_request_refresh()
             self._set_update_interval(POST_FIRMWARE_UPDATE_INTERVAL)
+            await self.async_request_refresh()
 
     async def _identify_firmware(self, fw_version: str | None) -> Firmware:
         if not self.catalogue:
@@ -404,8 +411,17 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
         return firmware
 
-    @SetProperty("_firmware_download_progress", before=0, after=100)
+    async def _clear_uploaded_firmware(self, *, raise_on_error: bool = False) -> None:
+        try:
+            await self._client.clear_uploaded_firmware()
+        except RaritanClientError:
+            if raise_on_error:
+                raise
+
+            self.logger.warning("Unable to cancel firmare update", exc_info=True)
+
     @Sleep(after=POST_FIRMWARE_DOWNLOAD_DELAY)
+    @SetProperty("_firmware_download_progress", before=0, after=100)
     async def _download_firmware(self, firmware: Firmware) -> Path:
         def _track_progess(downloaded: int, total: int) -> None:
             self._firmware_download_progress = min(100, downloaded / total * 100)
@@ -414,22 +430,23 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
         return fw_bin
 
-    @SetProperty("_firmware_upload_progress", before=0, after=100)
     @Sleep(after=POST_FIRMWARE_UPLOAD_DELAY)
+    @SetProperty("_firmware_upload_progress", before=0, after=100)
     async def _upload_firmware(self, fw_bin: Path) -> None:
         await self._client.upload_firmware(fw_bin)
 
-    @SetProperty("_firmware_update_progress", before=0)
     @Sleep(after=POST_FIRMWARE_START_DELAY)
+    @SetProperty("_firmware_update_progress", before=0)
     async def _start_update(self) -> None:
         await self._client.start_firmware_update()
 
-    @SetProperty("_firmware_update_progress", after=100)
     @Sleep(after=POST_FIRMWARE_UPDATE_DELAY)
+    @SetProperty("_firmware_update_progress", after=100)
     async def _wait_for_update(self) -> None:
         await self._client.wait_for_firmware_update()
 
     @Sleep(after=POST_FIRMWARE_REFRESH_DELAY)
+    @SetProperty("_firmware_refresh_progress", before=50, after=100)
     async def _refresh_pdu_firmware_version(self) -> None:
         await self._client.refresh_pdu_firmware_version(self.pdu)
         device_registry = dr.async_get(self.hass)
