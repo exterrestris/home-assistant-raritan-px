@@ -74,6 +74,8 @@
   "services": {
     "clear_downloaded_firmware": "mdi:package-variant-remove",
     "download_latest_firmware": "mdi:package-variant-plus",
+    "get_available_firmware": "mdi:package-variant",
+    "get_firmware_catalogue": "mdi:book-arrow-right-outline",
     "update_firmware_catalogue": "mdi:book-arrow-down-outline"
   }
 }
