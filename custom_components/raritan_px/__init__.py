@@ -132,7 +132,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             },
         ) from ex
     except CertificateVerificationError as ex:
-        raise ConfigEntryNotReady(
+        raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="cert_error",
             translation_placeholders={
@@ -150,8 +150,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
                 "remaining": str(ex.estimated - ex.elapsed),
             },
         ) from ex
-    except RaritanClientError as ex:
+    except RequestTimeoutError as ex:
         raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="api_timeout",
+            translation_placeholders={
+                "host": config.host,
+                "pdu": entry.title,
+            },
+        ) from ex
+    except RaritanClientError as ex:
+        raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="device_error",
             translation_placeholders={
@@ -159,6 +168,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
                 "exc": str(ex),
             },
         ) from ex
+
     updates: dict[str, Any] = {}
     if entry.data.get(CONF_ALIAS) != pdu.name:
         updates[CONF_ALIAS] = pdu.name
