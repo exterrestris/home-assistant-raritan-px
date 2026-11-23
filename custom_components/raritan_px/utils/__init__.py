@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from asyncio import Lock
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any, override
 
 if TYPE_CHECKING:
@@ -33,10 +34,10 @@ class Manager[T](ABC):
     def _create(self, name: str) -> T:
         raise NotImplementedError
 
-    def get(self, name: str) -> T:
+    def get(self, name: str, *args: Any, **kwargs: Any) -> T:
         """Get a managed item by name, creating it if it doeesn't exist."""
         if name not in self._items:
-            self._items[name] = self._create(name)
+            self._items[name] = self._create(name, *args, **kwargs)
 
         return self._items[name]
 
@@ -56,3 +57,8 @@ class LockManager(Manager[Lock]):
     @override
     def _create(self, name: str) -> Lock:
         return Lock()
+
+
+def seconds(duration: float | timedelta) -> float:
+    """Convert a duration to a number of seconds."""
+    return duration.total_seconds() if isinstance(duration, timedelta) else duration

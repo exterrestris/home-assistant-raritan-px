@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from ssl import SSLCertVerificationError
 from typing import TYPE_CHECKING, Any, Final
@@ -29,13 +30,17 @@ from custom_components.raritan_px.api.client.errors import (
     CommunicationError,
     ConcurrentLoginError,
     ConfigError,
+    ForbiddenError,
     HttpError,
     InsufficientPrivilegesError,
     JsonRpcDecodeError,
     JsonRpcError,
     RaritanClientError,
+    RequestError,
+    RequestRefusedError,
     RequestTimeoutError,
     SessionCloseError,
+    UnauthorizedError,
 )
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
@@ -115,6 +120,19 @@ class RaritanClient:
 
             raise previous
 
+        def raise_from_rpc_http_exception(err: rpc.HttpException) -> None:
+            if err.args and (matched := re.match(r"HTTP Error (?P<code>[0-9]{3})", str(err.args[0]))):
+                code = int(matched.group("code"))
+                match code:
+                    case 401:
+                        raise UnauthorizedError from err
+                    case 403:
+                        raise ForbiddenError from err
+                    case _:
+                        raise HttpError(code=code) from err
+
+            raise HttpError(code=None) from err
+
         try:
             response = await self._hass.async_add_executor_job(*args)
         except rpc.HttpException as err:
@@ -124,10 +142,12 @@ class RaritanClient:
                 raise CertificateVerificationError from e
             except TimeoutError as e:
                 raise RequestTimeoutError from e
+            except ConnectionRefusedError as e:
+                raise RequestRefusedError from e
             except Exception as e:
-                raise HttpError from e
+                raise RequestError from e
             else:
-                raise HttpError from err
+                raise_from_rpc_http_exception(err)
         except rpc.JsonRpcErrorException as err:
             if "code = -32001" in str(err):
                 raise InsufficientPrivilegesError from err
@@ -147,7 +167,7 @@ class RaritanClient:
                 f"Fetched {data_name() if callable(data_name) else data_name} via {len(requests)} requests",
                 logger=self._logger,
             )
-            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._connection.agent, requests))
+            return await let.wrap(self._execute_json_rpc_call(perform_bulk, self._connection.agent, requests, True))  # noqa: FBT003
 
     async def _execute_request(self, request: rpc.Interface.Method, *args: Any, timed: bool = False) -> Any:
         async with self._connection.lock:
@@ -217,7 +237,7 @@ class RaritanClient:
                     session_details.username,
                     connection.session_created,
                 )
-        except HttpError:
+        except RequestError:
             connection.clear_session_data()
 
             self._logger.debug(
@@ -275,7 +295,7 @@ class RaritanClient:
         except CertificateVerificationError:
             self._logger.exception("Authentication Error")
             raise
-        except HttpError as e:
+        except RequestError as e:
             self._logger.exception("Authentication Error")
 
             msg: str = f"Failed to authenticate as {connection.config.auth.user} on {connection.config.host}"

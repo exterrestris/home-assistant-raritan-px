@@ -13,20 +13,51 @@ class CommunicationError(RaritanClientError):
     """Raised when a generic error occurs while communicating with the Raritan API."""
 
 
-class HttpError(CommunicationError):
+class RequestRefusedError(CommunicationError):
+    """Raised when connection is refused."""
+
+
+class RequestError(CommunicationError):
+    """Raised when a generic error occurs for a request."""
+
+
+class HttpError(RequestError):
     """Raised when a generic HTTP error occurs while communicating with the Raritan API."""
 
+    code: int | None
 
-class RequestTimeoutError(HttpError):
+    def __init__(self, *args: object, code: int | None) -> None:
+        """Initialise the exception."""
+        super().__init__(*args)
+        self.code = code
+
+
+class RequestTimeoutError(RequestError):
     """Raised when HTTP request times out."""
 
 
-class CertificateVerificationError(HttpError):
+class CertificateVerificationError(RequestError):
     """Raised when SSL certificate verification fails."""
 
 
 class AuthenticationError(CommunicationError):
-    """Raised when authentication fails."""
+    """Raised for authentication errors."""
+
+
+class UnauthorizedError(AuthenticationError, HttpError):
+    """Raised when the request is unauthorised."""
+
+    def __init__(self, *args: object) -> None:
+        """Initialise the exception."""
+        super().__init__(*args, code=401)
+
+
+class ForbiddenError(AuthenticationError, HttpError):
+    """Raised when the authenticated user doesn't have permission to make the request."""
+
+    def __init__(self, *args: object) -> None:
+        """Initialise the exception."""
+        super().__init__(*args, code=403)
 
 
 class JsonRpcError(CommunicationError):
