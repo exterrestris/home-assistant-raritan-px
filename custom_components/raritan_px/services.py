@@ -73,6 +73,17 @@ def async_setup_services(hass: HomeAssistant) -> None:
         except FirmwareCatalogueError:
             _LOGGER.exception("Unable to update firmware catalogue")
 
+    async def async_clear_firmware_downloads(call: ServiceCall) -> None:  # noqa: ARG001
+        """Clear all downloaded firmware zip/binary files."""
+        manager: FirmwareManager = hass.data[CATALOGUE_MANAGER]
+
+        try:
+            await manager.clear_downloaded_firmware()
+        except FirmwareManagerError:
+            _LOGGER.exception("Unable to clear downloaded firmware")
+
     hass.services.async_register(DOMAIN, "update_firmware_catalogue", async_update_catalogue)
 
     async_register_admin_service(hass, DOMAIN, "download_latest_firmware", async_download_latest_firmware)
+
+    async_register_admin_service(hass, DOMAIN, "clear_downloaded_firmware", async_clear_firmware_downloads)

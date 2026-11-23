@@ -334,6 +334,22 @@ class FirmwareManager:
         except Exception as err:
             raise ExtractFirmwareError from err
 
+    async def clear_downloaded_firmware(self) -> None:
+        """Remove cached downloads."""
+
+        def _clear_tmp_dir() -> None:
+            for root, dirs, files in self._tmp_dir.walk(top_down=False):
+                for name in files:
+                    (root / name).unlink()
+                for name in dirs:
+                    (root / name).rmdir()
+
+        try:
+            await self._hass.async_add_executor_job(_clear_tmp_dir)
+            self._logger.info("Cleared downloaded firmware files")
+        except Exception as err:
+            raise FirmwareManagerError from err
+
 
 class FirmwareManagerError(Exception):
     """Base exception for all exceptions."""
