@@ -1,14 +1,22 @@
 """Constants/enums for API client."""
 
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum, Flag, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from custom_components.raritan_px.api.model import RaritanUpdatable, RaritanUpdatableRpcMethodsList
     from custom_components.raritan_px.api.model.device import RaritanDevice
+
+FIRMWARE_UPGRADE_WAIT_INTERVAL: Final[float] = 10
+FIRMWARE_UPGRAGE_WAIT_MAX_ERRORS: Final[int] = 6
+FIRMWARE_UPGRADE_SUCCESS_WAIT_INTERVAL: Final[float] = 5
+
+FIRMWARE_UPDATE_CHECK_CACHE_RESULT_FOR: Final[timedelta] = timedelta(seconds=2)
+FIRMWARE_UPDATE_PREVENT_CHECKS_AFTER_START_FOR: Final[timedelta] = timedelta(seconds=20)
 
 
 class PduDevices(Flag):

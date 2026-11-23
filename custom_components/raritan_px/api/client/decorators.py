@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Final
 
+import custom_components.raritan_px.api.client
 from custom_components.raritan_px.api.client.errors import RaritanClientError
 from custom_components.raritan_px.utils import seconds
 from custom_components.raritan_px.utils.decorators import AsyncDecorator, ExtractLogger
@@ -70,3 +71,15 @@ class Retry[**F, R](AsyncDecorator[F, R], ExtractLogger[F, R]):
                 raise
             else:
                 return result
+
+
+class Authenticate[**F, R](AsyncDecorator[F, R], ExtractLogger[F, R]):
+    """Decorator to call self.authenticate before executing API client methods."""
+
+    async def _async_impl(self, func: Callable[F, Coroutine[None, None, R]], *args: F.args, **kwargs: F.kwargs) -> R:
+        # Using full path for RaritanClient to avoid circular reference error
+        if not isinstance(args[0], custom_components.raritan_px.api.client.RaritanClient):
+            raise TypeError
+
+        await args[0].authenticate()
+        return await func(*args, **kwargs)

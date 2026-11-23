@@ -21,6 +21,7 @@ class RaritanEntityDescription(EntityDescription):
     """Base class for a Raritan PDU entity description."""
 
     convert_fn: Callable[[Any], EntityValue | None] | None = None
+    is_dynamic: bool = True
 
 
 @dataclass(frozen=True, kw_only=True)
