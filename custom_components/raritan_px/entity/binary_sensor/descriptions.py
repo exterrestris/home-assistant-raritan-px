@@ -53,11 +53,13 @@ PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[RaritanPduBinarySensorEntityDesc
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_has_switchable_outlets",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
     ),
     RaritanPduBinarySensorEntityDescription(
         key="has_metered_outlets",
         entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="pdu_has_metered_outlets",
         entity_registry_enabled_default=False,
+        is_dynamic=False,
     ),
 )
