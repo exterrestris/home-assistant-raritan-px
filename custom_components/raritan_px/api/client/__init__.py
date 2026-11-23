@@ -63,6 +63,7 @@ from custom_components.raritan_px.api.client.errors import (
     UnauthorizedError,
     UnsupportedModelFirmwareError,
 )
+from custom_components.raritan_px.api.const import FIRMWARE_UPLOAD_TIMEOUT
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
     RaritanPduInlet,
@@ -103,6 +104,7 @@ class RaritanClient:
     """Client for Raritan API."""
 
     _REQUEST: Final[str] = "request"
+    _FW_UPLOAD: Final[str] = "fw_upload"
     _AUTH_LOCK: Final[str] = "auth"
 
     _hass: HomeAssistant
@@ -852,12 +854,13 @@ class RaritanClient:
 
             raise RaritanClientError(msg)
 
-    @LogExecutionTime("Uploaded firmware")
-    def _upload_firmware(self, firmware: Path) -> None:
-        firmware_upload(self._connection.agent, firmware.read_bytes())
-
     async def upload_firmware(self, firmware: Path) -> None:
         """Upload firmware to the PDU."""
+
+        @LogExecutionTime("Uploaded firmware", logger=self._logger)
+        def _upload_firmware(agent: rpc.Agent, firmware: Path) -> None:
+            firmware_upload(agent, firmware.read_bytes())
+
         await self.authenticate()
 
         proxy = self._connection.proxy(Firmware, "/firmware")
@@ -867,7 +870,16 @@ class RaritanClient:
             await self._execute_request(proxy.discardImage)
 
         try:
-            await self._execute_json_rpc_call(self._upload_firmware, firmware)
+            # Firmware uploads take longer to complete that the default request timeout
+            # so create a new agent instance for the firmware upload, reusing the existing
+            # session token from the default agent, and use a dedicated lock for this request
+            connection = self._connections.get(self._FW_UPLOAD, timeout=FIRMWARE_UPLOAD_TIMEOUT)
+            connection.session_token = self._connection.session_token
+            connection.set_auth_from_token()
+
+            async with connection.lock:
+                await self._execute_json_rpc_call(_upload_firmware, connection.agent, firmware)
+
             await self._verify_firmware()
         except:
             await self._execute_request(proxy.discardImage)
