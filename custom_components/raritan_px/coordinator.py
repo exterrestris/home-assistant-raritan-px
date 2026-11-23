@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from custom_components.raritan_px.api.client import RaritanClient, RaritanClientError
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+from custom_components.raritan_px.api.model.user import Privilege, RaritanUser
 from custom_components.raritan_px.const import (
     DOMAIN,
     FIRMWARE_DOWNLOAD_PROGRESS_WEIGHT,
@@ -51,6 +52,7 @@ class RaritanPduData:
     """Data for the RaritanPdu integration."""
 
     client: RaritanClient
+    user: RaritanUser
     client_lock: Lock
     api_coordinator: RaritanApiDataUpdateCoordinator
     firmware_coordinator: RaritanFirmwareDataUpdateCoordinator
@@ -69,6 +71,7 @@ class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
     _default_interval: timedelta
     config_entry: RaritanPduConfigEntry
     pdu: RaritanPdu
+    user: RaritanUser
     firmware_update_in_progress: bool = False
 
     @override
@@ -82,6 +85,7 @@ class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
         client: RaritanClient,
         client_lock: Lock,
         pdu: RaritanPdu,
+        user: RaritanUser,
         update_interval: timedelta,
     ) -> None:
         """Initialize the RaritanPdu coordinator."""
@@ -93,6 +97,7 @@ class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
             update_interval=update_interval,
         )
         self.pdu = pdu
+        self.user = user
         self._client = client
         self._client_lock = client_lock
         self._default_interval = update_interval
@@ -120,6 +125,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         client: RaritanClient,
         client_lock: Lock,
         pdu: RaritanPdu,
+        user: RaritanUser,
         update_interval: timedelta,
     ) -> None:
         """Initialize the JSON-RPC API coordinator."""
@@ -130,6 +136,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             client=client,
             client_lock=client_lock,
             pdu=pdu,
+            user=user,
             name=f"{pdu.device_name} API",
             update_interval=update_interval,
         )
@@ -214,6 +221,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         client_lock: Lock,
         manager: FirmwareManager,
         pdu: RaritanPdu,
+        user: RaritanUser,
         update_interval: timedelta,
     ) -> None:
         """Initialize the firmware update coordinator."""
@@ -224,6 +232,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             client=client,
             client_lock=client_lock,
             pdu=pdu,
+            user=user,
             name="firmware management",
             update_interval=update_interval,
         )
@@ -293,6 +302,15 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
     async def update_firmware(self, version: str | None = None) -> None:
         """Update firmware of the PDU defined by the config entry for this coordinator."""
+        if not self.config_entry.runtime_data.user.can(Privilege.FIRMWARE_UPDATE):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="firmware_update_forbidden",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                },
+            )
+
         try:
             firmware = await self._identify_firmware(version)
 

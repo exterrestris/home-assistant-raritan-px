@@ -68,6 +68,7 @@ if TYPE_CHECKING:
     from homeassistant.helpers.typing import ConfigType
 
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+    from custom_components.raritan_px.api.model.user import RaritanUser
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -93,6 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
     try:
         lock = Lock()
         client = RaritanClient(hass, config)
+        user: RaritanUser = await client.get_user()
         pdu: RaritanPdu = await client.get_pdu_info()
     except AuthenticationError as ex:
         raise ConfigEntryAuthFailed(
@@ -190,6 +192,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         client=client,
         client_lock=lock,
         pdu=pdu,
+        user=user,
         update_interval=DEFAULT_API_UPDATE_INTERVAL,
     )
     firmware_coordinator = RaritanFirmwareDataUpdateCoordinator(
@@ -200,6 +203,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
         client_lock=lock,
         manager=hass.data[CATALOGUE_MANAGER],
         pdu=pdu,
+        user=user,
         update_interval=DEFAULT_FIRMWARE_UPDATE_INTERVAL,
     )
 
@@ -209,6 +213,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
     entry.runtime_data = RaritanPduData(
         client=client,
         client_lock=lock,
+        user=user,
         api_coordinator=api_coordinator,
         firmware_coordinator=firmware_coordinator,
         hub=hub,

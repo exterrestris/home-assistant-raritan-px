@@ -27,7 +27,7 @@ from raritan.rpc.firmware import (
 from raritan.rpc.net import Info, InterfaceInfo, Net
 from raritan.rpc.pdumodel import Inlet, Outlet, OverCurrentProtector, Pdu
 from raritan.rpc.session import Session, SessionManager
-from raritan.rpc.usermgmt import User, UserInfo
+from raritan.rpc.usermgmt import Role, RoleManager, User, UserInfo
 
 from custom_components.raritan_px.api.client.connections import Connection, ConnectionManager
 from custom_components.raritan_px.api.client.const import (
@@ -81,6 +81,7 @@ from custom_components.raritan_px.api.model.network import (
     NetworkInterfaceState,
     NetworkInterfaceType,
 )
+from custom_components.raritan_px.api.model.user import Privilege, RaritanUser
 from custom_components.raritan_px.utils import LockManager
 from custom_components.raritan_px.utils.decorators import LogExecutionTime
 
@@ -388,6 +389,35 @@ class RaritanClient:
             connection.clear_session_data()
 
         return True
+
+    async def get_privileges(self) -> list[Privilege]:
+        """Get all privileges."""
+        role: RoleManager = self._connection.proxy(RoleManager, "/auth/role")
+
+        await self.authenticate()
+
+        privileges: list[Role.Privilege] = await self._execute_request(role.getAllPrivileges)
+
+        return [Privilege(privilege) for privilege in privileges]
+
+    async def get_user(self, username: str | None = None) -> RaritanUser:
+        """Get user information and privileges."""
+        proxy: User = self._connection.proxy(User, f"/auth/user/{username}" if username else "/auth/currentUser")
+        info: UserInfo
+        privileges: list[Role.Privilege]
+
+        await self.authenticate()
+
+        (info, privileges) = await self._execute_request(proxy.getInfoAndPrivileges)
+
+        user = RaritanUser.from_rpc(info, privileges)
+
+        if user.unknown_privileges:
+            self._logger.warning(
+                "User has unsupported privileges: %s", ", ".join([str(priv) for priv in user.unknown_privileges])
+            )
+
+        return user
 
     async def close_session(self) -> bool:
         """Close the current session and clear any stored session information."""

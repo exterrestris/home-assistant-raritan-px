@@ -167,6 +167,9 @@
     "catalogue_error": {
       "message": "Unable to get firmware information from catalogue: {exc}"
     },
+    "firmware_update_forbidden": {
+      "message": "Home Assistant doesn't have permission to install firmware updates on {pdu}"
+    },
     "firmware_update_in_progress": {
       "message": "API unavailable due to in-progress firmware update: {state} ({elapsed})"
     },

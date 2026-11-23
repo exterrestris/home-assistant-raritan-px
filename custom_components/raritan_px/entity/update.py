@@ -62,17 +62,6 @@ class RaritanPduUpdateEntity(CoordinatedRaritanPduEntity, RaritanDeviceUpdateEnt
 
     entity_description: RaritanPduUpdateEntityDescription
 
-
-class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
-    """Representation of a Raritan PDU update entity."""
-
-    entity_description: RaritanPduUpdateEntityDescription
-    _attr_device_class = UpdateDeviceClass.FIRMWARE
-    _attr_supported_features = (
-        UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS | UpdateEntityFeature.SPECIFIC_VERSION
-    )
-    _attr_release_summary = "Device entities will be unavailable while firmware update is in progress"
-
     def __init__(
         self,
         coordinator: RaritanFirmwareDataUpdateCoordinator,
@@ -84,7 +73,15 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
         """Initialise the entity."""
         super().__init__(coordinator, device=device, hub=hub, description=description)
 
-        self._async_update_attrs()
+
+class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
+    """Representation of a Raritan PDU update entity."""
+
+    _attr_device_class = UpdateDeviceClass.FIRMWARE
+    _attr_release_summary = "Device entities will be unavailable while firmware update is in progress"
+    _attr_supported_features = (
+        UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS | UpdateEntityFeature.SPECIFIC_VERSION
+    )
 
     @callback
     def _async_update_attrs(self) -> bool:
