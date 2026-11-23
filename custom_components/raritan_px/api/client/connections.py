@@ -96,6 +96,7 @@ class ConnectionManager(Manager[Connection]):
 
     _locks: LockManager
     _config: ConnectionDetails
+    _namespace_locks: bool
 
     def __init__(
         self,
@@ -103,6 +104,7 @@ class ConnectionManager(Manager[Connection]):
         config: ConnectionDetails,
         lock_manager: LockManager | None = None,
         logger: logging.Logger | None = None,
+        namespace_locks: bool = True,
     ) -> None:
         """Initialise the connection manager."""
         super().__init__()
@@ -110,11 +112,20 @@ class ConnectionManager(Manager[Connection]):
         self._config = config
         self._locks = lock_manager or LockManager()
         self._logger = logger or _LOGGER
+        self._namespace_locks = namespace_locks
 
-    def _create(self, name: str, *, timeout: int | None = None) -> Connection:
+    def _create(self, name: str, *, timeout: float | None = None) -> Connection:
         config = self._config
 
         if timeout is not None:
             config = replace(self._config, timeout=timeout)
 
-        return Connection(config=config, lock=self._locks.get(name))
+        return Connection(config=config, lock=self._locks.get(lock_name))
+
+    def get(self, name: str, *, timeout: float | None = None) -> Connection:
+        """Create a connection by name and store for later retreival."""
+        return super().get(name, timeout=timeout)
+
+    def create(self, name: str, *, timeout: float | None = None) -> Connection:
+        """Create a connection by name and store for later retreival."""
+        return super().create(name, timeout=timeout)
