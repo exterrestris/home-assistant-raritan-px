@@ -28,6 +28,7 @@ from custom_components.raritan_px.firmware.const import (
     FIRMWARE_ZIP_MAX_SIZE,
 )
 from custom_components.raritan_px.firmware.model import Firmware, FirmwareCatalogue
+from custom_components.raritan_px.utils.decorators import LogExecutionTime
 
 if TYPE_CHECKING:
     from aiohttp import ClientSession
@@ -195,12 +196,15 @@ class FirmwareManager:
 
         raise ReleaseParseError
 
+    @LogExecutionTime(
+        "Downloaded latest firmware catalogue", log_level=logging.INFO, log_when=LogExecutionTime.ON_SUCCESS
+    )
     async def _download_latest_catalogue(self) -> FirmwareCatalogue:
         self._check_rate_limit()
 
         session = self._get_session()
 
-        self._logger.info("Downloading latest firmware catalogue")
+        self._logger.debug("Downloading latest firmware catalogue")
 
         url = await self._get_latest_url()
 
@@ -241,6 +245,11 @@ class FirmwareManager:
     def _get_tmp_zip(self, firmware: Firmware) -> Path:
         return self._get_tmp_dir(firmware) / self._get_path(firmware).name
 
+    @LogExecutionTime(
+        lambda _, firmware, *_s: f"Downloaded firmware zip from {firmware.firmware_url!s}",
+        log_level=logging.INFO,
+        log_when=LogExecutionTime.ON_SUCCESS,
+    )
     async def _download_firmware(self, firmware: Firmware, callback: DownloadProgress | None) -> Path:
         def _create_dir(path: Path) -> None:
             if path.exists():
@@ -267,8 +276,6 @@ class FirmwareManager:
                         if total_bytes and callback:
                             downloaded += len(chunk)
                             callback(downloaded, total_bytes)
-
-                self._logger.info("Downloaded firmware zip from %s", str(firmware.firmware_url))
                 return file
         except ClientError as err:
             raise FirmwareArchiveDownloadError from err
