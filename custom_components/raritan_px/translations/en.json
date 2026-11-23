@@ -169,6 +169,18 @@
     },
     "firmware_update_in_progress": {
       "message": "API unavailable due to in-progress firmware update: {state} ({elapsed})"
+    },
+    "firmware_update_status_failed": {
+      "message": "Unable to get firmware update status: {exc}"
+    },
+    "firmware_update_failed": {
+      "message": "Firmware update failed: {exc}"
+    },
+    "firmware_model_not_supported": {
+      "message": "Firmware {version} does not exist or does not support {model}"
+    },
+    "firmware_is_latest": {
+      "message": "Current firmware {version} is the latest firmware for {model}"
     }
   }
 }

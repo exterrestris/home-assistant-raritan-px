@@ -1,12 +1,13 @@
 """Raritan PDU update entities."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
     UpdateEntity,
     UpdateEntityDescription,
+    UpdateEntityFeature,
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import callback
@@ -67,6 +68,9 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
 
     entity_description: RaritanPduUpdateEntityDescription
     _attr_device_class = UpdateDeviceClass.FIRMWARE
+    _attr_supported_features = (
+        UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS | UpdateEntityFeature.SPECIFIC_VERSION
+    )
 
     def __init__(
         self,
@@ -92,7 +96,15 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
             if self.coordinator.latest_firmware.release_notes_url:
                 self._attr_release_url = str(self.coordinator.latest_firmware.release_notes_url)
 
+        self._attr_in_progress = self.coordinator.firmware_update_in_progress
+        self._attr_update_percentage = self.coordinator.firmware_update_percentage
+
         return True
+
+    @override
+    async def async_install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
+        """Install an update."""
+        await self.coordinator.update_firmware(version)
 
 
 @dataclass(frozen=True, kw_only=True)
