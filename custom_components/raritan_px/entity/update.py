@@ -71,6 +71,7 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
     _attr_supported_features = (
         UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS | UpdateEntityFeature.SPECIFIC_VERSION
     )
+    _attr_release_summary = "Device entities will be unavailable while firmware update is in progress"
 
     def __init__(
         self,
