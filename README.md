@@ -14,9 +14,10 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
   * Supported at PDU, inlet, outlet and overcurrent protector levels
 * Outlet switching
 * Network status
-* Firmware update checks
+* Firmware updates[^3]
 
 [^1]: Current, Voltage, Line Frequency, Power, Energy, etc.
+[^3]: The list of available firmware updates is supplied by [dedicated catalogue](https://github.com/exterrestris/ha-raritan-px-firmware) for this integration
 
 > [!TIP]
 > The specific features and sensors exposed to Home Assistant depend on the functionality supported by your PDU.
@@ -27,35 +28,44 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
 
 ## Supported Devices
 
-Any PX-Series (PX2/PX3/PX4/PXO/PXC) PDU running Xerus 4.3.11 or greater
+Any PX-Series (`PX2`/`PX3`/`PX4`/`PXO`/`PXC`) PDU running Xerus `4.3.11` or greater
+
+> [!TIP]
+> PX-Series PDU running Xerus `4.3.0` or greater are likely to work without problems
+>
+> However, updating your PDU's firmware to the latest available version is recommended
 
 > [!NOTE]
-> Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
->
-> PX-Series PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
-> 
-> PDUs made by other brands that also run Xerus 4.3.0 or greater (such as [Server Technology](https://www.servertech.com/) PRO4X PDUs) _may_ also work but are untested
+> PX-Series PDUs running Xerus `4.0.10` or greater _should_ work, but some features may not function correctly if the API had breaking changes
 
 > [!WARNING]
-> PX-Series PDUs running Xerus 3.6.xx and earlier will **not** work
+> PX-Series PDUs running Xerus `3.6.xx` and earlier will **not** work
 
-### Known working Devices
+### Known Working Devices
+
+- [Raritan PX3-5190R](https://www.raritan.com/product-selector/pdu-detail/px3-5190r) (@exterrestris)
 - [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8) (@exterrestris)
-- [Raritan PX3-5260R](https://www.raritan.com/product-selector/pdu-detail/px3-5260r)
 - [Raritan PX3-5145R](https://www.raritan.com/product-selector/pdu-detail/px3-5145r)
+- [Raritan PX3-5260R](https://www.raritan.com/product-selector/pdu-detail/px3-5260r)
+
+
+### Non-Raritan PDUs
+
+PDUs made by other brands that also run Xerus `4.3.0` or greater (such as [Server Technology](https://www.servertech.com/) PRO4X PDUs) _may_ work but are untested
+
 
 ## Installation
 
 This integration is included in the default catalogue for [Home Assistant Marketplace](https://www.home-assistant.io/integrations/marketplace/)[^2]. Click the button below to open this repository in your Home Assistant instance, then click install
 
 [^2]: Previously [HACS](https://github.com/hacs/integration) prior to Home Assistant 2026.11
- 
+
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=exterrestris&repository=home-assistant-raritan-px&category=integration)
 
 > [!NOTE]
 > If you have not previosly opened the Marketplace, you will be warned that Marketplace content is not supported by the Home Assistant project. Before you can install any Marketplace content, you will need to understand and accept that warning
 
-> [!WARNING] 
+> [!WARNING]
 > If you are not comfortable with installing integrations that are not supported by the Home Assistant project, then **do not** install this integration
 
 
@@ -90,10 +100,19 @@ Raritan PDUs report their energy usage by inlet, not for the PDU as a whole. For
 Outlet monitoring support is PDU specific. If your PDU supports outlet monitoring, then the relevant sensors will be exposed automatically
 
 #### I can't turn my outlets on/off
-Outlet switching support is PDU specific. If your PDU supports outlet switching, the switches for the outlets will be exposed automatically
+Outlet switching support is PDU specific. If your PDU supports outlet switching, the switches for the outlets will be exposed automatically. In addition, the user Home Assistant uses to connect to your PDU needs to have the `Switch Outlet` privilege - this is granted to the `Admin` and `Operator` roles by default
 
 #### I changed the name of my inlet/outlet/PDU via the PDU web UI, but the name hasn't updated in Home Assistant
-Names are currently only updated when the integration first loads. Reloading the integration for the PDU will be update the names in Home Assistant
+Names are currently only updated when the integration first loads. Reloading the integration for the PDU will update the names in Home Assistant
+
+#### How will I know if my PDU has a firmware update available?
+Firmware updates are exposed via the standard Home Assistant update mechanism. If a new firmware update is available[^4] and can be installed on your PDU[^5], then the update will show up automatically
+
+[^4]: Only firmware versions that apply to your PDU's model & product family, and that have a higher version than the firmware currently installed on your PDU are considered updates
+[^5]: Depending on the existing firmware version on your PDU, it may not be possible to upgrade directly to certain firmware versions. In this case, the highest available firmware that supports upgrading from your current firmware will be shown as the available update. Once installed, any newer firmware versions that apply to your PDU will be automatically offered for installation.
+
+#### I have a firmware update available, but I can't install it
+To install firmware updates, the user that Home Assistant uses to connect to your PDU needs to have the `Firmware Update` privilege - this is only granted to users with the `Admin` role by default.
 
 ## Screenshots
 
