@@ -161,6 +161,9 @@
     "api_error": {
       "message": "Unable to {func} for {pdu}: {exc}"
     },
+    "api_unreachable": {
+      "message": "{entry} ({host}) is unreachable"
+    },
     "api_update_error": {
       "message": "Unable to update data for {pdu} from API: {exc}"
     },

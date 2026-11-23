@@ -17,7 +17,7 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
     Platform,
 )
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
 )
@@ -34,7 +34,11 @@ from custom_components.raritan_px.api.client import (
     CertificateVerificationError,
     RaritanClient,
 )
-from custom_components.raritan_px.api.client.errors import FirmwareUpgradeInProgressError, RaritanClientError
+from custom_components.raritan_px.api.client.errors import (
+    FirmwareUpgradeInProgressError,
+    RaritanClientError,
+    RequestTimeoutError,
+)
 from custom_components.raritan_px.api.client.struct import AuthenticationDetails, ConnectionDetails
 from custom_components.raritan_px.api.const import (
     DEFAULT_PASSWORD,
@@ -90,10 +94,32 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
 async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -> bool:
     """Set up RaritanPdu from a config entry."""
     config = await get_connection_details_from_entry(entry)
+    lock = Lock()
 
     try:
-        lock = Lock()
         client = RaritanClient(hass, config)
+
+        await client.ping(raise_exception=True)
+    except RequestTimeoutError as ex:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="api_unreachable",
+            translation_placeholders={
+                "host": config.host,
+                "entry": entry.title,
+            },
+        ) from ex
+    except RaritanClientError as ex:
+        raise ConfigEntryError(
+            translation_domain=DOMAIN,
+            translation_key="device_error",
+            translation_placeholders={
+                "func": "connect",
+                "exc": str(ex),
+            },
+        ) from ex
+
+    try:
         user: RaritanUser = await client.get_user()
         pdu: RaritanPdu = await client.get_pdu_info()
     except AuthenticationError as ex:
