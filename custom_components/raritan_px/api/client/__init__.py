@@ -40,7 +40,7 @@ from custom_components.raritan_px.api.client.const import (
     SensorUpdate,
     UpdateSensors,
 )
-from custom_components.raritan_px.api.client.decorators import Retry
+from custom_components.raritan_px.api.client.decorators import Authenticate, Retry
 from custom_components.raritan_px.api.client.errors import (
     AuthenticationError,
     CertificateVerificationError,
@@ -398,23 +398,20 @@ class RaritanClient:
 
         return True
 
+    @Authenticate()
     async def get_privileges(self) -> list[Privilege]:
         """Get all privileges."""
         role: RoleManager = self._connection.proxy(RoleManager, "/auth/role")
-
-        await self.authenticate()
-
         privileges: list[Role.Privilege] = await self._execute_request(role.getAllPrivileges)
 
         return [Privilege(privilege) for privilege in privileges]
 
+    @Authenticate()
     async def get_user(self, username: str | None = None) -> RaritanUser:
         """Get user information and privileges."""
         proxy: User = self._connection.proxy(User, f"/auth/user/{username}" if username else "/auth/currentUser")
         info: UserInfo
         privileges: list[Role.Privilege]
-
-        await self.authenticate()
 
         (info, privileges) = await self._execute_request(proxy.getInfoAndPrivileges)
 
@@ -431,6 +428,7 @@ class RaritanClient:
         """Close the current session and clear any stored session information."""
         return await self._close_session(self._connection)
 
+    @Authenticate()
     async def get_pdu_info(
         self,
         pdu_idx: int = 0,
@@ -439,8 +437,6 @@ class RaritanClient:
         update: UpdateSensors = UpdateSensors.ALL,
     ) -> RaritanPdu:
         """Get information for the Raritan PDU."""
-        await self.authenticate()
-
         try:
             pdu: Pdu = self._connection.proxy(Pdu, f"/model/pdu/{pdu_idx}")
             firmware: Firmware = self._connection.proxy(Firmware, "/firmware")
@@ -785,20 +781,18 @@ class RaritanClient:
 
         return device
 
+    @Authenticate()
     async def update_sensor_readings_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
         """Update sensor readings for device."""
-        await self.authenticate()
-
         await self._update_sensors_for_device(device, device.updatable_sensors, SensorUpdate.READINGS)
 
         return device
 
+    @Authenticate()
     async def update_sensor_readings_for_devices[Device: "RaritanDevice"](
         self, pdu: RaritanPdu, devices: list[Device]
     ) -> list[Device]:
         """Update sensor readings for device."""
-        await self.authenticate()
-
         await self._update_sensors_for_device(
             pdu,
             list(flatten([device.updatable_sensors for device in devices])),
@@ -807,10 +801,9 @@ class RaritanClient:
 
         return devices
 
+    @Authenticate()
     async def update_all_sensor_readings_for_device[Device: "RaritanDevice"](self, device: Device) -> Device:
         """Update all sensor readings for device."""
-        await self.authenticate()
-
         await self._update_sensors_for_device(device, device.all_updatable_sensors, SensorUpdate.READINGS)
 
         return device
@@ -819,10 +812,9 @@ class RaritanClient:
         """Update all sensor readings for PDU."""
         return await self.update_all_sensor_readings_for_device(pdu)
 
+    @Authenticate()
     async def refresh_pdu_firmware_version(self, pdu: RaritanPdu) -> RaritanPdu:
         """Update the PDU model with the current firmware version."""
-        await self.authenticate()
-
         proxy: Firmware = self._connection.proxy(Firmware, "/firmware")
         firmware_info: Firmware.Info = await self._execute_request(proxy.getInfo)
 
@@ -830,10 +822,9 @@ class RaritanClient:
 
         return pdu
 
+    @Authenticate()
     async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> OutletPowerState:
         """Get the power state for a specific Raritan PDU outlet."""
-        await self.authenticate()
-
         try:
             proxy = self._connection.proxy(Outlet, outlet.rid)
 
@@ -860,14 +851,13 @@ class RaritanClient:
 
             raise RaritanClientError(msg)
 
+    @Authenticate()
     async def upload_firmware(self, firmware: Path) -> None:
         """Upload firmware to the PDU."""
 
         @LogExecutionTime("Uploaded firmware", logger=self._logger)
         def _upload_firmware(agent: rpc.Agent, firmware: Path) -> None:
             firmware_upload(agent, firmware.read_bytes())
-
-        await self.authenticate()
 
         proxy = self._connection.proxy(Firmware, "/firmware")
         status: ImageStatus = await self._execute_request(proxy.getImageStatus)
@@ -907,6 +897,7 @@ class RaritanClient:
         if image_info.model_list_present and not image_info.model_supported:
             raise UnsupportedModelFirmwareError
 
+    @Authenticate()
     async def get_firmware_upload_status(self) -> bool | float | str | None:
         """Get information about the current uploaded firmware."""
         proxy = self._connection.proxy(Firmware, "/firmware")
@@ -922,6 +913,7 @@ class RaritanClient:
             case ImageState.COMPLETE:  # pyright: ignore[reportAttributeAccessIssue]
                 return True
 
+    @Authenticate()
     async def get_uploaded_firmware_info(self) -> ImageInfo | None:
         """Get information about the current uploaded firmware."""
         proxy = self._connection.proxy(Firmware, "/firmware")
@@ -934,20 +926,19 @@ class RaritanClient:
 
         return image_info
 
+    @Authenticate()
     async def cancel_firmware_update(self) -> None:
         """Start the firmaware update on the PDU."""
         proxy = self._connection.proxy(Firmware, "/firmware")
 
-        await self.authenticate()
         await self._execute_request(proxy.discardImage)
 
         self._update_firmware_update_in_progress(status=False)
 
+    @Authenticate()
     async def start_firmware_update(self) -> None:
         """Start the firmaware update on the PDU."""
         proxy = self._connection.proxy(Firmware, "/firmware")
-
-        await self.authenticate()
 
         try:
             await self._verify_firmware()
