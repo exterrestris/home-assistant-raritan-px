@@ -1,5 +1,6 @@
 """Raritan firmware catalogue constants."""
 
+from datetime import timedelta
 from typing import TYPE_CHECKING, Final
 
 from homeassistant.util.hass_dict import HassKey
@@ -17,6 +18,8 @@ CATALOGUE_STORE: HassKey[Store] = HassKey("firmware_catalogue")
 
 CATALOGUE_STORE_STORAGE_KEY: Final[str] = "raritan_px.firmware_catalogue"
 CATALOGUE_STORE_STORAGE_VERSION: Final[int] = 1
+
+CATALOGUE_UPDATE_CHECK_AFTER: Final[timedelta] = timedelta(hours=6)
 
 FIRMWARE_DIR: Final[str] = "firmware"
 FIRMWARE_SUFFIX: Final[str] = ".bin"
