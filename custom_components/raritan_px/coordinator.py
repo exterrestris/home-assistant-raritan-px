@@ -14,6 +14,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from custom_components.raritan_px.api.client import RaritanClient, RaritanClientError
+from custom_components.raritan_px.api.client.errors import RequestTimeoutError
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
 from custom_components.raritan_px.api.model.user import Privilege, RaritanUser
 from custom_components.raritan_px.const import (
@@ -109,6 +110,30 @@ class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
     def _reset_update_interval(self) -> None:
         self._set_update_interval(self._default_interval)
 
+    async def _async_update_in_progress(self) -> bool:
+        """Fetch 'firmware upate in progress' from api."""
+        # This call can be made safely without acquiring the client lock
+        try:
+            return await self._client.is_firmware_update_in_progress()
+        except RequestTimeoutError as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_timeout",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                    "exc": str(ex),
+                },
+            ) from ex
+        except Exception as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_update_error",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                    "exc": str(ex),
+                },
+            ) from ex
+
 
 class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     """DataUpdateCoordinator to gather data from the JSON-RPC API for a specific Raritan PDU."""
@@ -153,7 +178,7 @@ class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     async def _async_update_data(self) -> RaritanPdu:
         """Fetch all device and sensor data from api."""
         # This call can be made safely without acquiring the client lock
-        self.firmware_update_in_progress = await self._client.is_firmware_update_in_progress()
+        self.firmware_update_in_progress = await self._async_update_in_progress()
 
         if self.firmware_update_in_progress:
             return self.pdu
@@ -248,7 +273,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     async def _async_update_data(self) -> None:
         """Fetch firmware data."""
         self.firmware_update_in_progress = self.firmware_update_percentage is not None
-        self._firmware_update_started = await self._client.is_firmware_update_in_progress()
+        self._firmware_update_started = await self._async_update_in_progress()
 
         if self.firmware_update_in_progress:
             try:
