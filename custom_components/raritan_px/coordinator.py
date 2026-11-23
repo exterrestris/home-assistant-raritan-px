@@ -24,6 +24,7 @@ from custom_components.raritan_px.const import (
     FIRMWARE_UPLOAD_PROGRESS_WEIGHT,
     IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL,
     POST_FIRMWARE_DOWNLOAD_DELAY,
+    POST_FIRMWARE_REFRESH_DELAY,
     POST_FIRMWARE_START_DELAY,
     POST_FIRMWARE_UPDATE_DELAY,
     POST_FIRMWARE_UPLOAD_DELAY,
@@ -422,6 +423,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
     async def _wait_for_update(self) -> None:
         await self._client.wait_for_firmware_update()
 
+    @Sleep(after=POST_FIRMWARE_REFRESH_DELAY)
     async def _refresh_pdu_firmware_version(self) -> None:
         await self._client.refresh_pdu_firmware_version(self.pdu)
         device_registry = dr.async_get(self.hass)
