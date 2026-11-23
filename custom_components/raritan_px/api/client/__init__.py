@@ -67,7 +67,7 @@ from custom_components.raritan_px.api.client.errors import (
     UnauthorizedError,
     UnsupportedModelFirmwareError,
 )
-from custom_components.raritan_px.api.const import FIRMWARE_UPLOAD_TIMEOUT
+from custom_components.raritan_px.api.const import FIRMWARE_UPLOAD_TIMEOUT, PING_TIMEOUT
 from custom_components.raritan_px.api.model.device.pdu import RaritanPdu, RaritanPduSensors
 from custom_components.raritan_px.api.model.device.pdu.inlet import (
     RaritanPduInlet,
@@ -110,6 +110,7 @@ class RaritanClient:
     _REQUEST: Final[str] = "request"
     _FW_STATUS: Final[str] = "fw_status"
     _FW_UPLOAD: Final[str] = "fw_upload"
+    _PING: Final[str] = "ping"
     _AUTH_LOCK: Final[str] = "auth"
 
     _hass: HomeAssistant
@@ -210,6 +211,18 @@ class RaritanClient:
                 return await let.wrap(self._execute_json_rpc_call(request, *args))
 
             return await self._execute_json_rpc_call(request, *args)
+
+    async def ping(self, *, raise_exception: bool = False) -> bool:
+        """Ping the API to determine if it can be reached without timing out."""
+        try:
+            status = await self._get_firmware_update_status(self._connections.get(self._PING, timeout=PING_TIMEOUT))
+        except RequestTimeoutError:
+            if raise_exception:
+                raise
+
+            return False
+        else:
+            return bool(status.state in {"NONE", "SUCCESS", "FAIL"})
 
     async def authenticate(self, *, force_reauth: bool = False) -> None:
         """Authenticate with the Raritan API, using either an existing session token or username/password."""
@@ -952,18 +965,20 @@ class RaritanClient:
                 status=True, cache_for=FIRMWARE_UPDATE_PREVENT_CHECKS_AFTER_START_FOR
             )
 
-    @Retry(catch=RequestRefusedError, max_retries=8)
-    async def get_firmware_update_status(self) -> UpdateStatus:
-        """Get the current firmware update status."""
-        # Endpoint is always available and doesn't require authentication, but
-        # if invalid/expired credentials are supplied the request will fail
-        connection = self._connections.get(self._FW_STATUS)
+    async def _get_firmware_update_status(self, connection: Connection) -> UpdateStatus:
+        # Endpoint is always available and doesn't require authentication, but if invalid credentials
+        # or an expired session token are supplied the request will fail as unauthorised
         proxy: FirmwareUpdateStatus = connection.proxy(FirmwareUpdateStatus, "/cgi-bin/fwupdate_progress.cgi")
 
         async with connection.lock:
             status: UpdateStatus = await self._execute_json_rpc_call(proxy.getStatus)
 
         return status
+
+    @Retry(catch=(RequestRefusedError, RequestTimeoutError), max_retries=8)
+    async def get_firmware_update_status(self) -> UpdateStatus:
+        """Get the current firmware update status."""
+        return await self._get_firmware_update_status(self._connections.get(self._FW_STATUS))
 
     async def _check_firmware_update_progress(self) -> bool:
         status: UpdateStatus = await self.get_firmware_update_status()

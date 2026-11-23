@@ -26,7 +26,7 @@ class ConnectionDetails:
     port: int = DEFAULT_PORT
     use_ssl: bool = True
     verify_ssl: bool = True
-    timeout: int = API_TIMEOUT
+    timeout: float = API_TIMEOUT
 
     @property
     def protocol(self) -> str:
