@@ -93,7 +93,7 @@ class FirmwareCatalogue(BaseModel):
     advisories: list[Advisory] | None = Field(None, min_length=1)
 
     def get_available_firmware(self, model: str, current_version: str) -> list[Firmware]:
-        """Get the firmwares for a model that support upgrading from the specified version."""
+        """Get all firmwares for the specified model that support upgrading from the specified version."""
         if not self.supports_model(model):
             return []
 
@@ -103,10 +103,20 @@ class FirmwareCatalogue(BaseModel):
         return firmwares
 
     def get_latest_firmware(self, model: str, current_version: str) -> Firmware | None:
-        """Get the latest firmware for a model that supports upgrading from the specified version."""
+        """Get the latest firmware for the specified model that supports upgrading from the specified version."""
         firmwares = self.get_available_firmware(model, current_version)
 
         return next(iter(firmwares), None)
+
+    def get_firmware(self, version: str, model: str, current_version: str) -> Firmware | None:
+        """Get a specfic firmware for the specified model."""
+        desired = Firmware.normalise(version)
+
+        for firmware in self.get_available_firmware(model, current_version):
+            if desired == Firmware.normalise(firmware.version):
+                return firmware
+
+        return None
 
     def is_out_of_date(self, latest: str) -> bool:
         """Check if the catalogue is older than the specified version."""

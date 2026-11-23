@@ -8,26 +8,27 @@ from homeassistant.core import (
     ServiceCall,
     callback,
 )
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.raritan_px.const import DOMAIN
-from custom_components.raritan_px.firmware import FirmwareCatalogueManagerError
+from custom_components.raritan_px.firmware import FirmwareCatalogueError, FirmwareDownloadError, FirmwareManagerError
 from custom_components.raritan_px.firmware.const import CATALOGUE_MANAGER
 
 if TYPE_CHECKING:
     from custom_components.raritan_px.coordinator import RaritanPduConfigEntry
-    from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+    from custom_components.raritan_px.firmware import FirmwareManager
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
-    """Register the actions of the Example integration."""
+    """Register the actions for the Raritan PX integration."""
 
     async def async_update_catalogue(call: ServiceCall) -> None:  # noqa: ARG001
-        """Return the forecast for the coming days."""
-        manager: FirmwareCatalogueManager = hass.data[CATALOGUE_MANAGER]
+        """Update the firmware catalogue."""
+        manager: FirmwareManager = hass.data[CATALOGUE_MANAGER]
 
         try:
             await manager.get_catalogue(force_update=True)
@@ -46,11 +47,43 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
                     # Reenable the catalogue update check for future refreshes
                     config_entry.runtime_data.firmware_coordinator.catalogue_update_check = True
-        except FirmwareCatalogueManagerError:
+        except FirmwareCatalogueError:
             _LOGGER.exception("Unable to update firmware catalogue")
 
-    hass.services.async_register(
-        DOMAIN,
-        "update_firmware_catalogue",
-        async_update_catalogue,
-    )
+    async def async_download_latest_firmware(call: ServiceCall) -> None:  # noqa: ARG001
+        """Download the latest firmare for all configured PDUs."""
+        manager: FirmwareManager = hass.data[CATALOGUE_MANAGER]
+
+        try:
+            catalogue = await manager.get_catalogue(force_update=True)
+
+            config_entry: RaritanPduConfigEntry
+
+            for config_entry in hass.config_entries.async_entries(DOMAIN, include_ignore=False):
+                if config_entry.runtime_data:
+                    try:
+                        firmware = catalogue.get_latest_firmware(
+                            config_entry.runtime_data.pdu.model, config_entry.runtime_data.pdu.firmware_version
+                        )
+
+                        if firmware:
+                            await manager.download_firmware(firmware)
+                    except FirmwareDownloadError:
+                        _LOGGER.warning("Unable to downloade firmware", exc_info=True)
+        except FirmwareCatalogueError:
+            _LOGGER.exception("Unable to update firmware catalogue")
+
+    async def async_clear_firmware_downloads(call: ServiceCall) -> None:  # noqa: ARG001
+        """Clear all downloaded firmware zip/binary files."""
+        manager: FirmwareManager = hass.data[CATALOGUE_MANAGER]
+
+        try:
+            await manager.clear_downloaded_firmware()
+        except FirmwareManagerError:
+            _LOGGER.exception("Unable to clear downloaded firmware")
+
+    hass.services.async_register(DOMAIN, "update_firmware_catalogue", async_update_catalogue)
+
+    async_register_admin_service(hass, DOMAIN, "download_latest_firmware", async_download_latest_firmware)
+
+    async_register_admin_service(hass, DOMAIN, "clear_downloaded_firmware", async_clear_firmware_downloads)

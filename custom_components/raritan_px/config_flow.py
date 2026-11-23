@@ -33,14 +33,13 @@ from custom_components.raritan_px import (
     set_credentials,
 )
 from custom_components.raritan_px.api.client import (
-    AuthenticationDetails,
     AuthenticationError,
     CertificateVerificationError,
-    ConnectionDetails,
     RaritanClient,
-    RaritanClientError,
-    UpdateSensors,
 )
+from custom_components.raritan_px.api.client.const import UpdateSensors
+from custom_components.raritan_px.api.client.errors import RaritanClientError
+from custom_components.raritan_px.api.client.struct import AuthenticationDetails, ConnectionDetails
 from custom_components.raritan_px.api.const import DEFAULT_PORT
 from custom_components.raritan_px.const import (
     CONF_CONFIG_ENTRY_MINOR_VERSION,

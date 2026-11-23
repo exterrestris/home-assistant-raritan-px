@@ -30,13 +30,12 @@ from homeassistant.helpers import (
 from homeassistant.helpers.storage import Store
 
 from custom_components.raritan_px.api.client import (
-    AuthenticationDetails,
     AuthenticationError,
     CertificateVerificationError,
-    ConnectionDetails,
     RaritanClient,
-    RaritanClientError,
 )
+from custom_components.raritan_px.api.client.errors import RaritanClientError
+from custom_components.raritan_px.api.client.struct import AuthenticationDetails, ConnectionDetails
 from custom_components.raritan_px.api.const import (
     DEFAULT_PASSWORD,
     DEFAULT_PORT,
@@ -55,7 +54,7 @@ from custom_components.raritan_px.coordinator import (
     RaritanPduConfigEntry,
     RaritanPduData,
 )
-from custom_components.raritan_px.firmware import FirmwareCatalogueManager
+from custom_components.raritan_px.firmware import FirmwareManager
 from custom_components.raritan_px.firmware.const import (
     CATALOGUE_MANAGER,
     CATALOGUE_STORE,
@@ -80,7 +79,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
     hass.data.setdefault(DOMAIN, {})
 
     hass.data[CATALOGUE_STORE] = Store(hass, CATALOGUE_STORE_STORAGE_VERSION, CATALOGUE_STORE_STORAGE_KEY)
-    hass.data[CATALOGUE_MANAGER] = FirmwareCatalogueManager(hass)
+    hass.data[CATALOGUE_MANAGER] = FirmwareManager(hass)
 
     async_setup_services(hass)
 
