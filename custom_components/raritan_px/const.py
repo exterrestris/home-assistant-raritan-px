@@ -24,6 +24,7 @@ PLATFORMS: Final = [
 DEFAULT_API_UPDATE_INTERVAL = dt.timedelta(seconds=5)
 DEFAULT_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(hours=12)
 IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(seconds=2)
+POST_FIRMWARE_UPDATE_INTERVAL = dt.timedelta(seconds=10)
 DISCOVERY_INTERVAL = dt.timedelta(minutes=15)
 POST_FIRMWARE_DOWNLOAD_DELAY = dt.timedelta(seconds=5)
 POST_FIRMWARE_UPLOAD_DELAY = dt.timedelta(seconds=5)

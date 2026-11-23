@@ -27,6 +27,7 @@ from custom_components.raritan_px.const import (
     POST_FIRMWARE_REFRESH_DELAY,
     POST_FIRMWARE_START_DELAY,
     POST_FIRMWARE_UPDATE_DELAY,
+    POST_FIRMWARE_UPDATE_INTERVAL,
     POST_FIRMWARE_UPLOAD_DELAY,
 )
 from custom_components.raritan_px.utils.decorators import SetProperty, Sleep
@@ -105,6 +106,9 @@ class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
         self._default_interval = update_interval
 
     def _set_update_interval(self, update_interval: timedelta) -> None:
+        if self.update_interval == update_interval:
+            return
+
         self.update_interval = update_interval
         self._schedule_refresh()
 
@@ -306,6 +310,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
                 ) from ex
         else:
             self._bulk_set_progress()
+            self._reset_update_interval()
 
             try:
                 self.catalogue = await self._manager.get_catalogue(update_check=self.catalogue_update_check)
@@ -363,7 +368,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         finally:
             self._bulk_set_progress()
             await self.async_request_refresh()
-            self._reset_update_interval()
+            self._set_update_interval(POST_FIRMWARE_UPDATE_INTERVAL)
 
     async def _identify_firmware(self, fw_version: str | None) -> Firmware:
         if not self.catalogue:
