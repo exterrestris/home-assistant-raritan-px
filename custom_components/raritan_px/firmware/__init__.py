@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePath
 from shutil import rmtree
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from zipfile import ZipFile, ZipInfo
 
-from aiohttp import ClientError
+from aiohttp import ClientError, ClientResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pydantic import ValidationError
@@ -35,6 +37,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+type DownloadProgress = Callable[[int, int], None]
+
 
 class FirmwareManager:
     """Firmware manager."""
@@ -44,6 +48,9 @@ class FirmwareManager:
     _session: ClientSession | None = None
     _logger: logging.Logger = _LOGGER
     _tmp_dir: Path
+    _github_api_rate_limit: int | None = None
+    _github_api_rate_limit_remaining: int | None = None
+    _github_api_wait_until: datetime | None = None
 
     def __init__(
         self,
@@ -62,18 +69,26 @@ class FirmwareManager:
         """Get the firmware catalogue."""
         catalogue = await self._get_catalogue_from_store()
 
-        if catalogue and not force_update:
-            if not update_check:
-                return catalogue
+        try:
+            if catalogue and not force_update:
+                if not update_check:
+                    return catalogue
 
-            (latest, _) = await self._get_latest_version()
+                self._logger.debug("Checking for firmware catalogue update")
 
-            if not catalogue.is_out_of_date(latest):
-                return catalogue
+                (latest, _) = await self._get_latest_version()
 
-        catalogue = await self._download_latest_catalogue()
+                if not catalogue.is_out_of_date(latest):
+                    return catalogue
 
-        await self._save_catalogue_to_store(catalogue)
+            catalogue = await self._download_latest_catalogue()
+
+            await self._save_catalogue_to_store(catalogue)
+        except GitHubApiRateLimitExceededError:
+            if not catalogue:
+                raise
+
+            self._logger.warning("Unable to update firmware catalogue from GitHub due to rate limiting")
 
         return catalogue
 
@@ -109,11 +124,57 @@ class FirmwareManager:
 
         return self._session
 
+    def is_rate_limited(self) -> bool:
+        """Check if requests to the GitHub API are rate limited."""
+        return self._github_api_wait_until is not None
+
+    def _check_rate_limit(self) -> None:
+        if self._github_api_wait_until is None:
+            return
+
+        if datetime.now(UTC) > self._github_api_wait_until + timedelta(seconds=10):
+            self._github_api_wait_until = None
+            return
+
+        raise GitHubApiRateLimitExceededError(self._github_api_rate_limit, self._github_api_wait_until)
+
+    def _update_rate_limit(self, response: ClientResponse) -> None:
+        rate_limit = response.headers.getone("X-RateLimit-Limit", None)
+        remaining = response.headers.getone("X-RateLimit-Remaining", None)
+        reset_timestamp = response.headers.getone("X-RateLimit-Reset", None)
+        retry_after = response.headers.getone("Retry-After", None)
+
+        match response.status:
+            case 403, 429:
+                if retry_after:
+                    self._github_api_wait_until = datetime.now(UTC) + timedelta(seconds=int(retry_after))
+                elif reset_timestamp:
+                    self._github_api_wait_until = datetime.fromtimestamp(int(reset_timestamp), UTC)
+                else:
+                    self._github_api_wait_until = datetime.now(UTC) + timedelta(minutes=10)
+
+                raise GitHubApiRateLimitExceededError(
+                    int(rate_limit) if rate_limit else None,
+                    self._github_api_wait_until,
+                )
+            case _:
+                self._github_api_wait_until = None
+
+                if rate_limit:
+                    self._github_api_rate_limit = int(rate_limit)
+
+                if remaining:
+                    self._github_api_rate_limit_remaining = int(remaining)
+
     async def _get_latest_version(self) -> tuple[str, dict]:
+        self._check_rate_limit()
+
         session = self._get_session()
 
         try:
             async with session.get(CATALOGUE_URL) as response:
+                self._update_rate_limit(response)
+
                 release = await response.json()
 
                 if release.get("tag_name"):
@@ -135,6 +196,8 @@ class FirmwareManager:
         raise ReleaseParseError
 
     async def _download_latest_catalogue(self) -> FirmwareCatalogue:
+        self._check_rate_limit()
+
         session = self._get_session()
 
         self._logger.info("Downloading latest firmware catalogue")
@@ -143,6 +206,8 @@ class FirmwareManager:
 
         try:
             async with session.get(url, headers={"Accept": "application/octet-stream"}) as response:
+                self._update_rate_limit(response)
+
                 json = await response.text()
 
                 return self._parse_catalogue(json)
@@ -157,9 +222,11 @@ class FirmwareManager:
 
             raise CatalogueParseError from err
 
-    async def download_firmware(self, firmware: Firmware) -> Path:
+    async def download_firmware(
+        self, firmware: Firmware, *, callback: DownloadProgress | None = None
+    ) -> tuple[Path, int]:
         """Download the specified firmware and return the path to the file."""
-        fw_zip = await self._download_firmware(firmware)
+        fw_zip = await self._download_firmware(firmware, callback)
         return await self._extract_firmware(fw_zip, self._get_tmp_dir(firmware))
 
     def _get_path(self, firmware: Firmware) -> PurePath:
@@ -174,7 +241,7 @@ class FirmwareManager:
     def _get_tmp_zip(self, firmware: Firmware) -> Path:
         return self._get_tmp_dir(firmware) / self._get_path(firmware).name
 
-    async def _download_firmware(self, firmware: Firmware) -> Path:
+    async def _download_firmware(self, firmware: Firmware, callback: DownloadProgress | None) -> Path:
         def _create_dir(path: Path) -> None:
             if path.exists():
                 # Clear any existing file/directory
@@ -189,17 +256,24 @@ class FirmwareManager:
         await self._hass.async_add_executor_job(_create_dir, tmp_dir)
 
         try:
-            async with session.get(str(firmware.firmware_url)) as response:
+            async with session.get(str(firmware.firmware_url), raise_for_status=True) as response:
+                total_bytes = int(response.headers.get("Content-Length", 0))
+                downloaded = 0
+
                 with await self._hass.async_add_executor_job(file.open, "wb") as fd:
                     async for chunk in response.content.iter_chunked(DOWNLOAD_CHUNK):
                         await self._hass.async_add_executor_job(fd.write, chunk)
+
+                        if total_bytes and callback:
+                            downloaded += len(chunk)
+                            callback(downloaded, total_bytes)
 
                 self._logger.info("Downloaded firmware zip from %s", str(firmware.firmware_url))
                 return file
         except ClientError as err:
             raise FirmwareArchiveDownloadError from err
 
-    async def _extract_firmware(self, fw_zip: Path, extract_to: Path) -> Path:
+    async def _extract_firmware(self, fw_zip: Path, extract_to: Path) -> tuple[Path, int]:
         def _validate_zip(zip_file: ZipFile) -> ZipInfo:
             # Validate zip contents to protect against zip bombs (see: https://github.com/python/cpython/issues/80643)
             # and check for presence of one and only one firmware binary
@@ -230,16 +304,16 @@ class FirmwareManager:
             msg = "No firmware binary found in firmware zip"
             raise ValueError(msg)
 
-        def _process_zip() -> Path:
+        def _process_zip() -> tuple[Path, int]:
             with ZipFile(fw_zip) as zip_file:
                 fw_info = _validate_zip(zip_file)
                 fw_bin = extract_to / fw_info.filename
 
                 zip_file.extract(fw_info, fw_bin)
 
-                self._logger.debug("Extracted %s from firmware zip", fw_bin.name)
+                self._logger.info("Extracted %s from firmware zip", fw_bin.name)
 
-                return fw_bin
+                return (fw_bin, fw_info.file_size)
 
         try:
             return await self._hass.async_add_executor_job(_process_zip)
@@ -273,6 +347,23 @@ class HttpClientError(FirmwareManagerError):
 
 class GitHubApiError(FirmwareCatalogueError):
     """Raised when a generic error occurs communicating with or handling response data from the GitHub API."""
+
+
+class GitHubApiRateLimitExceededError(FirmwareCatalogueError):
+    """Raised when requests to the GitHub API are being rate limited."""
+
+    limit: int | None
+    reset: datetime | None
+
+    def __init__(self, limit: int | None, reset: datetime | None) -> None:
+        """Init the exception."""
+        super().__init__()
+        self.limit = limit
+        self.reset = reset
+
+    def __reduce__(self) -> str | tuple[Any, ...]:
+        """Allow pickling the exception."""
+        return (GitHubApiRateLimitExceededError, (self.limit, self.reset))
 
 
 class GitHubApiParseError(GitHubApiError, ParseError):
