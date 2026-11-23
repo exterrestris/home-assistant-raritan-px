@@ -87,8 +87,8 @@ class Connection:
 
     def clear_session_data(self) -> None:
         """Clear session data for this connection."""
-        self._session_token = None
-        self._session_created = None
+        self.session_token = None
+        self.session_created = None
 
 
 class ConnectionManager(Manager[Connection]):
