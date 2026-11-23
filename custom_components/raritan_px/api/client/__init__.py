@@ -949,7 +949,7 @@ class RaritanClient:
             await self._execute_request(proxy.discardImage)
             raise
         else:
-            await self._execute_request(proxy.startUpdate)
+            await self._execute_request(proxy.startUpdate, [])
 
             self._firmware_update_in_progress = True
 
