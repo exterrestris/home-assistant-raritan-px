@@ -62,7 +62,7 @@ PDUs made by other brands that also run Xerus `4.3.0` or greater (such as [Serve
 
 ## Installation
 
-This integration is included in the default catalogue for [Home Assistant Marketplace](https://www.home-assistant.io/integrations/marketplace/)[^2]. Click the button below to open this repository in your Home Assistant instance, then click install
+This integration is included in the default catalogue for [Home Assistant Marketplace](https://www.home-assistant.io/integrations/marketplace/)[^2]. Click the button below to open this repository in your Home Assistant instance, then click Install
 
 [^2]: Previously [HACS](https://github.com/hacs/integration) prior to Home Assistant 2026.11
 
@@ -72,7 +72,6 @@ This integration is included in the default catalogue for [Home Assistant Market
 > [!NOTE]
 > If you have not previosly opened the Marketplace, you will be warned that Marketplace content is not supported by the Home Assistant project. Before you can install any Marketplace content, you will need to understand and accept that warning
 
-> [!WARNING]
 > [!WARNING]
 > If you are not comfortable with installing integrations that are not supported by the Home Assistant project, then **do not** install this integration
 
