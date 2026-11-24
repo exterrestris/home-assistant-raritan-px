@@ -392,6 +392,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
             translation_key = "firmware_model_not_supported"
             translation_placeholders = {
+                "pdu": self.pdu.device_name,
                 "model": self.pdu.model,
                 "version": fw_version,
             }
@@ -403,28 +404,39 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
 
             translation_key = "firmware_is_latest"
             translation_placeholders = {
-                "model": self.pdu.model,
-                "version": self.pdu.firmware_version,
+                "pdu": self.pdu.device_name,
+                "version": str(pdu_version),
             }
 
-        if not firmware:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key=translation_key,
-                translation_placeholders=translation_placeholders,
-            )
+        if firmware:
+            if firmware.is_newer_than(pdu_version):
+                if firmware.can_upgrade_from(pdu_version):
+                    return firmware
 
-        if firmware.can_upgrade_from(pdu_version):
-            return firmware
+                translation_key="firmware_cannot_upgrade"
+                translation_placeholders={
+                    "version": str(firmware.version),
+                    "pdu": self.pdu.device_name,
+                    "pdu_version": str(pdu_version),
+                }
+            elif firmware.version == pdu_version:
+                translation_key = "firmware_is_installed"
+                translation_placeholders = {
+                    "pdu": self.pdu.device_name,
+                    "version": str(pdu_version),
+                }
+            else:
+                translation_key = "firmware_older_than_current"
+                translation_placeholders = {
+                    "version": str(firmware.version),
+                    "pdu": self.pdu.device_name,
+                    "pdu_version": str(pdu_version),
+                }
 
         raise HomeAssistantError(
             translation_domain=DOMAIN,
-            translation_key="",
-            translation_placeholders={
-                "version": str(firmware.version),
-                "pdu": self.pdu.device_name,
-                "pdu_version": self.pdu.firmware_version,
-            },
+            translation_key=translation_key,
+            translation_placeholders=translation_placeholders,
         )
 
     async def _clear_uploaded_firmware(self, *, raise_on_error: bool = False) -> None:
