@@ -83,13 +83,9 @@ This integration is included in the default catalogue for [Home Assistant Market
 
 2. Click [Add integration](https://my.home-assistant.io/redirect/config_flow_start/?domain=raritan_px)
 
-3. Search for and select "Raritan PX-Series PDU":
-
-   ![Screenshot of the Home Assistant "Set up a new integration" dialog.](./imgs/add-integration-search.png)
+3. Search for and select "Raritan PX-Series PDU"
 
 4. Enter the connection details for your Raritan PDU:
-
-   ![Screenshot of the Raritan PX-Series PDU device setup dialog.](./imgs/setup-connection-details.png)
 
 5. Your PDU will then be visible in Home Assistant!
 
@@ -135,3 +131,6 @@ To install firmware updates, the user that Home Assistant uses to connect to you
 
 ### Overcurrent Protector
 ![Screenshot of a Raritan PX-Series PDU Overcurrent Protector in Home Assistant](./imgs/ocp-device.png)
+
+### Configuration
+![Screenshot of the Raritan PX-Series PDU device setup/reconfigure dialog.](./imgs/setup-connection-details.png)
