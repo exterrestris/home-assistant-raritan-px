@@ -36,6 +36,11 @@ Any PX-Series (`PX2`/`PX3`/`PX4`/`PXO`/`PXC`) PDU running Xerus `4.3.11` or grea
 > However, updating your PDU's firmware to the latest available version is recommended
 
 > [!NOTE]
+> Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
+>
+> PX-Series PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
+>
+> PDUs made by other brands that also run Xerus 4.3.0 or greater (such as [Server Technology](https://www.servertech.com/) PRO4X PDUs) _may_ also work but are untested
 > PX-Series PDUs running Xerus `4.0.10` or greater _should_ work, but some features may not function correctly if the API had breaking changes
 
 > [!WARNING]
@@ -60,11 +65,13 @@ This integration is included in the default catalogue for [Home Assistant Market
 
 [^2]: Previously [HACS](https://github.com/hacs/integration) prior to Home Assistant 2026.11
 
+
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=exterrestris&repository=home-assistant-raritan-px&category=integration)
 
 > [!NOTE]
 > If you have not previosly opened the Marketplace, you will be warned that Marketplace content is not supported by the Home Assistant project. Before you can install any Marketplace content, you will need to understand and accept that warning
 
+> [!WARNING]
 > [!WARNING]
 > If you are not comfortable with installing integrations that are not supported by the Home Assistant project, then **do not** install this integration
 
@@ -124,3 +131,6 @@ To install firmware updates, the user that Home Assistant uses to connect to you
 
 ### Outlet
 ![Screenshot of a Raritan PX-Series PDU Outlet in Home Assistant](./imgs/outlet-device.png)
+
+### Overcurrent Protector
+![Screenshot of a Raritan PX-Series PDU Overcurrent Protector in Home Assistant](./imgs/ocp-device.png)
