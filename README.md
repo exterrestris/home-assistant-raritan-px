@@ -14,10 +14,11 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
   * Supported at PDU, inlet, outlet and overcurrent protector levels
 * Outlet switching
 * Network status
-* Firmware updates[^3]
+* Firmware updates[^6][^3]
 
 [^1]: Current, Voltage, Line Frequency, Power, Energy, etc.
-[^3]: The list of available firmware updates is supplied by [dedicated catalogue](https://github.com/exterrestris/ha-raritan-px-firmware) for this integration
+[^6]: Firmware updates are supported for Raritan PX2, PX3, PXO & PXC models.
+[^3]: The list of available firmware updates is supplied from a [dedicated catalogue](https://github.com/exterrestris/ha-raritan-px-firmware) for this integration
 
 > [!TIP]
 > The specific features and sensors exposed to Home Assistant depend on the functionality supported by your PDU.
@@ -36,11 +37,11 @@ Any PX-Series (`PX2`/`PX3`/`PX4`/`PXO`/`PXC`) PDU running Xerus `4.3.11` or grea
 > However, updating your PDU's firmware to the latest available version is recommended
 
 > [!NOTE]
-> Whilst any PX-Series PDU running Xerus 4.3.0 or greater _should_ work without problems, I can only test with the PDUs I own.
+> Whilst any PX-Series PDU running Xerus `4.3.0` or greater _should_ work, I can only test with the PDUs I own. A list of [known working devices](#known-working-devices) is provided below
 >
-> PX-Series PDUs running Xerus 4.0.10 or greater _may_ work, but I have not checked the API changelog for breaking changes.
+> PX-Series PDUs running Xerus `4.0.10` or greater _may_ work, but I have not checked the API changelog for breaking changes.
 >
-> PDUs made by other brands that also run Xerus 4.3.0 or greater (such as [Server Technology](https://www.servertech.com/) PRO4X PDUs) _may_ also work but are untested
+> PDUs made by other brands that also run Xerus `4.3.0` or greater (such as [Server Technology](https://www.servertech.com/) PRO4X PDUs) _may_ also work but are untested
 > PX-Series PDUs running Xerus `4.0.10` or greater _should_ work, but some features may not function correctly if the API had breaking changes
 
 > [!WARNING]
@@ -113,7 +114,7 @@ Outlet switching support is PDU specific. If your PDU supports outlet switching,
 Names are currently only updated when the integration first loads. Reloading the integration for the PDU will update the names in Home Assistant
 
 #### How will I know if my PDU has a firmware update available?
-Firmware updates are exposed via the standard Home Assistant update mechanism. If a new firmware update is available[^4] and can be installed on your PDU[^5], then the update will show up automatically
+Firmware updates for supported models[^6] are exposed via the standard Home Assistant update mechanism. If a new firmware update is available[^4] and can be installed on your PDU[^5], then the update will show up automatically
 
 [^4]: Only firmware versions that apply to your PDU's model & product family, and that have a higher version than the firmware currently installed on your PDU are considered updates
 [^5]: Depending on the existing firmware version on your PDU, it may not be possible to upgrade directly to certain firmware versions. In this case, the highest available firmware that supports upgrading from your current firmware will be shown as the available update. Once installed, any newer firmware versions that apply to your PDU will be automatically offered for installation.
