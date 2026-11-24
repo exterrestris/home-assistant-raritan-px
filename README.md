@@ -43,10 +43,10 @@ Any PX-Series (`PX2`/`PX3`/`PX4`/`PXO`/`PXC`) PDU running Xerus `4.3.11` or grea
 
 ### Known Working Devices
 
-- [Raritan PX3-5190R](https://www.raritan.com/product-selector/pdu-detail/px3-5190r) (@exterrestris)
-- [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8) (@exterrestris)
 - [Raritan PX3-5145R](https://www.raritan.com/product-selector/pdu-detail/px3-5145r)
+- [Raritan PX3-5190R](https://www.raritan.com/product-selector/pdu-detail/px3-5190r) (@exterrestris)
 - [Raritan PX3-5260R](https://www.raritan.com/product-selector/pdu-detail/px3-5260r)
+- [Raritan PX3-5260V-F8](https://www.raritan.com/product-selector/pdu-detail/px3-5260v-f8) (@exterrestris)
 
 
 ### Non-Raritan PDUs
