@@ -8,6 +8,11 @@ get_available_firmware:
       selector:
         boolean:
       required: True
+    current:
+      selector:
+        boolean:
+      required: True
+      default: True
 
 download_latest_firmware:
 

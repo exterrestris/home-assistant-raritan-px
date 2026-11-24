@@ -5,6 +5,8 @@ from asyncio import Lock
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, override
 
+from packaging.version import Version
+
 if TYPE_CHECKING:
     from collections.abc import Coroutine
 
@@ -62,3 +64,13 @@ class LockManager(Manager[Lock]):
 def seconds(duration: float | timedelta) -> float:
     """Convert a duration to a number of seconds."""
     return duration.total_seconds() if isinstance(duration, timedelta) else duration
+
+
+def normalise_version(version: str | Version, *, segments: int = 3) -> Version:
+    """Strip build information from version string."""
+    if isinstance(version, Version):
+        return version
+
+    v = Version(version)
+    v = (*v.release, *(((0),) * 3))[:segments]
+    return Version(".".join(map(str, v)))

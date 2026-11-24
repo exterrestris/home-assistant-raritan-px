@@ -186,10 +186,19 @@
       "message": "Firmware update failed: {exc}"
     },
     "firmware_model_not_supported": {
-      "message": "Firmware {version} does not exist or does not support {model}"
+      "message": "Firmware {version} does not exist or does not support {pdu} model {model}"
     },
     "firmware_is_latest": {
-      "message": "Current firmware {version} is the latest firmware for {model}"
+      "message": "The latest firmware ({version}) is already installed on {pdu}"
+    },
+    "firmware_is_installed": {
+      "message": "Firmware {version} is already insalled on {pdu}"
+    },
+    "firmware_older_than_current": {
+      "message": "Firmware {version} is older than the curent firmware on {pdu} ({pdu_version})"
+    },
+    "firmware_cannot_upgrade": {
+      "message": "Firmware {version} does not support upgrading from the curent firmware on {pdu} ({pdu_version})"
     }
   },
   "services": {
@@ -204,6 +213,10 @@
         "verbose": {
           "description": "If enabled, then output all information about the firmware available in the catalogue, otherwise just output the version number.",
           "name": "Include full firmware information"
+        },
+        "current": {
+          "description": "If enabled, then include the firmware version currently installed in the output.",
+          "name": "Include currently installed firmware"
         }
       }
     },
@@ -212,8 +225,8 @@
       "description": "Updates the firmware catalogue used to determine if firmware updates are available for Raritan PDUs"
     },
     "download_latest_firmware": {
-      "name": "Downloaded latest Xerus firmware",
-      "description": "Downloads the latest suitable firmware for each configured Raritan PDU for later installation"
+      "name": "Download latest Xerus firmware",
+      "description": "If updated suitable firmware is available for any configured Raritan PDU, downloads it for later installation"
     },
     "clear_downloaded_firmware": {
       "name": "Clear downloaded Xerus firmware",
