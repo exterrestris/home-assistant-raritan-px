@@ -89,7 +89,7 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
         self._attr_installed_version = str(Firmware.normalise(self._device.firmware_version))
 
         if self.coordinator.latest_firmware:
-            self._attr_latest_version = self.coordinator.latest_firmware.version
+            self._attr_latest_version = str(self.coordinator.latest_firmware.version)
 
             if self.coordinator.latest_firmware.release_notes_url:
                 self._attr_release_url = str(self.coordinator.latest_firmware.release_notes_url)
