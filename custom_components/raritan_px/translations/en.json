@@ -190,6 +190,9 @@
     },
     "firmware_is_latest": {
       "message": "Current firmware {version} is the latest firmware for {model}"
+    },
+    "firmware_is_outdated": {
+      "message": "Firmware {version} is older than the curent firmware for {pdu} ({pdu_version})"
     }
   },
   "services": {
@@ -204,6 +207,10 @@
         "verbose": {
           "description": "If enabled, then output all information about the firmware available in the catalogue, otherwise just output the version number.",
           "name": "Include full firmware information"
+        },
+        "current": {
+          "description": "If enabled, then include the firmware version currently installed in the output.",
+          "name": "Include currently installed firmware"
         }
       }
     },
@@ -212,8 +219,8 @@
       "description": "Updates the firmware catalogue used to determine if firmware updates are available for Raritan PDUs"
     },
     "download_latest_firmware": {
-      "name": "Downloaded latest Xerus firmware",
-      "description": "Downloads the latest suitable firmware for each configured Raritan PDU for later installation"
+      "name": "Download latest Xerus firmware",
+      "description": "If updated suitable firmware is available for any configured Raritan PDU, downloads it for later installation"
     },
     "clear_downloaded_firmware": {
       "name": "Clear downloaded Xerus firmware",

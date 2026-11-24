@@ -99,12 +99,6 @@ class RaritanPduFirmwareUpdateEntity(RaritanPduUpdateEntity):
 
         return True
 
-    @property
-    @override
-    def latest_version(self) -> str | None:
-        """Latest version available for install."""
-        return self._attr_latest_version if self.coordinator.latest_firmware else self._attr_installed_version
-
     @override
     async def async_install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
         """Install an update."""

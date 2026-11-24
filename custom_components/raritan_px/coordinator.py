@@ -32,6 +32,7 @@ from custom_components.raritan_px.const import (
     POST_FIRMWARE_UPLOAD_DELAY,
 )
 from custom_components.raritan_px.firmware.const import CATALOGUE_UPDATE_CHECK_AFTER
+from custom_components.raritan_px.firmware.model import Firmware
 from custom_components.raritan_px.utils.decorators import SetProperty, Sleep
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
     from custom_components.raritan_px.firmware import FirmwareManager
-    from custom_components.raritan_px.firmware.model import Firmware, FirmwareCatalogue
+    from custom_components.raritan_px.firmware.model import FirmwareCatalogue
 
 
 @dataclass(slots=True)
@@ -324,7 +325,9 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             try:
                 self.catalogue = await self._manager.get_catalogue(update_check=self.catalogue_update_check)
 
-                self.latest_firmware = self.catalogue.get_latest_firmware(self.pdu.model, self.pdu.firmware_version)
+                self.latest_firmware = self.catalogue.get_latest_firmware(
+                    self.pdu.model, current_firmware=self.pdu.firmware_version
+                )
 
                 # Ensure subsequent data updates check for a catalogue update
                 self.catalogue_update_check = CATALOGUE_UPDATE_CHECK_AFTER
@@ -382,8 +385,10 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
         if not self.catalogue:
             self.catalogue = await self._manager.get_catalogue()
 
+        pdu_version = Firmware.normalise(self.pdu.firmware_version)
+
         if fw_version:
-            firmware = self.catalogue.get_firmware(fw_version, self.pdu.model, self.pdu.firmware_version)
+            firmware = self.catalogue.get_firmware(fw_version, self.pdu.model)
 
             translation_key = "firmware_model_not_supported"
             translation_placeholders = {
@@ -392,7 +397,7 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
             }
         else:
             if not self.latest_firmware:
-                self.latest_firmware = self.catalogue.get_latest_firmware(self.pdu.model, self.pdu.firmware_version)
+                self.latest_firmware = self.catalogue.get_latest_firmware(self.pdu.model, current_firmware=pdu_version)
 
             firmware = self.latest_firmware
 
@@ -409,7 +414,18 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
                 translation_placeholders=translation_placeholders,
             )
 
-        return firmware
+        if firmware.can_upgrade_from(pdu_version):
+            return firmware
+
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="",
+            translation_placeholders={
+                "version": str(firmware.version),
+                "pdu": self.pdu.device_name,
+                "pdu_version": self.pdu.firmware_version,
+            },
+        )
 
     async def _clear_uploaded_firmware(self, *, raise_on_error: bool = False) -> None:
         try:

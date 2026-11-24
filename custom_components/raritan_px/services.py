@@ -25,9 +25,11 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 _GET_AVAILABLE_FIRMWARE_ARGS_VERBOSE: Final[str] = "verbose"
+_GET_AVAILABLE_FIRMWARE_ARGS_INC_CURRENT: Final[str] = "current"
 _GET_AVAILABLE_FIRMWARE_SCHEMA: Final[vol.Schema] = vol.Schema(
     {
         vol.Required(_GET_AVAILABLE_FIRMWARE_ARGS_VERBOSE): bool,
+        vol.Required(_GET_AVAILABLE_FIRMWARE_ARGS_INC_CURRENT): bool,
     }
 )
 
@@ -88,7 +90,11 @@ async def _async_get_available_firmware(call: ServiceCall) -> dict[str, Any]:
         if config_entry.runtime_data:
             pdu = config_entry.runtime_data.pdu
 
-            firmwares = catalogue.get_available_firmware(pdu.model, pdu.firmware_version)
+            firmwares = catalogue.get_available_firmware(
+                pdu.model,
+                current_firmware=pdu.firmware_version,
+                include_current=call.data.get(_GET_AVAILABLE_FIRMWARE_ARGS_INC_CURRENT, True),
+            )
 
             data["devices"][pdu.device_name] = {
                 "model": pdu.model,
@@ -112,7 +118,9 @@ async def _async_download_latest_firmware(call: ServiceCall) -> None:
             if config_entry.runtime_data:
                 try:
                     firmware = catalogue.get_latest_firmware(
-                        config_entry.runtime_data.pdu.model, config_entry.runtime_data.pdu.firmware_version
+                        config_entry.runtime_data.pdu.model,
+                        current_firmware=config_entry.runtime_data.pdu.firmware_version,
+                        include_current=False,
                     )
 
                     if firmware:

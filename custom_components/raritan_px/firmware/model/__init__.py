@@ -48,23 +48,23 @@ class Firmware(BaseModel):
     min_prev_version: VersionType | None = None
     unsupported_models: list[str] | None = Field(None, min_length=1)
 
-    def supports(self, device: Product | str, version: str | None = None) -> bool:
+    def supports(self, device: Product | str, version: str | Version | None = None) -> bool:
         """Check if this firmware supports the specified device, with optional additional version check."""
-        product = device if isinstance(device, Product) else Product.from_model(device)
+        if not isinstance(device, Product):
+            if self.unsupported_models and device not in self.unsupported_models:
+                return False
 
-        if product in self.products:
-            if version is not None:
-                return self.can_upgrade_from(version)
+            product = Product.from_model(device)
+        else:
+            product = device
 
-            return True
+        return product in self.products and (version is None or self.can_upgrade_from(version))
 
-        return False
-
-    def is_newer_than(self, version: str) -> bool:
+    def is_newer_than(self, version: str | Version) -> bool:
         """Check if this firmware is newer than the specified version."""
         return self.normalise(version) < self.version
 
-    def can_upgrade_from(self, version: str) -> bool:
+    def can_upgrade_from(self, version: str | Version) -> bool:
         """Check if this firmware can upgrade from the specified version."""
         if self.is_newer_than(version):
             return self.min_prev_version is None or self.normalise(version) >= self.min_prev_version
@@ -94,28 +94,51 @@ class FirmwareCatalogue(BaseModel):
     firmwares: list[Firmware] = Field(..., description="", min_length=1)
     advisories: list[Advisory] | None = Field(None, min_length=1)
 
-    def get_available_firmware(self, model: str, current_version: str) -> list[Firmware]:
+    def get_available_firmware(
+        self,
+        model: str,
+        *,
+        current_firmware: str | Version | None = None,
+        include_current: bool = True,
+    ) -> list[Firmware]:
         """Get all firmwares for the specified model that support upgrading from the specified version."""
         if not self.supports_model(model):
             return []
 
-        firmwares = [firmware for firmware in self.firmwares if firmware.supports(model, current_version)]
+        firmwares = [firmware for firmware in self.firmwares if firmware.supports(model)]
         firmwares.sort(key=lambda firmware: firmware.version, reverse=True)
+
+        if current_firmware:
+            min_version = Firmware.normalise(current_firmware)
+
+            firmwares = [
+                firmware
+                for firmware in firmwares
+                if firmware.can_upgrade_from(min_version) or (include_current and min_version == firmware.version)
+            ]
 
         return firmwares
 
-    def get_latest_firmware(self, model: str, current_version: str) -> Firmware | None:
+    def get_latest_firmware(
+        self,
+        model: str,
+        *,
+        current_firmware: str | Version | None = None,
+        include_current: bool = True,
+    ) -> Firmware | None:
         """Get the latest firmware for the specified model that supports upgrading from the specified version."""
-        firmwares = self.get_available_firmware(model, current_version)
+        firmwares = self.get_available_firmware(
+            model, current_firmware=current_firmware, include_current=include_current
+        )
 
         return next(iter(firmwares), None)
 
-    def get_firmware(self, version: str, model: str, current_version: str) -> Firmware | None:
+    def get_firmware(self, version: str, model: str) -> Firmware | None:
         """Get a specfic firmware for the specified model."""
         desired = Firmware.normalise(version)
 
-        for firmware in self.get_available_firmware(model, current_version):
-            if desired == firmware.version:
+        for firmware in self.get_available_firmware(model):
+            if desired == Firmware.normalise(firmware.version):
                 return firmware
 
         return None
@@ -127,14 +150,13 @@ class FirmwareCatalogue(BaseModel):
     def supports_model(self, model: str) -> bool:
         """Check if the catalogue can provide firmware for the specified model."""
         try:
-            product = Product.from_model(model)
-
-            if self.products:
-                return product in self.products
+            return self.supports_product(Product.from_model(model))
         except ValueError:
             return False
-        else:
-            return True
+
+    def supports_product(self, product: Product) -> bool:
+        """Check if the catalogue can provide firmware for the specified model."""
+        return product in self.products if self.products else True
 
     @staticmethod
     def normalise(version: str | Version) -> Version:
