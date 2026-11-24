@@ -7,6 +7,10 @@ from enum import StrEnum, unique
 from packaging.version import Version
 from pydantic import BaseModel, Field, HttpUrl
 
+# Used for parsing by Pydantic so cannot be in a type checking block
+from custom_components.raritan_px.firmware.model.types import Version as VersionType  # noqa: TC001
+from custom_components.raritan_px.utils import normalise_version
+
 
 @unique
 class Product(StrEnum):
@@ -36,12 +40,12 @@ class Product(StrEnum):
 class Firmware(BaseModel):
     """Firmware."""
 
-    version: str
+    version: VersionType
     firmware_url: HttpUrl
     products: list[Product] = Field(..., min_length=1)
     support_url: HttpUrl | None = None
     release_notes_url: HttpUrl | None = None
-    min_prev_version: str | None = None
+    min_prev_version: VersionType | None = None
     unsupported_models: list[str] | None = Field(None, min_length=1)
 
     def supports(self, device: Product | str, version: str | None = None) -> bool:
@@ -58,21 +62,19 @@ class Firmware(BaseModel):
 
     def is_newer_than(self, version: str) -> bool:
         """Check if this firmware is newer than the specified version."""
-        return self.normalise(version) < self.normalise(self.version)
+        return self.normalise(version) < self.version
 
     def can_upgrade_from(self, version: str) -> bool:
         """Check if this firmware can upgrade from the specified version."""
         if self.is_newer_than(version):
-            return self.min_prev_version is None or self.normalise(version) >= self.normalise(self.min_prev_version)
+            return self.min_prev_version is None or self.normalise(version) >= self.min_prev_version
 
         return False
 
     @staticmethod
-    def normalise(version: str) -> Version:
+    def normalise(version: str | Version) -> Version:
         """Strip build information from version string."""
-        v = Version(version)
-        v = (*v.release, 0, 0, 0)[:3]
-        return Version(".".join(map(str, v)))
+        return normalise_version(version)
 
 
 class Advisory(BaseModel):
@@ -87,7 +89,7 @@ class Advisory(BaseModel):
 class FirmwareCatalogue(BaseModel):
     """Firmware Catalogue."""
 
-    version: str
+    version: VersionType
     products: list[Product] | None = Field(None, min_length=1)
     firmwares: list[Firmware] = Field(..., description="", min_length=1)
     advisories: list[Advisory] | None = Field(None, min_length=1)
@@ -98,7 +100,7 @@ class FirmwareCatalogue(BaseModel):
             return []
 
         firmwares = [firmware for firmware in self.firmwares if firmware.supports(model, current_version)]
-        firmwares.sort(key=lambda firmware: Version(firmware.version), reverse=True)
+        firmwares.sort(key=lambda firmware: firmware.version, reverse=True)
 
         return firmwares
 
@@ -113,14 +115,14 @@ class FirmwareCatalogue(BaseModel):
         desired = Firmware.normalise(version)
 
         for firmware in self.get_available_firmware(model, current_version):
-            if desired == Firmware.normalise(firmware.version):
+            if desired == firmware.version:
                 return firmware
 
         return None
 
     def is_out_of_date(self, latest: str) -> bool:
         """Check if the catalogue is older than the specified version."""
-        return Version(latest) > Version(self.version)
+        return Version(latest) > self.version
 
     def supports_model(self, model: str) -> bool:
         """Check if the catalogue can provide firmware for the specified model."""
@@ -133,3 +135,8 @@ class FirmwareCatalogue(BaseModel):
             return False
         else:
             return True
+
+    @staticmethod
+    def normalise(version: str | Version) -> Version:
+        """Strip build information from version string."""
+        return normalise_version(version, segments=4)

@@ -74,13 +74,13 @@ async def _async_get_available_firmware(call: ServiceCall) -> dict[str, Any]:
         if call.data.get(_GET_AVAILABLE_FIRMWARE_ARGS_VERBOSE):
             return firmware.model_dump(mode="json")
 
-        return firmware.version
+        return str(firmware.version)
 
     manager: FirmwareManager = call.hass.data[CATALOGUE_MANAGER]
 
     catalogue = await manager.get_catalogue()
 
-    data = {"catalogue": catalogue.version, "devices": {}}
+    data = {"catalogue": str(catalogue.version), "devices": {}}
 
     config_entry: RaritanPduConfigEntry
 
