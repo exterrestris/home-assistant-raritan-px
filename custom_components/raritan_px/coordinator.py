@@ -413,8 +413,8 @@ class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
                 if firmware.can_upgrade_from(pdu_version):
                     return firmware
 
-                translation_key="firmware_cannot_upgrade"
-                translation_placeholders={
+                translation_key = "firmware_cannot_upgrade"
+                translation_placeholders = {
                     "version": str(firmware.version),
                     "pdu": self.pdu.device_name,
                     "pdu_version": str(pdu_version),
