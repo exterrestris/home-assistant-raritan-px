@@ -87,8 +87,8 @@ from custom_components.raritan_px.api.model.network import (
     NetworkInterfaceType,
 )
 from custom_components.raritan_px.api.model.user import Privilege, RaritanUser
-from custom_components.raritan_px.utils import LockManager
 from custom_components.raritan_px.utils.decorators import LogExecutionTime
+from custom_components.raritan_px.utils.managers import LockManager
 
 if TYPE_CHECKING:
     from collections.abc import Callable
