@@ -23,7 +23,7 @@ This is an **unofficial** integration that is in **no way affiliated, endorsed o
 [^3]: The list of available firmware updates is supplied from a [dedicated catalogue](https://github.com/exterrestris/ha-raritan-px-firmware) for this integration
 [^9]: The exact list of sensors depends on the features supported by your PDU. For information refer to Raritan's [PDU Product Selector](https://www.raritan.com/product-selector)
 
-### Supported Devices
+## Supported Devices
 
 Any PX-Series (`PX2`/`PX3`/`PX4`/`PXO`/`PXC`) PDU running [Xerus™](https://www.raritan.com/xerus) `4.3.0` or greater
 
@@ -33,7 +33,7 @@ Any PX-Series (`PX2`/`PX3`/`PX4`/`PXO`/`PXC`) PDU running [Xerus™](https://www
 > [!WARNING]
 > PX-Series PDUs running [Xerus™](https://www.raritan.com/xerus) `3.6.xx` and earlier will **not** work
 
-#### Non-Raritan [Xerus™](https://www.raritan.com/xerus) PDUs
+### Non-Raritan [Xerus™](https://www.raritan.com/xerus) PDUs
 
 PDUs made by other brands that also run [Xerus™](https://www.raritan.com/xerus) `4.3.0` or greater (such as [PRO3X](https://www.servertech.com/products/pro3x-pdu-solutions/) & [PRO4X](https://www.servertech.com/products/pro4x-pdu) PDUs from [Server Technology](https://www.servertech.com/)) _should_ work but are untested
 
@@ -59,19 +59,15 @@ This integration is included in the default catalogue for [Home Assistant Market
 ## Setup
 
 1. Go to [Settings > Devices & services](https://my.home-assistant.io/redirect/integrations/)
-
 2. Click [Add integration](https://my.home-assistant.io/redirect/config_flow_start/?domain=raritan_px)
-
 3. Search for and select "Raritan PX-Series PDU"
-
-4. Enter the connection details for your Raritan PDU:
-
+4. Enter the connection details for your Raritan PDU
 5. Your PDU will then be visible in Home Assistant!
 
-> [!TIP]
-> The integration will try to connect to your Raritan PDU over HTTPS by default unless configured otherwise. If your PDU has a self-signed certificate be sure to disable certificate verification under "Advanced connection options" ([screenshot](#configuration)).
->
-> Installing a verifiable certificate on your PDU is recommended, and can be done via the PDUs Web UI
+> [!NOTE]
+> The integration will try to connect to your Raritan PDU over HTTPS unless configured otherwise during setup. If your PDU is using the default certificate or another self-signed certificate, be sure to disable certificate verification under "Advanced connection options" ([screenshot](#configuration)) to allow the integration to connect[^10].
+
+[^10]: Verifiable certificates issued by a trusted public Certificate Authority such as [Let's Encrypt](https://letsencrypt.org/) can be installed on your PDU using the PDU Web UI
 
 
 ## FAQs
