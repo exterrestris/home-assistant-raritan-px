@@ -1,8 +1,9 @@
 """Raritan PDU API sensor models."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import chain
+from math import log10
 from typing import TYPE_CHECKING, Any, Self, get_args, get_type_hints
 
 from homeassistant.const import (
@@ -106,25 +107,6 @@ SENSOR_UNITS_MAPPING: dict[int, str | None] = {
     Sensor.UG_PER_CUBIC_METER: "μg/m³",
 }
 
-STATE_SENSOR_TYPE_VALUE_MAPPING: dict[type[RaritanSensorState], dict[int, RaritanSensorState]] = {
-    OnOff: {
-        Sensor.OnOffState.ON.val: OnOff.ON,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OnOffState.OFF.val: OnOff.OFF,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-    OpenClosed: {
-        Sensor.OpenClosedState.OPEN.val: OpenClosed.OPEN,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OpenClosedState.CLOSED.val: OpenClosed.CLOSED,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-    NormalAlarmed: {
-        Sensor.NormalAlarmedState.NORMAL.val: NormalAlarmed.NORMAL,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.NormalAlarmedState.ALARMED.val: NormalAlarmed.ALARMED,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-    OkFaulted: {
-        Sensor.OkFaultState.OK.val: OkFaulted.OK,  # pyright: ignore[reportAttributeAccessIssue]
-        Sensor.OkFaultState.FAULT.val: OkFaulted.FAULT,  # pyright: ignore[reportAttributeAccessIssue]
-    },
-}
-
 STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
     # On/Off State Sensors
     StateSensor.ON_OFF_SENSOR: OnOff,
@@ -142,9 +124,10 @@ STATE_SENSOR_TYPE_MAPPING: dict[int, type[RaritanSensorState]] = {
     StateSensor.SMOKE_DETECTOR: NormalAlarmed,
     StateSensor.OCCUPANCY: NormalAlarmed,
     StateSensor.TAMPER: NormalAlarmed,
-    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
-    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
-    StateSensor.CONTACT_CLOSURE: NormalAlarmed,
+    StateSensor.DOOR_LOCK_STATE: NormalAlarmed,
+    StateSensor.DOOR_HANDLE_LOCK: NormalAlarmed,
+    # Fault State State Sensors
+    StateSensor.FAULT_STATE: OkFaulted,
     # Normal/Alarmed State Sensors if Discrete
     StateSensor.MAGNETIC_FIELD_STRENGTH: NormalAlarmed,
     StateSensor.FAULT_STATE: NormalAlarmed,
@@ -164,7 +147,7 @@ class RaritanSensor(RaritanUpdatable):
     unit: str | None = None
     last_reset: datetime | None = None
     available: bool | None = None
-    precision: int | None = None
+    resolution: float | None = None
     last_sample: datetime | None = None
 
     @property
@@ -186,8 +169,8 @@ class RaritanStateSensor(RaritanSensor):
     state: RaritanSensorState | None = None
     last_reset: None = None
     unit: None = None
-    precision: None = None
-    type: Any = None
+    resolution: None = None
+    _type: type[RaritanSensorState] | None = None
 
     @property
     def value(self) -> RaritanSensorState | None:
@@ -208,15 +191,15 @@ class RaritanStateSensor(RaritanSensor):
 
     def update_state(self, state: StateSensor.State) -> None:
         """Update the current sensor state from API sensor state."""
-        if self.type:
-            self.state = STATE_SENSOR_TYPE_VALUE_MAPPING[self.type][state.value]
+        if self._type:
+            self.state = self._type(state.value)
             self.available = state.available
             self.last_sample = state.timestamp
 
     def update_type(self, spec: StateSensor.TypeSpec) -> None:
         """Update the current sensor type from API sensor type spec."""
         if spec.type in STATE_SENSOR_TYPE_MAPPING:
-            self.type = STATE_SENSOR_TYPE_MAPPING[spec.type]
+            self._type = STATE_SENSOR_TYPE_MAPPING[spec.type]
 
 
 @dataclass(kw_only=True)
@@ -230,15 +213,24 @@ class RaritanSwitch(RaritanStateSensor):
 class RaritanNumericSensor(RaritanSensor):
     """Representation of a device numeric sensor."""
 
-    MAX_PRECISION = 6
+    _DEFAULT_PRECISION = 3
+    _MAX_PRECISION = 6
+    _PRECISION_ADJUSTMENT = 2
 
     source: NumericSensor
     reading: float | None = None
+    _base_precision: int = field(default=_DEFAULT_PRECISION)
+    _reading_precision: int = field(default=_DEFAULT_PRECISION + _PRECISION_ADJUSTMENT)
 
     @property
     def value(self) -> Any:
         """Return the current reading of the sensor."""
         return self.reading
+
+    @property
+    def display_precision(self) -> int | None:
+        """Return the display precision of the sensor based on it's defined resolution."""
+        return round(abs(log10(self.resolution))) if self.resolution is not None else None
 
     def update_info(self) -> RaritanUpdatableRpcMethodsList:
         """Return the API methods to update the sensor information."""
@@ -254,14 +246,18 @@ class RaritanNumericSensor(RaritanSensor):
 
     def update_reading(self, reading: NumericSensor.Reading) -> None:
         """Update the current sensor reading from API sensor reading."""
-        self.reading = round(reading.value, self.MAX_PRECISION)
+        # The PDU web UI occasionally displays values with greater precision than defined by the sensor, so to preserve
+        # that additional fidelity for display we increase the reported sensor precision before rounding
+        self.reading = round(reading.value, self._reading_precision)
 
     def update_metadata(self, reading: NumericSensor.MetaData) -> None:
         """Update the current sensor metadata from API sensor metadata."""
         if reading.type.unit in SENSOR_UNITS_MAPPING:
             self.unit = SENSOR_UNITS_MAPPING[reading.type.unit]
 
-        self.precision = reading.decdigits
+        self._base_precision = min(reading.decdigits, self._MAX_PRECISION)
+        self._reading_precision = min(self._base_precision + self._PRECISION_ADJUSTMENT, self._MAX_PRECISION)
+        self.resolution = round(reading.resolution, self._base_precision)
 
 
 @dataclass(kw_only=True)

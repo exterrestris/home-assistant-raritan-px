@@ -2,8 +2,6 @@
 
 from dataclasses import dataclass, field
 
-from more_itertools import flatten
-
 from custom_components.raritan_px.api.model.device import (
     RaritanDevice,
     RaritanDeviceSensors,
@@ -18,6 +16,7 @@ from custom_components.raritan_px.api.model.sensor import (
     RaritanNumericSensor,
     RaritanSensor,
 )
+from custom_components.raritan_px.utils import flatten
 
 
 @dataclass(kw_only=True)
@@ -27,6 +26,7 @@ class RaritanPdu(RaritanDevice):
     host: str
     manufacturer: str
     model: str
+    platform: str
     serial_number: str
     firmware_version: str
     hardware_version: str

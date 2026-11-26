@@ -2,6 +2,7 @@
 
 import logging
 import re
+from asyncio import Lock
 from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.const import (
@@ -16,7 +17,7 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
     Platform,
 )
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
 )
@@ -26,15 +27,19 @@ from homeassistant.helpers import (
 from homeassistant.helpers import (
     entity_registry as er,
 )
+from homeassistant.helpers.storage import Store
 
 from custom_components.raritan_px.api.client import (
-    AuthenticationDetails,
     AuthenticationError,
     CertificateVerificationError,
-    ConnectionDetails,
     RaritanClient,
-    RaritanClientError,
 )
+from custom_components.raritan_px.api.client.errors import (
+    FirmwareUpgradeInProgressError,
+    RaritanClientError,
+    RequestTimeoutError,
+)
+from custom_components.raritan_px.api.client.struct import AuthenticationDetails, ConnectionDetails
 from custom_components.raritan_px.api.const import (
     DEFAULT_PASSWORD,
     DEFAULT_PORT,
@@ -42,32 +47,81 @@ from custom_components.raritan_px.api.const import (
 )
 from custom_components.raritan_px.const import (
     CONF_CONFIG_ENTRY_MINOR_VERSION,
-    DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_API_UPDATE_INTERVAL,
+    DEFAULT_FIRMWARE_UPDATE_INTERVAL,
+    DELAY_FIRST_FIRMWARE_CATALOGUE_UPDATE,
     DOMAIN,
     PLATFORMS,
 )
 from custom_components.raritan_px.coordinator import (
+    RaritanApiDataUpdateCoordinator,
+    RaritanFirmwareDataUpdateCoordinator,
     RaritanPduConfigEntry,
     RaritanPduData,
-    RaritanPduDataUpdateCoordinator,
 )
+from custom_components.raritan_px.firmware import FirmwareManager
+from custom_components.raritan_px.firmware.const import (
+    CATALOGUE_MANAGER,
+    CATALOGUE_STORE,
+    CATALOGUE_STORE_STORAGE_KEY,
+    CATALOGUE_STORE_STORAGE_VERSION,
+)
+from custom_components.raritan_px.services import async_setup_services
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.typing import ConfigType
 
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+    from custom_components.raritan_px.api.model.user import RaritanUser
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
 
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa: ARG001
+    """Set up the Raritan PX component."""
+    hass.data.setdefault(DOMAIN, {})
+
+    hass.data[CATALOGUE_STORE] = Store(hass, CATALOGUE_STORE_STORAGE_VERSION, CATALOGUE_STORE_STORAGE_KEY)
+    hass.data[CATALOGUE_MANAGER] = FirmwareManager(hass, delay_first_check=DELAY_FIRST_FIRMWARE_CATALOGUE_UPDATE)
+
+    async_setup_services(hass)
+
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -> bool:
     """Set up RaritanPdu from a config entry."""
     config = await get_connection_details_from_entry(entry)
+    lock = Lock()
 
     try:
         client = RaritanClient(hass, config)
+
+        await client.ping(raise_exception=True)
+    except RequestTimeoutError as ex:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="api_unreachable",
+            translation_placeholders={
+                "host": config.host,
+                "entry": entry.title,
+            },
+        ) from ex
+    except RaritanClientError as ex:
+        raise ConfigEntryError(
+            translation_domain=DOMAIN,
+            translation_key="device_error",
+            translation_placeholders={
+                "func": "connect",
+                "exc": str(ex),
+            },
+        ) from ex
+
+    try:
+        user: RaritanUser = await client.get_user()
         pdu: RaritanPdu = await client.get_pdu_info()
     except AuthenticationError as ex:
         raise ConfigEntryAuthFailed(
@@ -79,7 +133,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             },
         ) from ex
     except CertificateVerificationError as ex:
-        raise ConfigEntryNotReady(
+        raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="cert_error",
             translation_placeholders={
@@ -87,8 +141,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
                 "exc": str(ex),
             },
         ) from ex
-    except RaritanClientError as ex:
+    except FirmwareUpgradeInProgressError as ex:
         raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="firmware_update_in_progress",
+            translation_placeholders={
+                "state": ex.state,
+                "elapsed": str(ex.elapsed),
+                "remaining": str(ex.estimated - ex.elapsed),
+            },
+        ) from ex
+    except RequestTimeoutError as ex:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="api_timeout",
+            translation_placeholders={
+                "host": config.host,
+                "pdu": entry.title,
+            },
+        ) from ex
+    except RaritanClientError as ex:
+        raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="device_error",
             translation_placeholders={
@@ -96,6 +169,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
                 "exc": str(ex),
             },
         ) from ex
+
     updates: dict[str, Any] = {}
     if entry.data.get(CONF_ALIAS) != pdu.name:
         updates[CONF_ALIAS] = pdu.name
@@ -127,10 +201,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
             },
         )
 
-    coordinator = RaritanPduDataUpdateCoordinator(
-        hass, _LOGGER, entry, client, pdu, update_interval=DEFAULT_UPDATE_INTERVAL
-    )
-
     device_registry = dr.async_get(hass)
 
     hub = device_registry.async_get_or_create(
@@ -152,7 +222,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) -
 
     _LOGGER.debug("Registered device %s", pdu.device_id)
 
-    entry.runtime_data = RaritanPduData(client=client, coordinator=coordinator, hub=hub)
+    api_coordinator = RaritanApiDataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        config_entry=entry,
+        client=client,
+        client_lock=lock,
+        pdu=pdu,
+        user=user,
+        update_interval=DEFAULT_API_UPDATE_INTERVAL,
+    )
+    firmware_coordinator = RaritanFirmwareDataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        config_entry=entry,
+        client=client,
+        client_lock=lock,
+        manager=hass.data[CATALOGUE_MANAGER],
+        pdu=pdu,
+        user=user,
+        update_interval=DEFAULT_FIRMWARE_UPDATE_INTERVAL,
+    )
+
+    await api_coordinator.async_config_entry_first_refresh()
+    await firmware_coordinator.async_refresh()
+
+    entry.runtime_data = RaritanPduData(
+        client=client,
+        client_lock=lock,
+        user=user,
+        api_coordinator=api_coordinator,
+        firmware_coordinator=firmware_coordinator,
+        hub=hub,
+        pdu=pdu,
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
@@ -162,7 +265,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: RaritanPduConfigEntry) 
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    await entry.runtime_data.client.close_session()
+    async with entry.runtime_data.client_lock:
+        await entry.runtime_data.client.close_session()
 
     return unload_ok
 

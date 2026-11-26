@@ -8,6 +8,7 @@ from homeassistant.helpers.entity import EntityDescription
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.inlet import RaritanPduInlet
     from custom_components.raritan_px.api.model.device.pdu.ocp import RaritanPduOverCurrentProtector
@@ -16,10 +17,18 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, kw_only=True)
-class RaritanDeviceEntityDescription(EntityDescription):
+class RaritanEntityDescription(EntityDescription):
     """Base class for a Raritan PDU entity description."""
 
     convert_fn: Callable[[Any], EntityValue | None] | None = None
+    is_dynamic: bool = True
+
+
+@dataclass(frozen=True, kw_only=True)
+class RaritanDeviceEntityDescription(RaritanEntityDescription):
+    """Base class for a Raritan PDU entity description."""
+
+    is_available_for: Callable[[RaritanDevice], bool] = field(default=lambda _: True)
 
 
 @dataclass(frozen=True, kw_only=True)

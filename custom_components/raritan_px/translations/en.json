@@ -137,6 +137,9 @@
       "pdu_network_wlan_state": {
         "name": "Network - {if_name}"
       },
+      "pdu_platform": {
+        "name": "Platform"
+      },
       "pdu_power_rating": {
         "name": "Power Rating"
       },
@@ -145,7 +148,89 @@
       },
       "pdu_voltage_rating": {
         "name": "Voltage Rating"
+      },
+      "raritan_px_firmware_catalogue_version": {
+        "name": "Firmware Catalogue"
       }
+    }
+  },
+  "exceptions": {
+    "api_change_outlet_state_error": {
+      "message": "Unable to change outlet state for {outlet}: {exc}"
+    },
+    "api_error": {
+      "message": "Unable to {func} for {pdu}: {exc}"
+    },
+    "api_unreachable": {
+      "message": "{entry} ({host}) is unreachable"
+    },
+    "api_timeout": {
+      "message": "API request to {pdu} timed out: {exc}"
+    },
+    "api_update_error": {
+      "message": "Unable to update data for {pdu} from API: {exc}"
+    },
+    "catalogue_error": {
+      "message": "Unable to get firmware information from catalogue: {exc}"
+    },
+    "firmware_update_forbidden": {
+      "message": "Home Assistant doesn't have permission to install firmware updates on {pdu}"
+    },
+    "firmware_update_in_progress": {
+      "message": "API unavailable due to in-progress firmware update: {state} ({elapsed})"
+    },
+    "firmware_update_status_failed": {
+      "message": "Unable to get firmware update status: {exc}"
+    },
+    "firmware_update_failed": {
+      "message": "Firmware update failed: {exc}"
+    },
+    "firmware_model_not_supported": {
+      "message": "Firmware {version} does not exist or does not support {pdu} model {model}"
+    },
+    "firmware_is_latest": {
+      "message": "The latest firmware ({version}) is already installed on {pdu}"
+    },
+    "firmware_is_installed": {
+      "message": "Firmware {version} is already insalled on {pdu}"
+    },
+    "firmware_older_than_current": {
+      "message": "Firmware {version} is older than the curent firmware on {pdu} ({pdu_version})"
+    },
+    "firmware_cannot_upgrade": {
+      "message": "Firmware {version} does not support upgrading from the curent firmware on {pdu} ({pdu_version})"
+    }
+  },
+  "services": {
+    "get_firmware_catalogue": {
+      "name": "Get the Xerus firmware catalogue",
+      "description": "Returns the full firmware catalogue used to determine if firmware updates are available for Raritan PDUs"
+    },
+    "get_available_firmware": {
+      "name": "Get available firmware for all Xerus devices",
+      "description": "Returns the firmware versions available to install (if any) for each registered Raritan PDU",
+      "fields": {
+        "verbose": {
+          "description": "If enabled, then output all information about the firmware available in the catalogue, otherwise just output the version number.",
+          "name": "Include full firmware information"
+        },
+        "current": {
+          "description": "If enabled, then include the firmware version currently installed in the output.",
+          "name": "Include currently installed firmware"
+        }
+      }
+    },
+    "update_firmware_catalogue": {
+      "name": "Update Xerus firmware catalogue",
+      "description": "Updates the firmware catalogue used to determine if firmware updates are available for Raritan PDUs"
+    },
+    "download_latest_firmware": {
+      "name": "Download latest Xerus firmware",
+      "description": "If updated suitable firmware is available for any configured Raritan PDU, downloads it for later installation"
+    },
+    "clear_downloaded_firmware": {
+      "name": "Clear downloaded Xerus firmware",
+      "description": "Remove all downloaded Xerus firmware files"
     }
   }
 }

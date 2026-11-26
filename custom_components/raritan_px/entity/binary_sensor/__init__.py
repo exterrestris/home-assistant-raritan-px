@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from homeassistant.helpers.device_registry import DeviceEntry
 
     from custom_components.raritan_px.api.model.device import RaritanDevice
-    from custom_components.raritan_px.coordinator import RaritanPduDataUpdateCoordinator
+    from custom_components.raritan_px.coordinator import RaritanApiDataUpdateCoordinator
     from custom_components.raritan_px.entity.binary_sensor.descriptions import (
         RaritanDeviceBinarySensorEntityDescription,
         RaritanPduBinarySensorEntityDescription,
@@ -40,13 +40,14 @@ class RaritanDeviceBinarySensorEntity(CoordinatedRaritanDeviceEntity, BinarySens
 
     def __init__(
         self,
+        coordinator: RaritanApiDataUpdateCoordinator,
+        *,
         device: RaritanDevice,
         hub: DeviceEntry,
-        coordinator: RaritanPduDataUpdateCoordinator,
         description: RaritanDeviceEntityDescription,
     ) -> None:
         """Initialise the entity."""
-        super().__init__(device, hub, coordinator, description)
+        super().__init__(coordinator, device=device, hub=hub, description=description)
 
     def _get_value(self) -> EntityValue:
         raise NotImplementedError
@@ -58,6 +59,9 @@ class RaritanDeviceBinarySensorEntity(CoordinatedRaritanDeviceEntity, BinarySens
     @callback
     def _async_update_attrs(self) -> bool:
         """Update the entity's attributes."""
+        if self.entity_description.is_dynamic and self.coordinator.firmware_update_in_progress:
+            return False
+
         value = self._get_value()
 
         if value is not None:

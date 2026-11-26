@@ -2,8 +2,10 @@
 
 from typing import Final
 
-API_TIMEOUT: Final = 10
+PING_TIMEOUT: Final[int] = 5
+API_TIMEOUT: Final[int] = 10
+FIRMWARE_UPLOAD_TIMEOUT: Final[int] = 60
 
-DEFAULT_PORT: Final = 443
-DEFAULT_USERNAME: Final = "admin"
-DEFAULT_PASSWORD: Final = "raritan"  # noqa: S105  # This is the default factory password for Raritan PDUs
+DEFAULT_PORT: Final[int] = 443
+DEFAULT_USERNAME: Final[str] = "admin"
+DEFAULT_PASSWORD: Final[str] = "raritan"  # noqa: S105  # This is the default factory password for Raritan PDUs

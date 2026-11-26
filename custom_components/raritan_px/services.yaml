@@ -1,0 +1,19 @@
+update_firmware_catalogue:
+
+get_firmware_catalogue:
+
+get_available_firmware:
+  fields:
+    verbose:
+      selector:
+        boolean:
+      required: True
+    current:
+      selector:
+        boolean:
+      required: True
+      default: True
+
+download_latest_firmware:
+
+clear_downloaded_firmware:

@@ -2,18 +2,44 @@
 
 from __future__ import annotations
 
-from asyncio import Lock
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from datetime import timedelta
+from logging import Logger
+from typing import TYPE_CHECKING, override
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from custom_components.raritan_px.const import DEFAULT_UPDATE_INTERVAL, DOMAIN
+from custom_components.raritan_px.api.client import RaritanClient, RaritanClientError
+from custom_components.raritan_px.api.client.errors import RequestTimeoutError
+from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
+from custom_components.raritan_px.api.model.user import Privilege, RaritanUser
+from custom_components.raritan_px.const import (
+    DOMAIN,
+    FIRMWARE_DOWNLOAD_PROGRESS_WEIGHT,
+    FIRMWARE_REFRESH_PROGRESS_WEIGHT,
+    FIRMWARE_UPDATE_PROGRESS_WEIGHT,
+    FIRMWARE_UPLOAD_PROGRESS_WEIGHT,
+    IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL,
+    POST_FIRMWARE_DOWNLOAD_DELAY,
+    POST_FIRMWARE_REFRESH_DELAY,
+    POST_FIRMWARE_START_DELAY,
+    POST_FIRMWARE_UPDATE_DELAY,
+    POST_FIRMWARE_UPDATE_INTERVAL,
+    POST_FIRMWARE_UPLOAD_DELAY,
+)
+from custom_components.raritan_px.firmware.const import CATALOGUE_UPDATE_CHECK_AFTER
+from custom_components.raritan_px.firmware.model import Firmware
+from custom_components.raritan_px.utils.decorators import SetProperty, Sleep
 
 if TYPE_CHECKING:
+    from asyncio import Lock
     from datetime import timedelta
     from logging import Logger
+    from pathlib import Path
 
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.device_registry import DeviceEntry
@@ -23,6 +49,8 @@ if TYPE_CHECKING:
     from custom_components.raritan_px.api.model.device.pdu import RaritanPdu
     from custom_components.raritan_px.api.model.device.pdu.outlet import RaritanPduOutlet
     from custom_components.raritan_px.api.model.device.pdu.outlet.state import OutletPowerState
+    from custom_components.raritan_px.firmware import FirmwareManager
+    from custom_components.raritan_px.firmware.model import FirmwareCatalogue
 
 
 @dataclass(slots=True)
@@ -30,41 +58,121 @@ class RaritanPduData:
     """Data for the RaritanPdu integration."""
 
     client: RaritanClient
-    coordinator: RaritanPduDataUpdateCoordinator
+    user: RaritanUser
+    client_lock: Lock
+    api_coordinator: RaritanApiDataUpdateCoordinator
+    firmware_coordinator: RaritanFirmwareDataUpdateCoordinator
+    pdu: RaritanPdu
     hub: DeviceEntry
 
 
 type RaritanPduConfigEntry = ConfigEntry[RaritanPduData]
 
 
-class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
-    """DataUpdateCoordinator to gather data for a specific RaritanPdu device."""
+class RaritanDataUpdateCoordinator(DataUpdateCoordinator[None]):
+    """Base DataUpdateCoordinator."""
 
+    _client: RaritanClient
+    _client_lock: Lock
+    _default_interval: timedelta
     config_entry: RaritanPduConfigEntry
-    client_lock: Lock
+    pdu: RaritanPdu
+    user: RaritanUser
+    firmware_update_in_progress: bool = False
 
-    def __init__(  # noqa: PLR0913
+    @override
+    def __init__(
         self,
         hass: HomeAssistant,
         logger: Logger,
+        *,
+        name: str,
         config_entry: RaritanPduConfigEntry,
         client: RaritanClient,
+        client_lock: Lock,
         pdu: RaritanPdu,
-        *,
-        update_interval: timedelta = DEFAULT_UPDATE_INTERVAL,
+        user: RaritanUser,
+        update_interval: timedelta,
     ) -> None:
         """Initialize the RaritanPdu coordinator."""
         super().__init__(
             hass,
             logger,
             config_entry=config_entry,
-            name="RaritanPdu",
+            name=name,
             update_interval=update_interval,
         )
         self.pdu = pdu
-        self.client = client
-        self.config_entry = config_entry
-        self.client_lock = Lock()
+        self.user = user
+        self._client = client
+        self._client_lock = client_lock
+        self._default_interval = update_interval
+
+    def _set_update_interval(self, update_interval: timedelta) -> None:
+        if self.update_interval == update_interval:
+            return
+
+        self.update_interval = update_interval
+        self._schedule_refresh()
+
+    def _reset_update_interval(self) -> None:
+        self._set_update_interval(self._default_interval)
+
+    async def _async_update_in_progress(self) -> bool:
+        """Fetch 'firmware upate in progress' from api."""
+        # This call can be made safely without acquiring the client lock
+        try:
+            return await self._client.is_firmware_update_in_progress()
+        except RequestTimeoutError as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_timeout",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                    "exc": str(ex),
+                },
+            ) from ex
+        except Exception as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_update_error",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                    "exc": str(ex),
+                },
+            ) from ex
+
+
+class RaritanApiDataUpdateCoordinator(RaritanDataUpdateCoordinator):
+    """DataUpdateCoordinator to gather data from the JSON-RPC API for a specific Raritan PDU."""
+
+    _devices: dict[str, RaritanDevice]
+
+    @override
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        logger: Logger,
+        *,
+        config_entry: RaritanPduConfigEntry,
+        client: RaritanClient,
+        client_lock: Lock,
+        pdu: RaritanPdu,
+        user: RaritanUser,
+        update_interval: timedelta,
+    ) -> None:
+        """Initialize the JSON-RPC API coordinator."""
+        super().__init__(
+            hass,
+            logger,
+            config_entry=config_entry,
+            client=client,
+            client_lock=client_lock,
+            pdu=pdu,
+            user=user,
+            name=f"{pdu.device_name} API",
+            update_interval=update_interval,
+        )
         self._devices = self._cache_devices_by_id(pdu)
 
     def _cache_devices_by_id(self, pdu: RaritanPdu) -> dict[str, RaritanDevice]:
@@ -77,45 +185,297 @@ class RaritanPduDataUpdateCoordinator(DataUpdateCoordinator[None]):
 
     async def _async_update_data(self) -> RaritanPdu:
         """Fetch all device and sensor data from api."""
-        async with self.client_lock:
-            try:
-                device_ids = {device_id for device_id, _ in self.async_contexts()}
+        # This call can be made safely without acquiring the client lock
+        self.firmware_update_in_progress = await self._async_update_in_progress()
 
-                if device_ids:
-                    await self.client.update_sensor_readings_for_devices(
-                        self.pdu, [self._devices[device_id] for device_id in device_ids]
-                    )
-                else:
-                    await self.client.update_sensor_readings_for_pdu(self.pdu)
-            except Exception as ex:
-                raise UpdateFailed(
-                    translation_domain=DOMAIN,
-                    translation_key="device_error",
-                    translation_placeholders={
-                        "func": "update_outlets",
-                        "exc": str(ex),
-                    },
-                ) from ex
+        if self.firmware_update_in_progress:
+            return self.pdu
+
+        try:
+            device_ids = {device_id for device_id, _ in self.async_contexts()}
+
+            if device_ids:
+                await self._client.update_sensor_readings_for_devices(
+                    self.pdu, [self._devices[device_id] for device_id in device_ids]
+                )
             else:
-                return self.pdu
+                await self._client.update_sensor_readings_for_pdu(self.pdu)
+        except Exception as ex:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_update_error",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                    "exc": str(ex),
+                },
+            ) from ex
+        else:
+            return self.pdu
 
     async def set_outlet_power_state(self, outlet: RaritanPduOutlet, state: OutletPowerState) -> bool:
         """Set the state of an outlet."""
-        async with self.client_lock:
+        async with self._client_lock:
             try:
-                updated = await self.client.set_outlet_power_state(
-                    outlet.pdu.id,
-                    outlet.id,
-                    state,
-                )
+                updated = await self._client.set_outlet_power_state(outlet, state)
             except Exception as ex:
                 raise UpdateFailed(
                     translation_domain=DOMAIN,
-                    translation_key="device_error",
+                    translation_key="api_change_outlet_state_error",
                     translation_placeholders={
-                        "func": "set_outlet_state",
+                        "outlet": outlet.device_name,
                         "exc": str(ex),
                     },
                 ) from ex
             else:
                 return updated == state
+
+
+class RaritanFirmwareDataUpdateCoordinator(RaritanDataUpdateCoordinator):
+    """DataUpdateCoordinator to gather firmware update data for a specific Raritan PDU."""
+
+    _manager: FirmwareManager
+    catalogue: FirmwareCatalogue | None = None
+    latest_firmware: Firmware | None = None
+    catalogue_update_check: bool | timedelta = False  # Don't check for a catalogue update on first refresh
+    _firmware_update_started: bool = False
+    _firmware_download_progress: float | None
+    _firmware_upload_progress: float | None
+    _firmware_update_progress: float | None
+    _firmware_refresh_progress: float | None
+    firmware_update_percentage: float | None
+
+    @override
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        logger: Logger,
+        *,
+        config_entry: RaritanPduConfigEntry,
+        client: RaritanClient,
+        client_lock: Lock,
+        manager: FirmwareManager,
+        pdu: RaritanPdu,
+        user: RaritanUser,
+        update_interval: timedelta,
+    ) -> None:
+        """Initialize the firmware update coordinator."""
+        super().__init__(
+            hass,
+            logger,
+            config_entry=config_entry,
+            client=client,
+            client_lock=client_lock,
+            pdu=pdu,
+            user=user,
+            name="firmware management",
+            update_interval=update_interval,
+        )
+        self._manager = manager
+        self._bulk_set_progress()
+
+    def _bulk_set_progress(self, value: float | None = None) -> None:
+        self.firmware_update_percentage = value
+        self._firmware_download_progress = value
+        self._firmware_upload_progress = value
+        self._firmware_update_progress = value
+        self._firmware_refresh_progress = value
+
+    async def _async_update_data(self) -> None:
+        """Fetch firmware data."""
+        self.firmware_update_in_progress = (
+            self.firmware_update_percentage is not None and self.update_interval == IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL
+        )
+        self._firmware_update_started = await self._async_update_in_progress()
+
+        if self.firmware_update_in_progress:
+            try:
+                if self._firmware_update_started:
+                    status = await self._client.get_firmware_update_status()
+
+                    self._firmware_update_progress = (
+                        min(100, status.elapsed / status.estimated * 100) if status.estimated else None
+                    )
+                else:
+                    status = await self._client.get_firmware_upload_status()
+
+                    if status is not None and not isinstance(status, str):
+                        self._firmware_upload_progress = float(status) if status is not True else 100
+                    else:
+                        self._firmware_upload_progress = 0
+
+                tmp = (
+                    (self._firmware_download_progress or 0) * FIRMWARE_DOWNLOAD_PROGRESS_WEIGHT
+                    + (self._firmware_upload_progress or 0) * FIRMWARE_UPLOAD_PROGRESS_WEIGHT
+                    + (self._firmware_update_progress or 0) * FIRMWARE_UPDATE_PROGRESS_WEIGHT
+                    + (self._firmware_refresh_progress or 0) * FIRMWARE_REFRESH_PROGRESS_WEIGHT
+                )
+                self.firmware_update_percentage = tmp
+            except Exception as ex:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN,
+                    translation_key="firmware_update_status_failed",
+                    translation_placeholders={
+                        "exc": str(ex),
+                    },
+                ) from ex
+        else:
+            self._bulk_set_progress()
+            self._reset_update_interval()
+
+            try:
+                self.catalogue = await self._manager.get_catalogue(update_check=self.catalogue_update_check)
+
+                self.latest_firmware = self.catalogue.get_latest_firmware(
+                    self.pdu.model, current_firmware=self.pdu.firmware_version
+                )
+
+                # Ensure subsequent data updates check for a catalogue update
+                self.catalogue_update_check = CATALOGUE_UPDATE_CHECK_AFTER
+            except Exception as ex:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN,
+                    translation_key="catalogue_error",
+                    translation_placeholders={
+                        "exc": str(ex),
+                    },
+                ) from ex
+
+    def _update_download_progess(self, downloaded: int, total: int) -> None:
+        self._firmware_download_progress = min(100, downloaded / total * 100)
+
+    async def update_firmware(self, version: str | None = None) -> None:
+        """Update firmware of the PDU defined by the config entry for this coordinator."""
+        if not self.config_entry.runtime_data.user.can(Privilege.FIRMWARE_UPDATE):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="firmware_update_forbidden",
+                translation_placeholders={
+                    "pdu": self.pdu.device_name,
+                },
+            )
+
+        try:
+            firmware = await self._identify_firmware(version)
+            await self._clear_uploaded_firmware(raise_on_error=True)
+
+            self._bulk_set_progress(0)
+            self._set_update_interval(IN_PROGRESS_FIRMWARE_UPDATE_INTERVAL)
+
+            fw_bin = await self._download_firmware(firmware)
+            await self._upload_firmware(fw_bin)
+            await self._start_update()
+            await self._wait_for_update()
+            await self._refresh_pdu_firmware_version()
+        except Exception as err:
+            if (self._firmware_upload_progress or 0) > 0:
+                await self._clear_uploaded_firmware()
+
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="firmware_update_failed",
+                translation_placeholders={"exc": str(err) or err.__class__.__name__},
+            ) from err
+        finally:
+            await self._clear_uploaded_firmware()
+            self._bulk_set_progress()
+            self._set_update_interval(POST_FIRMWARE_UPDATE_INTERVAL)
+            await self.async_request_refresh()
+
+    async def _identify_firmware(self, fw_version: str | None) -> Firmware:
+        if not self.catalogue:
+            self.catalogue = await self._manager.get_catalogue()
+
+        pdu_version = Firmware.normalise(self.pdu.firmware_version)
+
+        if fw_version:
+            firmware = self.catalogue.get_firmware(fw_version, self.pdu.model)
+
+            translation_key = "firmware_model_not_supported"
+            translation_placeholders = {
+                "pdu": self.pdu.device_name,
+                "model": self.pdu.model,
+                "version": fw_version,
+            }
+        else:
+            if not self.latest_firmware:
+                self.latest_firmware = self.catalogue.get_latest_firmware(self.pdu.model, current_firmware=pdu_version)
+
+            firmware = self.latest_firmware
+
+            translation_key = "firmware_is_latest"
+            translation_placeholders = {
+                "pdu": self.pdu.device_name,
+                "version": str(pdu_version),
+            }
+
+        if firmware:
+            if firmware.is_newer_than(pdu_version):
+                if firmware.can_upgrade_from(pdu_version):
+                    return firmware
+
+                translation_key = "firmware_cannot_upgrade"
+                translation_placeholders = {
+                    "version": str(firmware.version),
+                    "pdu": self.pdu.device_name,
+                    "pdu_version": str(pdu_version),
+                }
+            elif firmware.version == pdu_version:
+                translation_key = "firmware_is_installed"
+                translation_placeholders = {
+                    "pdu": self.pdu.device_name,
+                    "version": str(pdu_version),
+                }
+            else:
+                translation_key = "firmware_older_than_current"
+                translation_placeholders = {
+                    "version": str(firmware.version),
+                    "pdu": self.pdu.device_name,
+                    "pdu_version": str(pdu_version),
+                }
+
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key=translation_key,
+            translation_placeholders=translation_placeholders,
+        )
+
+    async def _clear_uploaded_firmware(self, *, raise_on_error: bool = False) -> None:
+        try:
+            await self._client.clear_uploaded_firmware()
+        except RaritanClientError:
+            if raise_on_error:
+                raise
+
+            self.logger.warning("Unable to cancel firmare update", exc_info=True)
+
+    @Sleep(after=POST_FIRMWARE_DOWNLOAD_DELAY)
+    @SetProperty("_firmware_download_progress", before=0, after=100)
+    async def _download_firmware(self, firmware: Firmware) -> Path:
+        def _track_progess(downloaded: int, total: int) -> None:
+            self._firmware_download_progress = min(100, downloaded / total * 100)
+
+        (fw_bin, _fw_bin_size) = await self._manager.download_firmware(firmware, callback=_track_progess)
+
+        return fw_bin
+
+    @Sleep(after=POST_FIRMWARE_UPLOAD_DELAY)
+    @SetProperty("_firmware_upload_progress", before=0, after=100)
+    async def _upload_firmware(self, fw_bin: Path) -> None:
+        await self._client.upload_firmware(fw_bin)
+
+    @Sleep(after=POST_FIRMWARE_START_DELAY)
+    @SetProperty("_firmware_update_progress", before=0)
+    async def _start_update(self) -> None:
+        await self._client.start_firmware_update()
+
+    @Sleep(after=POST_FIRMWARE_UPDATE_DELAY)
+    @SetProperty("_firmware_update_progress", after=100)
+    async def _wait_for_update(self) -> None:
+        await self._client.wait_for_firmware_update()
+
+    @Sleep(after=POST_FIRMWARE_REFRESH_DELAY)
+    @SetProperty("_firmware_refresh_progress", before=50, after=100)
+    async def _refresh_pdu_firmware_version(self) -> None:
+        await self._client.refresh_pdu_firmware_version(self.pdu)
+        device_registry = dr.async_get(self.hass)
+        device_registry.async_update_device(self.config_entry.runtime_data.hub.id, sw_version=self.pdu.firmware_version)
