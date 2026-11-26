@@ -11,7 +11,8 @@ from functools import wraps
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, cast, overload, override
 
-from custom_components.raritan_px.utils import CorountineWrapper, seconds
+from custom_components.raritan_px.utils import seconds
+from custom_components.raritan_px.utils.async_utils import CorountineWrapper
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine

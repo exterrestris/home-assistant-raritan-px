@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from raritan import rpc
 from raritan.rpc.session import SessionManager
 
-from custom_components.raritan_px.utils import LockManager, Manager
+from custom_components.raritan_px.utils.managers import LockManager, Manager
 
 if TYPE_CHECKING:
     from asyncio import Lock

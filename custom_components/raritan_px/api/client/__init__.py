@@ -9,7 +9,6 @@ from datetime import UTC, datetime, timedelta
 from ssl import SSLCertVerificationError
 from typing import TYPE_CHECKING, Any, Final
 
-from more_itertools import flatten, grouper, interleave
 from raritan import rpc
 from raritan.rpc import Structure, Time, perform_bulk
 from raritan.rpc.cascading import CascadeManager
@@ -87,8 +86,9 @@ from custom_components.raritan_px.api.model.network import (
     NetworkInterfaceType,
 )
 from custom_components.raritan_px.api.model.user import Privilege, RaritanUser
-from custom_components.raritan_px.utils import LockManager
+from custom_components.raritan_px.utils import flatten, grouper, interleave
 from custom_components.raritan_px.utils.decorators import LogExecutionTime
+from custom_components.raritan_px.utils.managers import LockManager
 
 if TYPE_CHECKING:
     from collections.abc import Callable
