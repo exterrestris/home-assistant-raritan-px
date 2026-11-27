@@ -347,7 +347,3 @@ class CoordinatedRaritanPduOverCurrentProtectorEntity(CoordinatedRaritanEnergyDe
 
     _device: RaritanPduOverCurrentProtector
     entity_description: RaritanPduOverCurrentProtectorEntityDescription
-
-
-class CoordinatedRaritanIntegrationEntity(CoordinatedRaritanAttributeBackedEntity, ABC):
-    """Common base class for all coordinated raritan pdu overcurrent protector based entities."""

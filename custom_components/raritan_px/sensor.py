@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from custom_components.raritan_px.entity.sensor import (
-    RaritanIntegrationCoordinatorSensorEntity,
     RaritanPduAttributeBackedSensorEntity,
     RaritanPduInletAttributeBackedSensorEntity,
     RaritanPduInletSensorBackedSensorEntity,
@@ -17,7 +16,6 @@ from custom_components.raritan_px.entity.sensor import (
 )
 from custom_components.raritan_px.entity.sensor.descriptions import (
     INLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
-    INTEGRATION_COORDINATOR_ENTITY_DESCPRIPTIONS,
     OUTLET_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
     PDU_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS,
@@ -133,9 +131,4 @@ async def async_setup_entry(
         for (_, ocp) in data.pdu.ocps.items()
         for desc in OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS
         if desc.is_available_for(ocp)
-    )
-
-    async_add_entities(
-        RaritanIntegrationCoordinatorSensorEntity(data.firmware_coordinator, description=desc, device=None, hub=None)
-        for desc in INTEGRATION_COORDINATOR_ENTITY_DESCPRIPTIONS
     )
