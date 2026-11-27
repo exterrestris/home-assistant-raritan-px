@@ -4,16 +4,13 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import callback
-from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.raritan_px.api.model.sensor import RaritanNumericSensor
-from custom_components.raritan_px.const import DOMAIN
 from custom_components.raritan_px.entity import (
     CoordinatedRaritanDeviceAttributeBackedEntity,
     CoordinatedRaritanDeviceEntity,
     CoordinatedRaritanDeviceSensorBackedEntity,
     CoordinatedRaritanEntity,
-    CoordinatedRaritanIntegrationEntity,
     CoordinatedRaritanPduEntity,
     CoordinatedRaritanPduInletEntity,
     CoordinatedRaritanPduOutletEntity,
@@ -22,7 +19,7 @@ from custom_components.raritan_px.entity import (
 )
 
 if TYPE_CHECKING:
-    from homeassistant.helpers.device_registry import DeviceEntry, DeviceInfo
+    from homeassistant.helpers.device_registry import DeviceEntry
 
     from custom_components.raritan_px.api.model.device import RaritanDevice
     from custom_components.raritan_px.api.model.sensor import RaritanSensor
@@ -196,20 +193,3 @@ class RaritanPduOverCurrentProtectorSensorBackedSensorEntity(
     """Representation of a Raritan PDU Outlet sensor."""
 
     entity_description: RaritanPduOverCurrentProtectorSensorEntityDescription
-
-
-class RaritanIntegrationCoordinatorSensorEntity(CoordinatedRaritanIntegrationEntity, RaritanSensorEntity):
-    """Representation of a Raritan Integration sensor."""
-
-    def _get_value(self) -> EntityValue:
-        return self._get_attr_value(self.coordinator)
-
-    def _get_device_info(self) -> DeviceInfo | None:
-        return None
-
-    def _get_unique_id(self) -> str:
-        return self._build_unique_id(DOMAIN, self.entity_description.key)
-
-    @classmethod
-    def _entity_source(cls) -> str:
-        return "integration"

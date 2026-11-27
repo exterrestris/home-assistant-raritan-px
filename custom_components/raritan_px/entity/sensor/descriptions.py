@@ -571,15 +571,6 @@ OVERCURRENT_PROTECTOR_ATTRIBUTE_BACKED_ENTITY_DESCRIPTIONS: tuple[
     ),
 )
 
-INTEGRATION_COORDINATOR_ENTITY_DESCPRIPTIONS: tuple[RaritanDeviceSensorEntityDescription, ...] = (
-    RaritanDeviceSensorEntityDescription(
-        key="catalogue.version",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        translation_key="raritan_px_firmware_catalogue_version",
-        is_dynamic=False,
-    ),
-)
-
 
 def get_entity_description[SensorDesc: "RaritanDeviceSensorEntityDescription"](
     desc_type: type[SensorDesc], sensor_name: str
