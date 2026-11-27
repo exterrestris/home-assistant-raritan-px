@@ -452,3 +452,18 @@ async def migrate_config_entry_to_version_1_4(hass: HomeAssistant, config_entry:
                 pass
 
     _LOGGER.info("Re-migrated unique IDs of %s of %s entities", migrated, len(entities))
+
+
+async def migrate_config_entry_to_version_1_5(hass: HomeAssistant, config_entry: RaritanPduConfigEntry) -> None:
+    """Migrate config entry data to 1.4."""
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(entity_registry, config_entry.entry_id)
+    removed = 0
+
+    for entity in entities:
+        if entity.unique_id == "raritan_px::integration::catalogue_version":
+            entity_registry.async_remove(entity.entity_id)
+
+            removed += 1
+
+    _LOGGER.info("Removed %s unsupported entities", removed)
